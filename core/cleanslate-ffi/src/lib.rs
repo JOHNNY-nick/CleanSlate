@@ -12,9 +12,11 @@
 //! this file with csbindgen.
 
 use std::any::Any;
+use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
+use cleanslate_core::model::{ScanOptions, ScanProgress};
 use cleanslate_core::{CoreError, CoreResult, Engine, EngineConfig};
 use serde::Serialize;
 use serde_json::json;
@@ -205,6 +207,85 @@ pub unsafe extern "C" fn cs_list_apps(engine: *const EngineHandle) -> *mut ByteB
     })
 }
 
+/// Progress callback: receives `ctx` and a UTF-8 JSON `ScanProgress`
+/// (`ptr`, `len`) valid only during the call. It may be called from a
+/// worker thread, never after the scan function has returned.
+pub type ProgressCallback =
+    Option<unsafe extern "C" fn(ctx: *mut c_void, json: *const u8, len: i32)>;
+
+/// Caller context handed back to the callback; only passed through.
+struct CallbackContext(*mut c_void);
+
+// SAFETY: the pointer is never dereferenced by Rust, only handed back to the
+// caller's callback, which the caller made thread-safe (documented above).
+unsafe impl Send for CallbackContext {}
+// SAFETY: same reason: Rust only copies the pointer value.
+unsafe impl Sync for CallbackContext {}
+
+impl CallbackContext {
+    /// Returns the pointer. A method (not `.0`) makes closures capture the
+    /// whole `Sync` wrapper rather than the raw field (Rust 2021 captures).
+    fn get(&self) -> *mut c_void {
+        self.0
+    }
+}
+
+/// Scans for orphan leftovers, read-only (EF-05 to EF-11): `data` is a
+/// `ScanReport`. `options` is a `ScanOptions` JSON (`len == 0`: defaults).
+/// Returns `BUSY` if another long operation runs on this engine.
+///
+/// # Safety
+/// `engine` must be a live handle; `options` must point to `len` readable
+/// bytes (or be null with `len == 0`); `callback` may be null.
+#[no_mangle]
+pub unsafe extern "C" fn cs_scan_orphans(
+    engine: *const EngineHandle,
+    options: *const u8,
+    len: i32,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let bytes = unsafe { input_bytes(options, len) }?;
+        let options: ScanOptions = if bytes.is_empty() {
+            ScanOptions::default()
+        } else {
+            serde_json::from_slice(bytes)?
+        };
+        let progress = |event: &ScanProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.scan_orphans(&options, &progress)
+    })
+}
+
+/// Asks the running long operation of `engine` to stop (EF-11). Safe to
+/// call from any thread while the operation runs. Null is ignored.
+///
+/// # Safety
+/// `engine` must be null or a live handle from [`cs_engine_new`].
+#[no_mangle]
+pub unsafe extern "C" fn cs_cancel(engine: *const EngineHandle) {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        // SAFETY: forwarded from this function's contract.
+        if let Ok(engine) = unsafe { engine_ref(engine) } {
+            engine.cancel();
+        }
+    }));
+}
+
 /// Destroys an engine created by [`cs_engine_new`]. Null is ignored.
 ///
 /// # Safety
@@ -350,6 +431,77 @@ mod tests {
         let value = take(unsafe { cs_list_apps(ptr::null()) });
         assert_eq!(value["ok"], false);
         assert_eq!(value["error"]["code"], "INVALID_INPUT");
+    }
+
+    /// Engine on an in-memory disk and an empty, never-written test registry.
+    fn fake_engine() -> *mut EngineHandle {
+        use cleanslate_core::fs::FakeFileSystem;
+        use cleanslate_core::registry::WinRegistry;
+        let mut fs = FakeFileSystem::new();
+        fs.add_file(
+            r"C:\Users\Ana\AppData\Roaming\OldTool\settings.ini",
+            10,
+            None,
+        );
+        let registry =
+            WinRegistry::sandboxed(r"Software\CleanSlateTest\ffi-tests-never-created").unwrap();
+        let engine = Engine::new(EngineConfig::default(), Box::new(fs), Box::new(registry));
+        Box::into_raw(Box::new(EngineHandle { engine }))
+    }
+
+    unsafe extern "C" fn count_events(ctx: *mut c_void, json: *const u8, len: i32) {
+        // SAFETY: test context is an AtomicUsize; json/len come from Rust.
+        let counter = unsafe { &*(ctx as *const std::sync::atomic::AtomicUsize) };
+        let bytes = unsafe { std::slice::from_raw_parts(json, len as usize) };
+        let event: Value = serde_json::from_slice(bytes).unwrap();
+        assert!(event["phase"].is_string());
+        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[test]
+    fn scan_orphans_with_progress() {
+        let engine = fake_engine();
+        let counter = std::sync::atomic::AtomicUsize::new(0);
+        let options = br#"{"dry_run":true}"#;
+        let value = take(unsafe {
+            cs_scan_orphans(
+                engine,
+                options.as_ptr(),
+                options.len() as i32,
+                Some(count_events),
+                &counter as *const _ as *mut c_void,
+            )
+        });
+        unsafe { cs_engine_free(engine) };
+        assert_eq!(value["ok"], true, "{value}");
+        let groups = value["data"]["groups"].as_array().unwrap();
+        assert_eq!(groups[0]["label"], "OldTool");
+        assert_eq!(value["data"]["cancelled"], false);
+        assert!(counter.load(std::sync::atomic::Ordering::Relaxed) >= 2);
+    }
+
+    #[test]
+    fn scan_orphans_rejects_bad_input() {
+        let engine = fake_engine();
+        let bad = b"{oops";
+        let value = take(unsafe {
+            cs_scan_orphans(
+                engine,
+                bad.as_ptr(),
+                bad.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
+        let value =
+            take(unsafe { cs_scan_orphans(ptr::null(), ptr::null(), 0, None, ptr::null_mut()) });
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
+        unsafe {
+            cs_cancel(engine);
+            cs_cancel(ptr::null());
+            cs_engine_free(engine);
+        }
     }
 
     #[test]

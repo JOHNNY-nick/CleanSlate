@@ -50,6 +50,28 @@ namespace CleanSlate.Interop
         internal static extern ByteBuffer* cs_list_apps(EngineHandle* engine);
 
         /// <summary>
+        ///  Scans for orphan leftovers, read-only (EF-05 to EF-11): `data` is a
+        ///  `ScanReport`. `options` is a `ScanOptions` JSON (`len == 0`: defaults).
+        ///  Returns `BUSY` if another long operation runs on this engine.
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `options` must point to `len` readable
+        ///  bytes (or be null with `len == 0`); `callback` may be null.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_scan_orphans", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_scan_orphans(EngineHandle* engine, byte* options, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
+
+        /// <summary>
+        ///  Asks the running long operation of `engine` to stop (EF-11). Safe to
+        ///  call from any thread while the operation runs. Null is ignored.
+        ///
+        ///  # Safety
+        ///  `engine` must be null or a live handle from [`cs_engine_new`].
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_cancel", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern void cs_cancel(EngineHandle* engine);
+
+        /// <summary>
         ///  Destroys an engine created by [`cs_engine_new`]. Null is ignored.
         ///
         ///  # Safety
