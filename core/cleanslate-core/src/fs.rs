@@ -62,6 +62,9 @@ pub trait FileSystem: Send + Sync {
         self.metadata(path)?;
         Ok(path.to_path_buf())
     }
+
+    /// Reads a small file (shortcuts), refusing files larger than `max_len`.
+    fn read_file(&self, path: &Path, max_len: u64) -> CoreResult<Vec<u8>>;
 }
 
 /// Removes the `\\?\` (or `\\?\UNC\`) prefix added by `std::fs::canonicalize`.
@@ -127,6 +130,17 @@ impl FileSystem for RealFileSystem {
         let canonical = fs::canonicalize(path).map_err(|e| CoreError::from_io(path, e))?;
         Ok(strip_verbatim(&canonical))
     }
+
+    fn read_file(&self, path: &Path, max_len: u64) -> CoreResult<Vec<u8>> {
+        let meta = self.metadata(path)?;
+        if meta.is_dir || meta.is_reparse_point || meta.len > max_len {
+            return Err(CoreError::InvalidInput(format!(
+                "not a small regular file: {}",
+                path.display()
+            )));
+        }
+        fs::read(path).map_err(|e| CoreError::from_io(path, e))
+    }
 }
 
 /// In-memory file system for tests.
@@ -138,6 +152,8 @@ pub struct FakeFileSystem {
     nodes: BTreeMap<PathBuf, EntryMetadata>,
     /// Children of each folder, so that `read_dir` stays fast on big trees.
     children: BTreeMap<PathBuf, BTreeSet<PathBuf>>,
+    /// Content of the files added with [`FakeFileSystem::add_file_with_content`].
+    contents: BTreeMap<PathBuf, Vec<u8>>,
 }
 
 impl FakeFileSystem {
@@ -166,6 +182,18 @@ impl FakeFileSystem {
             modified,
         };
         self.insert(path.as_ref(), meta);
+        self
+    }
+
+    /// Adds a file with the given content, creating its parent folders.
+    pub fn add_file_with_content(
+        &mut self,
+        path: impl AsRef<Path>,
+        content: Vec<u8>,
+        modified: Option<DateTime<Utc>>,
+    ) -> &mut Self {
+        self.add_file(path.as_ref(), content.len() as u64, modified);
+        self.contents.insert(path.as_ref().to_path_buf(), content);
         self
     }
 
@@ -204,6 +232,17 @@ impl FakeFileSystem {
 }
 
 impl FileSystem for FakeFileSystem {
+    fn read_file(&self, path: &Path, max_len: u64) -> CoreResult<Vec<u8>> {
+        let meta = self.metadata(path)?;
+        if meta.is_dir || meta.is_reparse_point || meta.len > max_len {
+            return Err(CoreError::InvalidInput(format!(
+                "not a small regular file: {}",
+                path.display()
+            )));
+        }
+        Ok(self.contents.get(path).cloned().unwrap_or_default())
+    }
+
     fn metadata(&self, path: &Path) -> CoreResult<EntryMetadata> {
         self.nodes
             .get(path)

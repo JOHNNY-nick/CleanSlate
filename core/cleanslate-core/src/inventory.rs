@@ -148,15 +148,20 @@ pub fn parse_entry(
 /// in hexadecimal. Written by hand because `std`'s hasher may change between
 /// Rust versions, and ids must survive upgrades (history, exclusions).
 pub fn stable_id(view: RegistryView, subkey: &str) -> String {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0100_0000_01b3;
     let tag = match view {
         RegistryView::Hklm64 => "hklm64",
         RegistryView::Hklm32 => "hklm32",
         RegistryView::Hkcu => "hkcu",
     };
-    let input = format!("{tag}|{}", subkey.to_lowercase());
-    let hash = input
+    fnv1a_hex(&format!("{tag}|{}", subkey.to_lowercase()))
+}
+
+/// FNV-1a 64-bit of `text`, as 16 hexadecimal digits (stable across Rust
+/// versions; also used for leftover ids).
+pub fn fnv1a_hex(text: &str) -> String {
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0100_0000_01b3;
+    let hash = text
         .bytes()
         .fold(OFFSET, |h, b| (h ^ u64::from(b)).wrapping_mul(PRIME));
     format!("{hash:016x}")

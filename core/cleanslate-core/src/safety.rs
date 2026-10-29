@@ -34,7 +34,7 @@ pub const PROTECTED_NAMES: [&str; 18] = [
 ];
 
 /// Registry key names protected wherever they appear in a key (specs § 9.1).
-pub const PROTECTED_KEY_NAMES: [&str; 7] = [
+pub const PROTECTED_KEY_NAMES: [&str; 8] = [
     "microsoft",
     "classes",
     "policies",
@@ -42,6 +42,8 @@ pub const PROTECTED_KEY_NAMES: [&str; 7] = [
     "registeredapplications",
     "windows",
     "cleanslate",
+    // Test area of the registry (safety rule 2): never proposed.
+    "cleanslatetest",
 ];
 
 /// Registry trees protected with everything below them.

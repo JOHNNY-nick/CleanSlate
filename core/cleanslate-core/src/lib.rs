@@ -12,6 +12,8 @@ pub mod matcher;
 pub mod model;
 pub mod registry;
 pub mod safety;
+pub mod scan;
+pub mod system;
 
 pub use engine::{Engine, EngineConfig};
 pub use error::{CoreError, CoreResult};

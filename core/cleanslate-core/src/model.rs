@@ -192,6 +192,57 @@ pub struct ScanReport {
     pub cancelled: bool,
 }
 
+/// Options of a scan of orphan leftovers (`cs_scan_orphans`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScanOptions {
+    /// Simulation: a scan never modifies anything; kept explicit and `true`
+    /// by default like every operation (safety rule 5).
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+    /// Also scan the registry (EF-06).
+    #[serde(default = "default_true")]
+    pub include_registry: bool,
+    /// Also look for dead shortcuts (EF-07).
+    #[serde(default = "default_true")]
+    pub include_shortcuts: bool,
+}
+
+impl Default for ScanOptions {
+    fn default() -> Self {
+        ScanOptions {
+            dry_run: true,
+            include_registry: true,
+            include_shortcuts: true,
+        }
+    }
+}
+
+/// Phase of a scan, reported with the progress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanPhase {
+    /// Reading the inventory and listing candidates.
+    Listing,
+    /// Measuring and scoring candidates.
+    Analyzing,
+    /// Finished (or cancelled).
+    Done,
+}
+
+/// Progress event sent at most once per 250 ms, and at least once per
+/// 250 ms while work advances (ENF-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScanProgress {
+    /// Current phase.
+    pub phase: ScanPhase,
+    /// Candidates analyzed so far.
+    pub current: u64,
+    /// Total number of candidates (0 while listing).
+    pub total: u64,
+    /// Folder or key being processed.
+    pub path: String,
+}
+
 /// What started a cleaning session.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
