@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CleanSlate.Interop", "Clean
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CleanSlate.App", "CleanSlate.App\CleanSlate.App.csproj", "{3D5E8A41-7C2B-4F0E-A6D1-5B9C2E4F7A01}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CleanSlate.Tests", "CleanSlate.Tests\CleanSlate.Tests.csproj", "{8F2A6C93-1B4D-4E7A-9C3F-0D5E7B1A2C03}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{3D5E8A41-7C2B-4F0E-A6D1-5B9C2E4F7A01}.Debug|x64.Build.0 = Debug|x64
 		{3D5E8A41-7C2B-4F0E-A6D1-5B9C2E4F7A01}.Release|x64.ActiveCfg = Release|x64
 		{3D5E8A41-7C2B-4F0E-A6D1-5B9C2E4F7A01}.Release|x64.Build.0 = Release|x64
+		{8F2A6C93-1B4D-4E7A-9C3F-0D5E7B1A2C03}.Debug|x64.ActiveCfg = Debug|x64
+		{8F2A6C93-1B4D-4E7A-9C3F-0D5E7B1A2C03}.Debug|x64.Build.0 = Debug|x64
+		{8F2A6C93-1B4D-4E7A-9C3F-0D5E7B1A2C03}.Release|x64.ActiveCfg = Release|x64
+		{8F2A6C93-1B4D-4E7A-9C3F-0D5E7B1A2C03}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
