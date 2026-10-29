@@ -1,0 +1,17 @@
+[package]
+name = "cleanslate-ffi"
+description = "C API (cleanslate.dll) over cleanslate-core, consumed by the C# app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "cleanslate"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cleanslate-core.workspace = true
+
+[lints]
+workspace = true

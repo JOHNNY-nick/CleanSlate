@@ -1,0 +1,13 @@
+[package]
+name = "cleanslate-cli"
+description = "Debug command-line front-end for the CleanSlate engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cleanslate-core.workspace = true
+
+[lints]
+workspace = true

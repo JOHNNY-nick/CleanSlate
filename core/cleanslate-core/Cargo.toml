@@ -1,0 +1,12 @@
+[package]
+name = "cleanslate-core"
+description = "CleanSlate engine: all business logic (inventory, scan, matcher, safety, quarantine...)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
