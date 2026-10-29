@@ -188,8 +188,15 @@ pub struct InstalledApp {
     pub is_msi: bool,            // WindowsInstaller = 1 ou ProductCode GUID
     pub product_code: Option<String>,
     pub registry_view: RegistryView, // Hklm64 | Hklm32 | Hkcu
-    pub kind: AppKind,           // Win32 | Store (lecture seule)
+    pub kind: AppKind,           // Win32 | Store (lecture seule, v1.1)
+    pub hidden_reason: Option<HiddenReason>, // masquée par défaut (EF-02) ; None = visible
+    pub installer: InstallerKind,
 }
+
+// Le moteur renvoie toutes les entrées nommées ; le filtre « composants système » est côté ViewModel.
+// Les entrées sans DisplayName sont écartées par le moteur (rien à afficher).
+pub enum HiddenReason { SystemComponent, Update } // SystemComponent = 1 | ParentKeyName / ReleaseType / KB…
+pub enum InstallerKind { Msi, InnoSetup, Nsis, Unknown } // déduit de WindowsInstaller, du suffixe « _is1 », de l'UninstallString
 
 pub enum LeftoverKind { Folder, File, RegistryKey, RegistryValue, Shortcut, ScheduledTask, Service }
 pub enum Confidence { High, Medium, Low }
@@ -219,10 +226,21 @@ pub struct Session {
     pub status: SessionStatus,   // Completed | Partial | Restored | Purged
 }
 
-// Provisoire : l'entrée complète du manifeste (SHA-256, ACL…) est fixée en J4 (§ 7.2).
+pub enum QuarantineStatus { Quarantined, Restored, Purged, PendingReboot, Failed }
+
 pub struct QuarantinedItem {
-    pub id: String, pub kind: LeftoverKind, pub original_location: String,
-    pub quarantine_path: PathBuf, pub size_bytes: u64, pub restored: bool,
+    pub id: String,                       // = Leftover.id, unique dans la session
+    pub kind: LeftoverKind,
+    pub original_location: String,        // chemin ou clé complète
+    pub quarantine_path: PathBuf,         // files\<id>\… ou <id>.reg / .xml / .json
+    pub size_bytes: u64,
+    pub sha256: Option<String>,           // fichier : son empreinte ; dossier : empreinte de la liste
+                                          // triée (chemin relatif, SHA-256) de ses fichiers
+    pub original_acl: Option<String>,     // descripteur de sécurité d'origine, format SDDL
+    pub quarantined_at: DateTime<Utc>,
+    pub restored_at: Option<DateTime<Utc>>,
+    pub status: QuarantineStatus,
+    pub error: Option<ItemError>,         // rempli si status = Failed
 }
 
 // engine.rs : configuration envoyée par l'interface à cs_engine_new.
@@ -296,7 +314,8 @@ Rien n'est jamais supprimé directement : chaque élément passe par la quaranta
 - **Fichiers et dossiers** : déplacés avec `MoveFileExW` vers `quarantine\<session>\files\<id>\` si même volume ; sinon copie vérifiée puis suppression de l'original.
 - **Clés de registre** : export récursif en `.reg` (format `regedit` UTF-16 LE, re-importable) avant suppression.
 - **Raccourcis, tâches, services** : raccourci déplacé comme un fichier ; tâche exportée en XML avant suppression ; service : configuration sauvegardée en JSON avant `DeleteService`.
-- **Manifeste** : `manifest.json` liste chaque élément (chemin d'origine, chemin en quarantaine, empreinte SHA-256 des fichiers, ACL d'origine) ; il est écrit **avant** chaque déplacement et mis à jour après, pour survivre à un plantage.
+- **Manifeste** : `manifest.json` liste chaque élément sous forme de `QuarantinedItem` (§ 5 : chemin d'origine, chemin en quarantaine, taille, SHA-256, ACL d'origine en SDDL, horodatages, statut), plus, pour un dossier, l'empreinte SHA-256 détaillée de chacun de ses fichiers (chemin relatif, taille, SHA-256) ; la `Session` renvoyée à l'interface ne contient que l'empreinte globale. Il est écrit **avant** chaque déplacement et mis à jour après, pour survivre à un plantage.
+- **SHA-256** : calculé avec l'API Windows CNG (`BCryptHash`) via la crate `windows`, sans dépendance supplémentaire.
 - **Fichier verrouillé** : proposé à la suppression au prochain redémarrage (`MOVEFILE_DELAY_UNTIL_REBOOT`), listé comme tel.
 
 ### 7.3 Restauration et purge
@@ -320,7 +339,7 @@ Trois projets se partagent l'interface :
 | Vue (Page) | ViewModel | Rôle |
 | --- | --- | --- |
 | `HomePage` | `HomeViewModel` | Tableau de bord : nombre d'apps, dernier scan, espace récupérable, bouton « Analyser » |
-| `AppsPage` | `AppsViewModel` | Liste des applications, recherche, tri, filtre, « Désinstaller complètement » |
+| `AppsPage` | `AppsViewModel` | Liste des applications, recherche, tri, filtre « composants système » (côté ViewModel), « Désinstallation classique » (désinstalleur officiel seul : EF-12 sans EF-13) et « Désinstaller complètement », tous deux visibles mais désactivés jusqu'à J5 |
 | `OrphansPage` | `OrphansViewModel` | Scan sans nom, résultats groupés, cases à cocher, filtre par confiance |
 | `UninstallWizardPage` | `UninstallWizardViewModel` | Assistant en 4 étapes : confirmation, désinstallation, restes, résultat |
 | `HistoryPage` | `HistoryViewModel` | Sessions passées, restauration totale ou partielle, purge |
@@ -332,7 +351,7 @@ Pages dans `CleanSlate.App/Views/`, ViewModels dans `CleanSlate.Presentation/Vie
 ### 8.2 Services et injection
 
 - `Microsoft.Extensions.Hosting` (`Host` générique et injection de dépendances) dans `App.xaml.cs` ; chaque page obtient son ViewModel par `App.GetService<T>()`.
-- Interfaces dans `CleanSlate.Presentation/Services/`, implémentations dans `CleanSlate.App/Services/`, enregistrées dans le conteneur. `IEngineService` (façade de `EngineClient`, implémentée par `EngineService`, singleton créé en simulation ; seule `GetVersionAsync` existe au J1). À créer au fil des jalons : `INavigationService`, `IDialogService`, `ISettingsService`, `ILocalizationService`.
+- Interfaces dans `CleanSlate.Presentation/Services/`, implémentations dans `CleanSlate.App/Services/`, enregistrées dans le conteneur. `IEngineService` (façade de `EngineClient`, implémentée par `EngineService`, singleton créé en simulation ; seule `GetVersionAsync` existe au J1). À créer au fil des jalons : `INavigationService`, `IDialogService`, `ISettingsService`. Pas de service de localisation : les textes sont dans les `.resw` de `CleanSlate.App`, et les formats fr-FR (tailles en Ko / Mo / Go avec virgule, dates « 22 oct. 2026 ») sont produits par `CleanSlate.Presentation`.
 - Navigation par `NavigationView` (volet gauche, « Réglages » en pied de volet) + `Frame`, dans `MainWindow`.
 - `CommunityToolkit.Mvvm` : `[ObservableProperty]`, `[RelayCommand]` asynchrones, `IProgress<T>` pour la progression.
 
