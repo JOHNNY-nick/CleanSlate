@@ -58,8 +58,67 @@ public sealed class EngineClient : IDisposable
         return Task.Run(() => WithEngine(engine => ScanOrphans(engine, json, progress, cancellationToken)));
     }
 
+    /// <summary>Quarantines items of the last scan (EF-17); simulated unless both the engine and the plan say otherwise.</summary>
+    public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken = default) =>
+        CallWithInput(JsonSerializer.SerializeToUtf8Bytes(plan, EngineJsonContext.Default.CleanPlan), CleanNative, EngineJsonContext.Default.EngineResponseSession, cancellationToken);
+
+    /// <summary>Restores a session entirely or partly (EF-18).</summary>
+    public Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken = default) =>
+        CallWithInput(JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.RestoreRequest), RestoreNative, EngineJsonContext.Default.EngineResponseSession, cancellationToken);
+
+    /// <summary>Deletes for good the old sessions (EF-19).</summary>
+    public Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken = default) =>
+        CallWithInput(JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.PurgeRequest), PurgeNative, EngineJsonContext.Default.EngineResponsePurgeResult, cancellationToken);
+
+    /// <summary>Sessions of the history, most recent first (EF-20).</summary>
+    public Task<IReadOnlyList<Session>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        return Task.Run<IReadOnlyList<Session>>(() => WithEngine(ListSessionsNative), cancellationToken);
+    }
+
     /// <summary>Releases the native engine.</summary>
     public void Dispose() => _handle.Dispose();
+
+    private Task<T> CallWithInput<T>(
+        byte[] json,
+        Func<IntPtr, byte[], IntPtr> call,
+        JsonTypeInfo<EngineResponse<T>> typeInfo,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        return Task.Run(() => WithEngine(engine => ReadResponsePointer(call(engine, json), typeInfo)), cancellationToken);
+    }
+
+    private static unsafe T ReadResponsePointer<T>(IntPtr buffer, JsonTypeInfo<EngineResponse<T>> typeInfo) =>
+        ReadResponse((ByteBuffer*)buffer, typeInfo);
+
+    private static unsafe IntPtr CleanNative(IntPtr engine, byte[] json)
+    {
+        fixed (byte* input = json)
+        {
+            return (IntPtr)NativeMethods.cs_clean((EngineHandle*)engine, input, json.Length, null, null);
+        }
+    }
+
+    private static unsafe IntPtr RestoreNative(IntPtr engine, byte[] json)
+    {
+        fixed (byte* input = json)
+        {
+            return (IntPtr)NativeMethods.cs_restore((EngineHandle*)engine, input, json.Length);
+        }
+    }
+
+    private static unsafe IntPtr PurgeNative(IntPtr engine, byte[] json)
+    {
+        fixed (byte* input = json)
+        {
+            return (IntPtr)NativeMethods.cs_purge_quarantine((EngineHandle*)engine, input, json.Length);
+        }
+    }
+
+    private static unsafe List<Session> ListSessionsNative(IntPtr engine) =>
+        ReadResponse(NativeMethods.cs_list_sessions((EngineHandle*)engine), EngineJsonContext.Default.EngineResponseListSession);
 
     private static unsafe ScanReport ScanOrphans(IntPtr engine, byte[] json, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
     {

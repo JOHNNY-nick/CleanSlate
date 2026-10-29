@@ -185,6 +185,99 @@ public sealed record ScanOptions(bool DryRun = true, bool IncludeRegistry = true
 /// <summary>Progress event (at most one per 250 ms).</summary>
 public sealed record ScanProgress(ScanPhase Phase, ulong Current, ulong Total, string Path);
 
+/// <summary>What started a session: <c>{"kind":"orphans"}</c> or <c>{"kind":"app","app_id":"…"}</c>.</summary>
+public sealed record Origin(
+    string Kind,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AppId = null)
+{
+    /// <summary>Scan of orphan leftovers.</summary>
+    public static Origin Orphans { get; } = new("orphans");
+
+    /// <summary>Full uninstall of one application.</summary>
+    public static Origin ForApp(string appId) => new("app", appId);
+}
+
+/// <summary>Items the user chose to quarantine (EF-16); simulation by default.</summary>
+public sealed record CleanPlan(
+    IReadOnlyList<string> ItemIds,
+    Origin Origin,
+    bool DryRun = true,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Confirmation = null);
+
+/// <summary>State of one quarantined item.</summary>
+[JsonConverter(typeof(SnakeCaseEnumConverter<QuarantineStatus>))]
+public enum QuarantineStatus
+{
+    /// <summary>In quarantine, restorable.</summary>
+    Quarantined,
+
+    /// <summary>Put back.</summary>
+    Restored,
+
+    /// <summary>Deleted for good.</summary>
+    Purged,
+
+    /// <summary>Locked: moved at the next reboot.</summary>
+    PendingReboot,
+
+    /// <summary>Not quarantined; see the error.</summary>
+    Failed,
+}
+
+/// <summary>State of a session.</summary>
+[JsonConverter(typeof(SnakeCaseEnumConverter<SessionStatus>))]
+public enum SessionStatus
+{
+    /// <summary>Every item quarantined.</summary>
+    Completed,
+
+    /// <summary>Some items failed.</summary>
+    Partial,
+
+    /// <summary>Restored.</summary>
+    Restored,
+
+    /// <summary>Purged.</summary>
+    Purged,
+}
+
+/// <summary>An item stored in quarantine (specs § 5).</summary>
+public sealed record QuarantinedItem(
+    string Id,
+    LeftoverKind Kind,
+    string OriginalLocation,
+    string QuarantinePath,
+    ulong SizeBytes,
+    string? Sha256,
+    string? OriginalAcl,
+    DateTimeOffset QuarantinedAt,
+    DateTimeOffset? RestoredAt,
+    QuarantineStatus Status,
+    ItemError? Error);
+
+/// <summary>A cleaning session (EF-20); <see cref="Simulated"/> when nothing was touched.</summary>
+public sealed record Session(
+    Guid Id,
+    DateTimeOffset CreatedAt,
+    Origin Origin,
+    IReadOnlyList<QuarantinedItem> Items,
+    ulong FreedBytes,
+    IReadOnlyList<ItemError> Errors,
+    SessionStatus Status,
+    bool Simulated = false);
+
+/// <summary>Request of <c>cs_restore</c>; simulation by default.</summary>
+public sealed record RestoreRequest(
+    Guid SessionId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? ItemIds = null,
+    bool DryRun = true);
+
+/// <summary>Request of <c>cs_purge_quarantine</c>; simulation by default.</summary>
+public sealed record PurgeRequest(uint OlderThanDays, bool DryRun = true);
+
+/// <summary>Result of <c>cs_purge_quarantine</c>.</summary>
+public sealed record PurgeResult(ulong FreedBytes, bool Simulated);
+
 /// <summary>System.Text.Json source generation, snake_case like the Rust side.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(EngineConfig))]
@@ -193,6 +286,12 @@ public sealed record ScanProgress(ScanPhase Phase, ulong Current, ulong Total, s
 [JsonSerializable(typeof(EngineResponse<ScanReport>))]
 [JsonSerializable(typeof(ScanOptions))]
 [JsonSerializable(typeof(ScanProgress))]
+[JsonSerializable(typeof(CleanPlan))]
+[JsonSerializable(typeof(RestoreRequest))]
+[JsonSerializable(typeof(PurgeRequest))]
+[JsonSerializable(typeof(EngineResponse<Session>))]
+[JsonSerializable(typeof(EngineResponse<List<Session>>))]
+[JsonSerializable(typeof(EngineResponse<PurgeResult>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext
 {
 }
