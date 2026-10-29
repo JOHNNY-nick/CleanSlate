@@ -3,28 +3,90 @@
     x:Class="CleanSlate.App.Views.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:CleanSlate.App.Converters"
+    xmlns:vm="using:CleanSlate.Presentation.ViewModels"
     Loaded="OnLoaded">
+
+    <Page.Resources>
+        <conv:ResourceStringConverter x:Key="ResourceString" />
+    </Page.Resources>
 
     <ScrollViewer>
         <StackPanel Margin="{StaticResource PageMargin}" Spacing="16">
-            <TextBlock x:Uid="HomeTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Uid="HomeTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
+                <Button x:Uid="HomeAnalyze" Grid.Column="1" VerticalAlignment="Top" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource AccentButtonStyle}" />
+            </Grid>
+
+            <InfoBar x:Uid="HomeNeedsElevation" IsClosable="False" IsOpen="{x:Bind ViewModel.NeedsElevation}" Severity="Warning">
+                <InfoBar.ActionButton>
+                    <Button x:Uid="HomeRestartElevated" Click="OnRestartElevated" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+            <InfoBar x:Uid="HomeSimulationBanner" IsClosable="False" IsOpen="{x:Bind ViewModel.IsSimulationMode, Mode=OneWay}" Severity="Informational" />
+            <InfoBar x:Uid="HomeEngineError" IsClosable="False" IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}" Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}" Severity="Error" />
+
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Uid="HomeAppsLabel" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind ViewModel.AppCount, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Uid="HomeLeftoversLabel" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind ViewModel.RecoverableText, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                            <Run x:Uid="HomeLastScan" />
+                            <Run Text="{x:Bind ViewModel.LastScanText, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Uid="HomeFreedLabel" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind ViewModel.FreedText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="4">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}">
-                        <Run x:Uid="HomeEngineLabel" />
-                        <Run Text="{x:Bind ViewModel.EngineVersion, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock x:Uid="HomeEngineCaption" Style="{StaticResource SecondaryTextBlockStyle}" />
+                <StackPanel Spacing="8">
+                    <TextBlock x:Uid="HomeRecentSessions" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Uid="HomeNoSession" Style="{StaticResource SecondaryTextBlockStyle}" Visibility="{x:Bind ViewModel.HasNoSession, Mode=OneWay}" />
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.RecentSessions}">
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SessionViewModel">
+                                <TextBlock Padding="0,4" Foreground="{ThemeResource TextPrimaryBrush}">
+                                    <Run Text="{x:Bind DateText}" />
+                                    <Run Text="·" />
+                                    <Run Text="{x:Bind Session.Origin.Kind, Converter={StaticResource ResourceString}, ConverterParameter=Origin}" />
+                                    <Run Text="·" />
+                                    <Run Text="{x:Bind ItemCount}" />
+                                    <Run x:Uid="HistoryItems" />
+                                    <Run Text="·" />
+                                    <Run Text="{x:Bind FreedText}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
                 </StackPanel>
             </Border>
 
-            <InfoBar
-                x:Uid="HomeEngineError"
-                IsClosable="False"
-                IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
-                Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}"
-                Severity="Error" />
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                <Run x:Uid="HomeEngineLabel" />
+                <Run Text="{x:Bind ViewModel.EngineVersion, Mode=OneWay}" />
+            </TextBlock>
         </StackPanel>
     </ScrollViewer>
 </Page>

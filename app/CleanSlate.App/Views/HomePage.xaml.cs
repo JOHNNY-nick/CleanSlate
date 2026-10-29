@@ -18,4 +18,7 @@ public sealed partial class HomePage : Page
     public HomeViewModel ViewModel { get; }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => ViewModel.LoadCommand.Execute(null);
+
+    // Restarting the process is an OS action of the view (design § 5).
+    private void OnRestartElevated(object sender, RoutedEventArgs e) => App.RestartElevated();
 }

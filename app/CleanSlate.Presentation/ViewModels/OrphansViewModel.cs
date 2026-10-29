@@ -76,6 +76,12 @@ public sealed partial class OrphansViewModel : ObservableObject
     [ObservableProperty]
     private string _progressPath = string.Empty;
 
+    /// <summary>Progress read by Narrator, updated at most every 2 s (design § 6).</summary>
+    [ObservableProperty]
+    private string _progressAnnouncement = string.Empty;
+
+    private DateTime _lastAnnouncement = DateTime.MinValue;
+
     /// <summary>True once a scan has finished (even cancelled).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowIntro), nameof(ShowEmpty))]
@@ -274,6 +280,11 @@ public sealed partial class OrphansViewModel : ObservableObject
         IsProgressIndeterminate = value.Total == 0;
         ProgressPercent = value.Total == 0 ? 0 : Math.Min(100, 100.0 * value.Current / value.Total);
         ProgressPath = value.Path;
+        if (value.Total > 0 && DateTime.UtcNow - _lastAnnouncement >= TimeSpan.FromSeconds(2))
+        {
+            _lastAnnouncement = DateTime.UtcNow;
+            ProgressAnnouncement = $"{Math.Round(ProgressPercent)} %";
+        }
     }
 
     private void Show(ScanReport report)

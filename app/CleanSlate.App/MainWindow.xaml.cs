@@ -42,15 +42,15 @@ public sealed partial class MainWindow : Window
     /// <summary>Shows the uninstall wizard (reached from the Applications page).</summary>
     public void ShowUninstallWizard() => ContentFrame.Navigate(typeof(UninstallWizardPage));
 
-    /// <summary>Selects « Historique » in the navigation pane.</summary>
-    public void ShowHistory()
+    /// <summary>Selects a page of the navigation pane by its tag (« History », « Orphans »…).</summary>
+    public void ShowPage(string tag)
     {
-        NavigationViewItem? history = NavView.MenuItems
+        NavigationViewItem? item = NavView.MenuItems
             .OfType<NavigationViewItem>()
-            .FirstOrDefault(i => i.Tag as string == "History");
-        if (history is not null)
+            .FirstOrDefault(i => i.Tag as string == tag);
+        if (item is not null)
         {
-            NavView.SelectedItem = history;
+            NavView.SelectedItem = item;
         }
     }
 

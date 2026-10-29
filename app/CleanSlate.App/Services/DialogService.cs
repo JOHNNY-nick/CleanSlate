@@ -11,13 +11,8 @@ public sealed class DialogService : IDialogService
 {
     private const string Word = "QUARANTAINE";
     private static readonly ResourceLoader Loader = new();
-    private readonly MainWindow _window;
-
-    /// <summary>Creates the service for the main window.</summary>
-    public DialogService(MainWindow window)
-    {
-        _window = window;
-    }
+    // Resolved on use, to avoid a dependency cycle with MainWindow (see NavigationService).
+    private static MainWindow Window => App.GetService<MainWindow>();
 
     /// <inheritdoc/>
     public async Task<CleanDecision> ConfirmCleanAsync(CleanSummary summary)
@@ -38,7 +33,7 @@ public sealed class DialogService : IDialogService
 
         var dialog = new ContentDialog
         {
-            XamlRoot = _window.Content.XamlRoot,
+            XamlRoot = Window.Content.XamlRoot,
             Title = Loader.GetString("ConfirmTitle"),
             Content = panel,
             PrimaryButtonText = Loader.GetString(summary.Simulation ? "ConfirmPrimarySimulation" : "ConfirmPrimary"),
@@ -66,7 +61,7 @@ public sealed class DialogService : IDialogService
     {
         var dialog = new ContentDialog
         {
-            XamlRoot = _window.Content.XamlRoot,
+            XamlRoot = Window.Content.XamlRoot,
             Title = Loader.GetString("PurgeTitle"),
             Content = Text(string.Format(Loader.GetString("PurgeMessage"), quarantineDays)),
             PrimaryButtonText = Loader.GetString("PurgePrimary"),

@@ -36,6 +36,14 @@
                     <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#FFFFFF" />
+                    <!-- Teal accent for every WinUI control (selection, radio buttons…). -->
+                    <Color x:Key="SystemAccentColor">#0F766E</Color>
+                    <Color x:Key="SystemAccentColorLight1">#14857C</Color>
+                    <Color x:Key="SystemAccentColorLight2">#2A9D93</Color>
+                    <Color x:Key="SystemAccentColorLight3">#4FB8AD</Color>
+                    <Color x:Key="SystemAccentColorDark1">#115E59</Color>
+                    <Color x:Key="SystemAccentColorDark2">#0D4D49</Color>
+                    <Color x:Key="SystemAccentColorDark3">#0A3D3A</Color>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="AccentBrush" Color="#4FB8AD" />
@@ -62,6 +70,34 @@
                     <SolidColorBrush x:Key="AccentButtonForeground" Color="#0B2B28" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#0B2B28" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#0B2B28" />
+                    <!-- Teal accent for every WinUI control (selection, radio buttons…). -->
+                    <Color x:Key="SystemAccentColor">#4FB8AD</Color>
+                    <Color x:Key="SystemAccentColorLight1">#6CCBC1</Color>
+                    <Color x:Key="SystemAccentColorLight2">#8ED9D1</Color>
+                    <Color x:Key="SystemAccentColorLight3">#B3E8E2</Color>
+                    <Color x:Key="SystemAccentColorDark1">#2A9D93</Color>
+                    <Color x:Key="SystemAccentColorDark2">#14857C</Color>
+                    <Color x:Key="SystemAccentColorDark3">#0F766E</Color>
+                </ResourceDictionary>
+                <!-- High contrast: tokens follow the Windows contrast theme (design § 6). -->
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="AccentHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="AccentSubtleBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="ControlBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="DangerBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="ConfidenceHighForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ConfidenceMediumForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="ConfidenceMediumBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ConfidenceLowForegroundBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+                    <SolidColorBrush x:Key="ConfidenceLowBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 

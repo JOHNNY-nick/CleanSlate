@@ -27,7 +27,12 @@ public partial class App : Application
                 services.AddSingleton<IDialogService, DialogService>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();
-                services.AddTransient<HomeViewModel>();
+                services.AddTransient(sp => new HomeViewModel(
+                    sp.GetRequiredService<IEngineService>(),
+                    sp.GetRequiredService<ISettingsService>(),
+                    sp.GetRequiredService<INavigationService>(),
+                    sp.GetRequiredService<OrphansViewModel>(),
+                    IsElevated()));
                 services.AddTransient<AppsViewModel>();
                 // Singleton: scan results survive navigation between pages.
                 services.AddSingleton<OrphansViewModel>();
@@ -35,6 +40,32 @@ public partial class App : Application
                 services.AddTransient<SettingsViewModel>();
             })
             .Build();
+    }
+
+    /// <summary>True when the process runs with administrator rights.</summary>
+    public static bool IsElevated()
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        return new System.Security.Principal.WindowsPrincipal(identity)
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
+    /// <summary>Restarts CleanSlate with administrator rights (UAC prompt), then exits.</summary>
+    public static void RestartElevated()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+            Current.Exit();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // The user refused the UAC prompt: keep running.
+        }
     }
 
     /// <summary>Resolves a registered service (used by pages to get their ViewModel).</summary>

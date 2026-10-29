@@ -14,4 +14,7 @@ public interface INavigationService
 
     /// <summary>Opens the History page.</summary>
     void OpenHistory();
+
+    /// <summary>Opens the Orphans page, and starts a scan if asked.</summary>
+    void OpenOrphans(bool startScan);
 }

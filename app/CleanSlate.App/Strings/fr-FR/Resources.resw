@@ -33,9 +33,6 @@
   <data name="HomeEngineLabel.Text" xml:space="preserve">
     <value>Moteur CleanSlate</value>
   </data>
-  <data name="HomeEngineCaption.Text" xml:space="preserve">
-    <value>Le moteur d'analyse est chargé. Mode simulation actif : rien n'est modifié.</value>
-  </data>
   <data name="HomeEngineError.Title" xml:space="preserve">
     <value>Le moteur CleanSlate est indisponible.</value>
   </data>
@@ -467,5 +464,35 @@
   </data>
   <data name="SettingsAboutLicense.Text" xml:space="preserve">
     <value>Logiciel libre sous licence MIT. Aucune donnée n'est collectée ni envoyée.</value>
+  </data>
+  <data name="HomeAnalyze.Content" xml:space="preserve">
+    <value>Analyser les restes</value>
+  </data>
+  <data name="HomeNeedsElevation.Title" xml:space="preserve">
+    <value>CleanSlate a besoin des droits administrateur pour analyser Program Files et le registre machine.</value>
+  </data>
+  <data name="HomeRestartElevated.Content" xml:space="preserve">
+    <value>Redémarrer en administrateur</value>
+  </data>
+  <data name="HomeSimulationBanner.Title" xml:space="preserve">
+    <value>Mode simulation actif : CleanSlate montre ce qu'il ferait sans rien déplacer. Désactivez-le dans les Réglages.</value>
+  </data>
+  <data name="HomeAppsLabel.Text" xml:space="preserve">
+    <value>Applications installées</value>
+  </data>
+  <data name="HomeLeftoversLabel.Text" xml:space="preserve">
+    <value>Restes détectés</value>
+  </data>
+  <data name="HomeLastScan.Text" xml:space="preserve">
+    <value>Dernière analyse :</value>
+  </data>
+  <data name="HomeFreedLabel.Text" xml:space="preserve">
+    <value>Espace libéré par CleanSlate</value>
+  </data>
+  <data name="HomeRecentSessions.Text" xml:space="preserve">
+    <value>Dernières sessions</value>
+  </data>
+  <data name="HomeNoSession.Text" xml:space="preserve">
+    <value>Aucune session pour l'instant.</value>
   </data>
 </root>
