@@ -17,3 +17,9 @@ Exigences : EF-05 à EF-11, ENF-01, ENF-03, ENF-04, ENF-05 (scan < 60 s), ENF-06
 | 9 | `docs` | Specs, bilan, décisions | — |
 
 Condition de fin : tests verts, benchmark < 60 s, scan en lecture seule de la machine du porteur via `cleanslate-cli scan --dry-run`, couverture ≥ 80 %, build Release.
+
+## Avancement
+
+- Étapes 1 à 6 faites (safety, matcher, scan, benchmark 554 ms, FFI `cs_scan_orphans` / `cs_cancel`, CLI `scan --dry-run`).
+- Scan réel en lecture seule de la machine du porteur : 7,6 s, 429 éléments, 3 erreurs d'accès (non élevé).
+- Reste : étape 7 (Interop), 8 (Presentation + page), 9 (docs, bilan).
