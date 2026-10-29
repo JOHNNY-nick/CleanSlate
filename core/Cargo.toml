@@ -18,6 +18,8 @@ serde_json = "1.0.154"
 tempfile = "3.27.0"
 thiserror = "2.0.21"
 tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
 uuid = { version = "1.29.0", features = ["serde", "v4"] }
 winreg = "0.56.0"
 rayon = "1.12.0"

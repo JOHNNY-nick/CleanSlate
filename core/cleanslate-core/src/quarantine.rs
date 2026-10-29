@@ -381,6 +381,7 @@ impl Quarantine<'_> {
             item.status = QuarantineStatus::Failed;
             item.error = Some(item_error(&code, message, &leftover.location));
         }
+        tracing::info!(location = %item.original_location, status = ?item.status, "quarantine item");
         manifest.pending = None;
         replace_item(&mut manifest.session.items, item);
         self.save(manifest)
@@ -537,6 +538,7 @@ impl Quarantine<'_> {
                 Ok(()) => {
                     let restored = &mut manifest.session.items[index];
                     restored.status = QuarantineStatus::Restored;
+                    tracing::info!(location = %restored.original_location, "item restored");
                     restored.restored_at = Some(now);
                     restored.error = None;
                 }
@@ -615,6 +617,7 @@ impl Quarantine<'_> {
                 }
             }
             manifest.session.status = SessionStatus::Purged;
+            tracing::info!(id = %session.id, "session purged");
             self.save(&manifest)?;
         }
         Ok(freed)

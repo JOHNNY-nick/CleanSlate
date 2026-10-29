@@ -132,6 +132,9 @@ impl Engine {
             KnownFolders::from_system(),
         );
         engine.probe_system = true;
+        if let Some(dir) = engine.data_dir() {
+            crate::logging::init(&dir.join("logs"));
+        }
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine
     }
