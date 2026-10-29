@@ -86,7 +86,7 @@ cleanslate/
 
 L'application est **non packagée** : un `app.manifest` demande `requireAdministrator`, ce qu'une application packagée ne peut pas faire. Pour déboguer, Visual Studio doit être lancé en administrateur. L'exécutable s'appelle `CleanSlate.App.exe` : aucune assembly .NET ne doit s'appeler `CleanSlate.dll`, car elle écraserait la DLL native `cleanslate.dll` (Windows ne distingue pas la casse). `CleanSlate.Interop` cible `net8.0` (et non `net8.0-windows…`) pour pouvoir être référencé par `CleanSlate.Presentation`. Le fichier `NativeMethods.g.cs` est généré par `build.rs` directement dans `app/CleanSlate.Interop/` et **versionné** dans Git (fins de ligne LF imposées par `.gitattributes`), pour que la solution .NET compile même sans avoir lancé cargo.
 
-Crate `cleanslate-cli` : un petit binaire qui permet de tester le moteur sans l'interface, pratique pour apprendre Rust étape par étape. Commandes : `version [--json]` (J1), `apps --json` (J2), `scan --dry-run --json` (J3).
+Crate `cleanslate-cli` : un petit binaire qui permet de tester le moteur sans l'interface, pratique pour apprendre Rust étape par étape. Commandes : `version [--json]` (J1), `apps [--json] [--all]` (J2), `scan --dry-run [--json]` (J3, refusée sans `--dry-run`).
 
 ## 3. Moteur Rust
 
@@ -113,7 +113,7 @@ Toute la logique métier vit dans `cleanslate-core`, une bibliothèque Rust sans
 | --- | --- |
 | `windows` | API Win32 : dossiers connus (`SHGetKnownFolderPath`), Job Objects, point de restauration, raccourcis |
 | `winreg` | Lecture, export et suppression de clés de registre, vues 32 et 64 bits |
-| `walkdir` + `rayon` | Parcours récursif et parallélisme du scan |
+| `rayon` | Parallélisme du scan (le parcours récursif passe par le trait `FileSystem`, testable : `walkdir` n'est pas utilisé, D19) |
 | `serde` + `serde_json` | Sérialisation des échanges avec C# |
 | `rusqlite` (feature `bundled`) | Historique et réglages |
 | `strsim` | Similarité de noms (Jaro-Winkler) |
@@ -144,8 +144,8 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_engine_free(engine)` | poignée (null ignoré) | — | J1 ✔ |
 | `cs_buffer_free(buf)` | `*mut ByteBuffer` (null ignoré) | libère toute réponse renvoyée par Rust | J1 ✔ |
 | `cs_list_apps(engine)` | — | `InstalledApp[]` (entrées masquées comprises) | J2 ✔ |
-| `cs_scan_orphans(engine, opts, len, cb, ctx)` | `ScanOptions` | `ScanReport` | J3 |
-| `cs_cancel(engine)` | — | annule l'opération en cours (drapeau atomique) | J3 |
+| `cs_scan_orphans(engine, opts, len, cb, ctx)` | `ScanOptions` (longueur 0 : défauts) ; rappel facultatif, appelable depuis un thread de travail, jamais après le retour | `ScanReport` (partiel et `cancelled: true` si annulé) | J3 ✔ |
+| `cs_cancel(engine)` | — | annule l'opération en cours (drapeau atomique, remis à zéro à l'opération suivante) | J3 ✔ |
 | `cs_clean(engine, plan, len, cb, ctx)` | `CleanPlan` | `Session` | J4 |
 | `cs_restore(engine, req, len)` | `{ "session_id", "item_ids"? }` | `RestoreResult` | J4 |
 | `cs_list_sessions(engine)` | — | `Session[]` | J4 |
@@ -247,7 +247,13 @@ pub struct QuarantinedItem {
 pub struct EngineConfig {
     pub dry_run: bool,               // absent du JSON = true (règle de sécurité)
     pub data_dir: Option<PathBuf>,   // None = %LOCALAPPDATA%\CleanSlate
+    pub exclusions: Vec<String>,     // dossiers ou clés jamais proposés (EF-20)
 }
+
+// Scan (J3).
+pub struct ScanOptions { pub dry_run: bool, pub include_registry: bool, pub include_shortcuts: bool } // tous true par défaut
+pub enum ScanPhase { Listing, Analyzing, Done }
+pub struct ScanProgress { pub phase: ScanPhase, pub current: u64, pub total: u64, pub path: String }
 ```
 
 **Stockage** : `%LOCALAPPDATA%\CleanSlate\` contient `cleanslate.db` (SQLite : tables `sessions`, `items`, `exclusions`, `settings`), `quarantine\<session_id>\` (fichiers déplacés, fichiers `.reg` exportés, `manifest.json`) et `logs\`.
@@ -271,10 +277,14 @@ Normalisation : minuscules, suppression des accents, des numéros de version, de
 
 Un candidat est **rattaché** si au moins une condition est vraie :
 
-- son chemin est égal à, ou contenu dans, un `InstallLocation` connu ;
+- son chemin est égal à, ou contenu dans, un `InstallLocation` connu (ou le dossier de l'`UninstallString`) — ou, à l'inverse, il contient un tel dossier (D25) ;
 - similarité Jaro-Winkler ≥ 0,90 avec un nom ou un éditeur installé, ou tous les mots du candidat contenus dans un nom installé ;
 - il contient l'exécutable d'un service, d'un processus en cours ou d'une entrée Uninstall ;
-- c'est un dossier éditeur et au moins une application de cet éditeur est encore installée.
+- c'est un dossier éditeur et au moins une application de cet éditeur est encore installée ;
+- son nom est celui d'un **programme présent sur le disque** sans entrée Uninstall : dossier de `Program Files`, `Program Files (x86)` ou `%LOCALAPPDATA%\Programs` contenant un `.exe` sur 3 niveaux (D22) ;
+- son nom normalisé est vide (trop générique pour être jugé).
+
+Les reparse points ne sont jamais proposés, ni traversés (D18).
 
 ### 6.3 Score de confiance
 
@@ -289,6 +299,8 @@ Un candidat est **rattaché** si au moins une condition est vraie :
 | Nom générique (`Temp`, `Cache`, `Common`, `Shared`, `Data`, `Config`, `Logs`…) | −25 |
 | Contient des `.exe` dans `Program Files` sans entrée Uninstall (logiciel portable probable) | −25 |
 | Clé de registre contenant moins de 3 valeurs et aucune sous-clé | −10 |
+
+Plafonds appliqués après le score (D21, D23) : un élément de `Documents` est toujours **Faible** (dossier personnel possible) ; un élément de profondeur 2 sous le dossier d'un éditeur encore installé est au plus **Moyenne**. Le signal « historique » (+30) arrive avec l'historique en J4.
 
 Niveaux : **Élevée** ≥ 60, **Moyenne** 35 à 59, **Faible** < 35. Chaque signal retenu est ajouté en clair à `reasons` pour que l'utilisateur comprenne la proposition. Ces seuils sont des valeurs de départ, à ajuster sur le jeu de test d'acceptation.
 
@@ -382,7 +394,8 @@ Le module `safety` est le dernier rempart : toute action destructive appelle `sa
 - **Chemins** : `%WINDIR%` et tout son contenu ; racine de chaque lecteur ; `Program Files`, `Program Files (x86)`, `ProgramData`, `AppData\Roaming`, `AppData\Local`, `AppData\LocalLow` eux-mêmes (seuls leurs sous-dossiers sont candidats) ; `Users\<nom>` et ses dossiers connus (Documents, Bureau, Téléchargements…) eux-mêmes ; `System Volume Information`, `$Recycle.Bin`, `Recovery`.
 - **Racines de scan elles-mêmes** : chaque racine de EF-05 (`Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`) et de EF-06 (`HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`) est protégée en tant que telle ; seuls ses enfants sont candidats. Cela évite par exemple que `%LOCALAPPDATA%\Programs`, enfant direct de `%LOCALAPPDATA%`, soit proposé en bloc comme reste.
 - **Noms de sous-dossiers** : `Microsoft`, `Windows`, `Windows Defender`, `Windows NT`, `Common Files`, `Packages` (Store), `WindowsApps`, `Temp`, `Microsoft.NET`, `dotnet`, `Intel`, `NVIDIA Corporation`, `AMD` (pilotes), `Package Cache`, `CleanSlate`.
-- **Registre** : `HKLM\SYSTEM`, `HKLM\SAM`, `HKLM\SECURITY`, `HKLM\HARDWARE`, toute clé `Microsoft`, `Classes`, `Policies`, `Clients`, `RegisteredApplications`, `Wow6432Node` elle-même, `Windows`, `Uninstall` d'une application encore présente.
+- **Registre** : `HKLM\SYSTEM`, `HKLM\SAM`, `HKLM\SECURITY`, `HKLM\HARDWARE`, toute clé `Microsoft`, `Classes`, `Policies`, `Clients`, `RegisteredApplications`, `Wow6432Node` elle-même, `Windows`, `Uninstall` d'une application encore présente, `CleanSlate` et `CleanSlateTest` (zone de test, D24).
+- **Raccourcis (EF-07)** : un `.lnk` sous un dossier protégé n'est pas proposé ; les raccourcis du menu Démarrer, rangés sous `…\Microsoft\Windows\Start Menu`, sont donc écartés et seuls ceux des Bureaux sont détectés (D20).
 
 ### 9.2 Règles d'exécution
 

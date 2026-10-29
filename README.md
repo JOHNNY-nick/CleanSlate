@@ -25,8 +25,9 @@ qui répond à deux besoins :
 Par sécurité, rien n'est effacé directement : tout passe par une quarantaine
 restaurable pendant 30 jours, et le mode simulation est actif par défaut.
 
-> **État : jalon J2 (inventaire).** La page Applications liste les logiciels installés
-> (recherche, tri, filtre) ; aucune analyse ni suppression n'est encore disponible.
+> **État : jalon J3 (détection des restes, en simulation).** La page Applications liste les
+> logiciels installés ; « Restes orphelins » analyse la machine en lecture seule et simule
+> la mise en quarantaine. Aucune suppression n'est encore possible.
 
 - Moteur : Rust (`core/`), exposé en `cleanslate.dll` par une API C en JSON.
 - Interface : C# 12 / .NET 8 / WinUI 3 non packagée (`app/`), patron MVVM.
@@ -105,6 +106,7 @@ CLI de debug (sans interface) :
 ```powershell
 cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- version --json
 cargo run --manifest-path core/Cargo.toml --release -p cleanslate-cli -- apps --json   # lecture seule
+cargo run --manifest-path core/Cargo.toml --release -p cleanslate-cli -- scan --dry-run   # lecture seule
 ```
 
 ## Structure du dépôt
