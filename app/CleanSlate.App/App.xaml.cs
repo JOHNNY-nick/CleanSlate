@@ -1,5 +1,6 @@
 using CleanSlate.App.Services;
-using CleanSlate.App.ViewModels;
+using CleanSlate.Presentation.Services;
+using CleanSlate.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Xaml;

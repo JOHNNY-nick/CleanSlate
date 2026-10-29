@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ViewModels and service interfaces: no WinUI dependency, testable with xUnit. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CleanSlate.Presentation</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <!-- Only for the model records (InstalledApp…); EngineClient is called by IEngineService implementations, never by ViewModels. -->
+  <ItemGroup>
+    <ProjectReference Include="..\CleanSlate.Interop\CleanSlate.Interop.csproj" />
+  </ItemGroup>
+
+</Project>

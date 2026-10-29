@@ -1,4 +1,4 @@
-namespace CleanSlate.App.Services;
+namespace CleanSlate.Presentation.Services;
 
 /// <summary>
 /// Facade of the CleanSlate engine for the ViewModels. Every call is async

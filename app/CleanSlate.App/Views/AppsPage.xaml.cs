@@ -1,4 +1,4 @@
-using CleanSlate.App.ViewModels;
+using CleanSlate.Presentation.ViewModels;
 using Microsoft.UI.Xaml.Controls;
 
 namespace CleanSlate.App.Views;

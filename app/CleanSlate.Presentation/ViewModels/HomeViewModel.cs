@@ -1,8 +1,8 @@
-using CleanSlate.App.Services;
+using CleanSlate.Presentation.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace CleanSlate.App.ViewModels;
+namespace CleanSlate.Presentation.ViewModels;
 
 /// <summary>Dashboard. In J1 it only shows the engine version read through the DLL.</summary>
 public sealed partial class HomeViewModel : ObservableObject
