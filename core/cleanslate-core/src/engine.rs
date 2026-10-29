@@ -1,14 +1,21 @@
 //! The engine: configuration plus injected file system and registry.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
-use crate::model::{InstalledApp, ScanOptions, ScanProgress, ScanReport};
+use crate::history::History;
+use crate::model::{
+    CleanPlan, InstalledApp, Leftover, PurgeRequest, PurgeResult, RestoreRequest, ScanOptions,
+    ScanProgress, ScanReport, Session,
+};
+use crate::quarantine::{simulate, Quarantine};
 use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
 use crate::scan::{scan_orphans, ScanEnv};
@@ -65,6 +72,10 @@ pub struct Engine {
     probe_system: bool,
     cancel: AtomicBool,
     busy: AtomicBool,
+    /// Items of the last scan, by id: `cs_clean` only accepts these.
+    last_report: Mutex<HashMap<String, Leftover>>,
+    /// History database, opened on first use.
+    history: Mutex<Option<History>>,
 }
 
 impl Engine {
@@ -92,6 +103,8 @@ impl Engine {
             probe_system: false,
             cancel: AtomicBool::new(false),
             busy: AtomicBool::new(false),
+            last_report: Mutex::new(HashMap::new()),
+            history: Mutex::new(None),
         }
     }
 
@@ -187,7 +200,167 @@ impl Engine {
             cancel: &self.cancel,
             now: Utc::now(),
         };
-        Ok(scan_orphans(&env, options, progress))
+        let report = scan_orphans(&env, options, progress);
+        self.remember(&report);
+        Ok(report)
+    }
+
+    /// Keeps the items of `report` so that `clean` can find them by id.
+    fn remember(&self, report: &ScanReport) {
+        if let Ok(mut last) = self.last_report.lock() {
+            last.clear();
+            for item in report.groups.iter().flat_map(|g| &g.items) {
+                last.insert(item.id.clone(), item.clone());
+            }
+        }
+    }
+
+    /// Data folder: configured one, `%LOCALAPPDATA%\CleanSlate` on the real
+    /// system, none for a test engine (so tests never write outside their
+    /// temporary folders).
+    pub fn data_dir(&self) -> Option<PathBuf> {
+        match &self.config.data_dir {
+            Some(dir) => Some(dir.clone()),
+            None if self.probe_system => Some(self.folders.local.join("CleanSlate")),
+            None => None,
+        }
+    }
+
+    /// `true` when nothing may be modified: engine or request in simulation.
+    fn simulating(&self, request_dry_run: bool) -> bool {
+        self.config.dry_run || request_dry_run
+    }
+
+    fn history(&self) -> CoreResult<MutexGuard<'_, Option<History>>> {
+        let mut guard = self
+            .history
+            .lock()
+            .map_err(|_| CoreError::InvalidInput("history lock poisoned".into()))?;
+        if guard.is_none() {
+            *guard = Some(match self.data_dir() {
+                Some(dir) => History::open(&dir.join("cleanslate.db"))?,
+                None => History::in_memory()?,
+            });
+        }
+        Ok(guard)
+    }
+
+    fn with_quarantine<T>(&self, f: impl FnOnce(&Quarantine) -> CoreResult<T>) -> CoreResult<T> {
+        let dir = self
+            .data_dir()
+            .ok_or_else(|| CoreError::InvalidInput("no data folder configured".into()))?;
+        let root = dir.join("quarantine");
+        f(&Quarantine {
+            root: &root,
+            fs: self.fs(),
+            registry: self.registry(),
+            rules: &self.rules,
+        })
+    }
+
+    /// Moves the selected items of the last scan to quarantine (EF-17), or
+    /// only lists them in simulation mode (ENF-04).
+    pub fn clean(&self, plan: &CleanPlan) -> CoreResult<Session> {
+        let _guard = self.begin()?;
+        let items: Vec<Leftover> = {
+            let last = self
+                .last_report
+                .lock()
+                .map_err(|_| CoreError::InvalidInput("report lock poisoned".into()))?;
+            plan.item_ids
+                .iter()
+                .map(|id| {
+                    last.get(id)
+                        .cloned()
+                        .ok_or_else(|| CoreError::InvalidInput(format!("unknown item: {id}")))
+                })
+                .collect::<CoreResult<_>>()?
+        };
+        if self.simulating(plan.dry_run) {
+            return Ok(simulate(plan.origin.clone(), &items, Utc::now()));
+        }
+        let session = self.with_quarantine(|q| {
+            q.clean(
+                plan.origin.clone(),
+                &items,
+                plan.confirmation.as_deref(),
+                Utc::now(),
+            )
+        })?;
+        if let Some(history) = self.history()?.as_mut() {
+            history.save_session(&session)?;
+        }
+        if let Ok(mut last) = self.last_report.lock() {
+            for id in &plan.item_ids {
+                last.remove(id);
+            }
+        }
+        Ok(session)
+    }
+
+    /// Restores a session, entirely or partly (EF-18).
+    pub fn restore(&self, request: &RestoreRequest) -> CoreResult<Session> {
+        let _guard = self.begin()?;
+        if self.simulating(request.dry_run) {
+            let manifest = self.with_quarantine(|q| q.load(request.session_id))?;
+            let mut session = manifest.session;
+            session.simulated = true;
+            return Ok(session);
+        }
+        let session = self.with_quarantine(|q| {
+            q.restore(request.session_id, request.item_ids.as_deref(), Utc::now())
+        })?;
+        if let Some(history) = self.history()?.as_mut() {
+            history.save_session(&session)?;
+        }
+        Ok(session)
+    }
+
+    /// Sessions of the history, most recent first (EF-20). Interrupted
+    /// sessions are recovered on the way.
+    pub fn list_sessions(&self) -> CoreResult<Vec<Session>> {
+        if self.data_dir().is_none() {
+            return Ok(Vec::new());
+        }
+        let sessions = self.with_quarantine(|q| Ok(q.sessions()))?;
+        if let Some(history) = self.history()?.as_mut() {
+            for session in &sessions {
+                history.save_session(session)?;
+            }
+        }
+        Ok(sessions)
+    }
+
+    /// Deletes for good the sessions older than the given age (EF-19).
+    pub fn purge(&self, request: &PurgeRequest) -> CoreResult<PurgeResult> {
+        let _guard = self.begin()?;
+        if self.data_dir().is_none() {
+            return Ok(PurgeResult {
+                freed_bytes: 0,
+                simulated: true,
+            });
+        }
+        if self.simulating(request.dry_run) {
+            let limit = Utc::now() - chrono::Duration::days(i64::from(request.older_than_days));
+            let freed = self.with_quarantine(|q| {
+                Ok(q.sessions()
+                    .iter()
+                    .filter(|s| {
+                        s.created_at <= limit && s.status != crate::model::SessionStatus::Purged
+                    })
+                    .map(|s| s.freed_bytes)
+                    .sum())
+            })?;
+            return Ok(PurgeResult {
+                freed_bytes: freed,
+                simulated: true,
+            });
+        }
+        let freed = self.with_quarantine(|q| q.purge(request.older_than_days, Utc::now()))?;
+        Ok(PurgeResult {
+            freed_bytes: freed,
+            simulated: false,
+        })
     }
 }
 
@@ -195,6 +368,7 @@ impl Engine {
 mod tests {
     use super::*;
     use crate::fs::FakeFileSystem;
+    use crate::model::{CleanPlan, PurgeRequest, RestoreRequest};
     use crate::registry::TestRegistryKey;
     use std::path::Path;
 
@@ -250,6 +424,113 @@ mod tests {
                 .unwrap_err()
                 .code(),
             "BUSY"
+        );
+    }
+
+    /// Full cycle in a temporary machine under core/target (never %TEMP%,
+    /// whose « Temp » component is protected) and the registry test area.
+    #[test]
+    fn scan_clean_list_restore_cycle_respects_dry_run() {
+        use crate::fs::strip_verbatim;
+        use crate::model::{Origin, SessionStatus};
+
+        let parent =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\engine-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let tool = base.join(r"Users\Ana\AppData\Roaming\OldTool");
+        std::fs::create_dir_all(&tool).unwrap();
+        std::fs::write(tool.join("settings.ini"), b"[x]").unwrap();
+        let area = TestRegistryKey::new();
+        let make = |dry_run: bool| {
+            let config = EngineConfig {
+                dry_run,
+                data_dir: Some(base.join("data")),
+                exclusions: vec![],
+            };
+            Engine::with_folders(
+                config,
+                Box::new(RealFileSystem),
+                Box::new(area.registry()),
+                KnownFolders::under(&base),
+            )
+        };
+        let id_of = |report: &ScanReport| report.groups[0].items[0].id.clone();
+
+        // Engine in simulation (default): even a plan with dry_run false only simulates.
+        let safe = make(true);
+        let report = safe.scan_orphans(&ScanOptions::default(), &|_| {}).unwrap();
+        let mut plan = CleanPlan::new(vec![id_of(&report)], Origin::Orphans);
+        plan.dry_run = false;
+        assert!(safe.clean(&plan).unwrap().simulated);
+        assert!(tool.exists());
+        assert_eq!(
+            safe.clean(&CleanPlan::new(vec!["nope".into()], Origin::Orphans))
+                .unwrap_err()
+                .code(),
+            "INVALID_INPUT"
+        );
+
+        // Real engine: the plan must also say dry_run = false.
+        let real = make(false);
+        let report = real.scan_orphans(&ScanOptions::default(), &|_| {}).unwrap();
+        let id = id_of(&report);
+        assert!(
+            real.clean(&CleanPlan::new(vec![id.clone()], Origin::Orphans))
+                .unwrap()
+                .simulated
+        );
+        let mut plan = CleanPlan::new(vec![id], Origin::Orphans);
+        plan.dry_run = false;
+        let session = real.clean(&plan).unwrap();
+        assert!(!session.simulated);
+        assert_eq!(session.status, SessionStatus::Completed);
+        assert!(!tool.exists());
+
+        let sessions = real.list_sessions().unwrap();
+        assert_eq!(sessions.len(), 1);
+        let simulated = real
+            .purge(&PurgeRequest {
+                older_than_days: 0,
+                dry_run: true,
+            })
+            .unwrap();
+        assert!(simulated.simulated);
+        assert!(simulated.freed_bytes > 0);
+
+        let mut request = RestoreRequest {
+            session_id: session.id,
+            item_ids: None,
+            dry_run: true,
+        };
+        assert!(real.restore(&request).unwrap().simulated);
+        assert!(!tool.exists());
+        request.dry_run = false;
+        assert_eq!(
+            real.restore(&request).unwrap().status,
+            SessionStatus::Restored
+        );
+        assert_eq!(std::fs::read(tool.join("settings.ini")).unwrap(), b"[x]");
+    }
+
+    #[test]
+    fn test_engine_has_no_data_folder() {
+        let engine = Engine::new(
+            EngineConfig::default(),
+            Box::new(FakeFileSystem::new()),
+            Box::new(TestRegistryKey::new().registry()),
+        );
+        assert!(engine.data_dir().is_none());
+        assert!(engine.list_sessions().unwrap().is_empty());
+        assert!(
+            engine
+                .purge(&PurgeRequest {
+                    older_than_days: 30,
+                    dry_run: false
+                })
+                .unwrap()
+                .simulated
         );
     }
 

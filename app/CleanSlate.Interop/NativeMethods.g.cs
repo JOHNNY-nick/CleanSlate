@@ -62,6 +62,46 @@ namespace CleanSlate.Interop
         internal static extern ByteBuffer* cs_scan_orphans(EngineHandle* engine, byte* options, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
 
         /// <summary>
+        ///  Moves the selected items of the last scan to quarantine (EF-17): `data`
+        ///  is a `Session` (`simulated: true` when the engine or the plan is in
+        ///  simulation, the default). `callback` is reserved for progress (unused).
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `plan` must point to `len` readable bytes.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_clean", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_clean(EngineHandle* engine, byte* plan, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> _callback, void* _ctx);
+
+        /// <summary>
+        ///  Restores a session, entirely or partly (EF-18): `data` is the `Session`
+        ///  whose `errors` lists the items that could not be restored.
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` bytes.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_restore", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_restore(EngineHandle* engine, byte* request, int len);
+
+        /// <summary>
+        ///  Sessions of the history, most recent first (EF-20): `data` is a `Session[]`.
+        ///
+        ///  # Safety
+        ///  `engine` must be null or a live handle.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_list_sessions", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_list_sessions(EngineHandle* engine);
+
+        /// <summary>
+        ///  Deletes for good the sessions older than `older_than_days` (EF-19):
+        ///  `data` is `{ freed_bytes, simulated }`.
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` bytes.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_purge_quarantine", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_purge_quarantine(EngineHandle* engine, byte* request, int len);
+
+        /// <summary>
         ///  Asks the running long operation of `engine` to stop (EF-11). Safe to
         ///  call from any thread while the operation runs. Null is ignored.
         ///

@@ -16,7 +16,7 @@ use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
-use cleanslate_core::model::{ScanOptions, ScanProgress};
+use cleanslate_core::model::{CleanPlan, PurgeRequest, RestoreRequest, ScanOptions, ScanProgress};
 use cleanslate_core::{CoreError, CoreResult, Engine, EngineConfig};
 use serde::Serialize;
 use serde_json::json;
@@ -271,6 +271,92 @@ pub unsafe extern "C" fn cs_scan_orphans(
     })
 }
 
+/// Parses a required JSON input `(ptr, len)`.
+///
+/// # Safety
+/// Same contract as [`input_bytes`].
+unsafe fn parse_input<T: serde::de::DeserializeOwned>(ptr: *const u8, len: i32) -> CoreResult<T> {
+    // SAFETY: forwarded from this function's contract.
+    let bytes = unsafe { input_bytes(ptr, len) }?;
+    Ok(serde_json::from_slice(bytes)?)
+}
+
+/// Moves the selected items of the last scan to quarantine (EF-17): `data`
+/// is a `Session` (`simulated: true` when the engine or the plan is in
+/// simulation, the default). `callback` is reserved for progress (unused).
+///
+/// # Safety
+/// `engine` must be a live handle; `plan` must point to `len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn cs_clean(
+    engine: *const EngineHandle,
+    plan: *const u8,
+    len: i32,
+    _callback: ProgressCallback,
+    _ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let plan: CleanPlan = unsafe { parse_input(plan, len) }?;
+        engine.clean(&plan)
+    })
+}
+
+/// Restores a session, entirely or partly (EF-18): `data` is the `Session`
+/// whose `errors` lists the items that could not be restored.
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn cs_restore(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let request: RestoreRequest = unsafe { parse_input(request, len) }?;
+        engine.restore(&request)
+    })
+}
+
+/// Sessions of the history, most recent first (EF-20): `data` is a `Session[]`.
+///
+/// # Safety
+/// `engine` must be null or a live handle.
+#[no_mangle]
+pub unsafe extern "C" fn cs_list_sessions(engine: *const EngineHandle) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        engine.list_sessions()
+    })
+}
+
+/// Deletes for good the sessions older than `older_than_days` (EF-19):
+/// `data` is `{ freed_bytes, simulated }`.
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn cs_purge_quarantine(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let request: PurgeRequest = unsafe { parse_input(request, len) }?;
+        engine.purge(&request)
+    })
+}
+
 /// Asks the running long operation of `engine` to stop (EF-11). Safe to
 /// call from any thread while the operation runs. Null is ignored.
 ///
@@ -502,6 +588,45 @@ mod tests {
             cs_cancel(ptr::null());
             cs_engine_free(engine);
         }
+    }
+
+    #[test]
+    fn clean_is_simulated_by_default_and_history_calls_work() {
+        let engine = fake_engine();
+        let scan = take(unsafe { cs_scan_orphans(engine, ptr::null(), 0, None, ptr::null_mut()) });
+        let id = scan["data"]["groups"][0]["items"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+        let plan = format!(r#"{{"item_ids":["{id}"],"origin":{{"kind":"orphans"}}}}"#);
+        let session = take(unsafe {
+            cs_clean(
+                engine,
+                plan.as_ptr(),
+                plan.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(session["ok"], true, "{session}");
+        assert_eq!(session["data"]["simulated"], true);
+
+        let sessions = take(unsafe { cs_list_sessions(engine) });
+        assert_eq!(sessions["data"].as_array().unwrap().len(), 0);
+
+        let purge = br#"{"older_than_days":30}"#;
+        let purged =
+            take(unsafe { cs_purge_quarantine(engine, purge.as_ptr(), purge.len() as i32) });
+        assert_eq!(purged["data"]["simulated"], true);
+
+        let restore = br#"{"session_id":"00000000-0000-0000-0000-000000000000"}"#;
+        let restored = take(unsafe { cs_restore(engine, restore.as_ptr(), restore.len() as i32) });
+        assert_eq!(restored["ok"], false, "no data folder on a test engine");
+
+        let bad = take(unsafe { cs_clean(engine, ptr::null(), 0, None, ptr::null_mut()) });
+        assert_eq!(bad["error"]["code"], "INVALID_INPUT");
+        unsafe { cs_engine_free(engine) };
     }
 
     #[test]

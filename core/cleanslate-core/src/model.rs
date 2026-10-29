@@ -271,6 +271,9 @@ pub struct CleanPlan {
     pub dry_run: bool,
     /// What started the session.
     pub origin: Origin,
+    /// Word typed by the user above 20 GB or 50 000 files (« QUARANTAINE »).
+    #[serde(default)]
+    pub confirmation: Option<String>,
 }
 
 impl CleanPlan {
@@ -280,8 +283,41 @@ impl CleanPlan {
             item_ids,
             dry_run: true,
             origin,
+            confirmation: None,
         }
     }
+}
+
+/// Request of `cs_restore` (EF-18).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RestoreRequest {
+    /// Session to restore.
+    pub session_id: Uuid,
+    /// Items to restore; `None` means all.
+    #[serde(default)]
+    pub item_ids: Option<Vec<String>>,
+    /// Simulation (safety rule 5): `true` when absent.
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+}
+
+/// Request of `cs_purge_quarantine` (EF-19).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurgeRequest {
+    /// Sessions older than this are deleted for good.
+    pub older_than_days: u32,
+    /// Simulation (safety rule 5): `true` when absent.
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+}
+
+/// Result of `cs_purge_quarantine`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurgeResult {
+    /// Bytes deleted for good (or that would be, in simulation).
+    pub freed_bytes: u64,
+    /// `true` when nothing was deleted.
+    pub simulated: bool,
 }
 
 /// State of a cleaning session.
