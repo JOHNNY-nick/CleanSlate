@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: cargo fmt
+        working-directory: core
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        working-directory: core
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: core
+        run: cargo test --workspace
+
+      - name: Coverage of the engine (ENF-12, >= 80 %)
+        working-directory: core
+        run: cargo llvm-cov --workspace --fail-under-lines 80 --summary-only
+
+      - name: Build (cargo + dotnet)
+        shell: pwsh
+        run: ./scripts/build.ps1 -Configuration Release
+
+      - name: NativeMethods.g.cs is up to date
+        shell: pwsh
+        run: git diff --exit-code -- app/CleanSlate.Interop/NativeMethods.g.cs
+
+      - name: dotnet test
+        run: dotnet test app/CleanSlate.sln -c Release -p:Platform=x64 --no-build
+
+      - name: Upload application
+        uses: actions/upload-artifact@v7
+        with:
+          name: CleanSlate-win-x64
+          path: app/CleanSlate.App/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/
