@@ -1,26 +1,27 @@
-# Prompt Claude Code — CleanSlate
+# Prompts Claude Code — CleanSlate
 
-29 oct. 2026
+Dernière mise à jour : 29 oct. 2026
 
 ## 1. Mode d'emploi
 
 Claude Code travaille mieux par petites étapes vérifiables : un jalon par session, toujours avec les documents du projet sous les yeux.
 
-1. **Installe l'outillage** sur ton PC Windows : Rust (rustup), Visual Studio 2022 avec les charges « Développement .NET Desktop » et « Développement Desktop C++ », .NET 8 SDK, Git, puis Claude Code selon la [documentation officielle](https://docs.claude.com/en/docs/claude-code/overview).
-2. **Décompresse ce dossier** : il sert de base au dépôt (`CLAUDE.md` à la racine, documents et maquettes dans `docs/`). Renomme-le `cleanslate` si tu veux, puis `git init`. Travaille sous Windows directement (pas dans WSL) : WinUI 3 et le linker MSVC doivent compiler côté Windows.
-3. **Vérifie le `CLAUDE.md`** à la racine (section 2 ci-dessous). Claude Code le relit à chaque session : c'est là que vivent les règles permanentes.
-4. **Lance Claude Code** dans le dossier et colle le prompt initial (section 3). Il réalise uniquement le jalon J1.
-5. **À chaque jalon** : relis le plan qu'il propose avant de valider, laisse-le compiler et tester, lis le résumé, fais un commit, puis ouvre une nouvelle session avec le prompt du jalon suivant (section 4).
+1. **Installer l'outillage** sous Windows (pas dans WSL : WinUI 3 et le linker MSVC doivent compiler côté Windows) : Rust stable via rustup avec `rustfmt` et `clippy`, le SDK .NET 8, PowerShell 7, Visual Studio 2022 (ou ses Build Tools) avec les charges « Développement Desktop C++ », « Développement .NET Desktop » et « Développement d'applications WinUI », Git, puis Claude Code selon la [documentation officielle](https://docs.claude.com/en/docs/claude-code/overview). Le [README](../README.md) donne les commandes d'installation.
+2. **Cloner le dépôt** : `git clone <url-du-dépôt> cleanslate`, puis `cd cleanslate`.
+3. **Vérifier l'installation** : `pwsh scripts/build.ps1 -Configuration Debug` doit réussir, ainsi que les tests (section « Tester » du README).
+4. **Relire `CLAUDE.md`** à la racine (section 2 ci-dessous). Claude Code le relit à chaque session : c'est là que vivent les règles permanentes.
+5. **Lancer Claude Code** à la racine du dépôt et coller le prompt du prochain jalon (section 4). Le jalon J1 est déjà réalisé dans le dépôt ; son prompt (section 3) est conservé comme référence.
+6. **À chaque jalon** : relire le plan proposé avant de le valider, laisser Claude Code compiler et tester, lire le résumé, faire un commit, puis ouvrir une nouvelle session avec le prompt du jalon suivant.
 
-Règle d'or : ne lance jamais `cleanslate-cli` ni l'application sans le mode simulation sur ton PC principal avant le jalon J4 terminé. Pour les vrais essais de suppression, utilise Windows Sandbox ou une machine virtuelle.
+Règle d'or : ne jamais lancer `cleanslate-cli` ni l'application sans le mode simulation sur un PC principal avant la fin du jalon J4. Les vrais essais de suppression se font dans Windows Sandbox ou une machine virtuelle.
 
 ## 2. Fichier CLAUDE.md
 
-Le fichier complet est à la racine de ce dossier (`CLAUDE.md`). Il fixe le projet, les documents de référence, l'architecture, les commandes, les 8 règles de sécurité non négociables, les conventions Rust et C#, et la façon de travailler (plan d'abord, petits commits, explications Rust en français).
+Le fichier complet est à la racine du dépôt (`CLAUDE.md`). Il fixe le projet, les documents de référence, l'architecture, les commandes, les 8 règles de sécurité non négociables, les conventions Rust et C#, et la façon de travailler (plan d'abord, petits commits, explications Rust en français).
 
-## 3. Prompt initial (jalon J1)
+## 3. Prompt initial (jalon J1, réalisé)
 
-À coller dans la première session ; il fait lire les documents, puis construit uniquement le socle.
+Prompt de la première session, conservé comme référence : il fait lire les documents, puis construit uniquement le socle.
 
 ```text
 Tu vas m'aider à développer CleanSlate, un utilitaire Windows en Rust + C# / WinUI 3.
@@ -35,7 +36,7 @@ de sécurité, et liste les points qui te semblent ambigus ou contradictoires.
 Propose un plan avant d'écrire du code. J1 doit livrer :
 1. Le monorepo décrit en section 2 des spécifications : workspace Cargo dans core/
    (cleanslate-core, cleanslate-ffi, cleanslate-cli) et solution app/CleanSlate.sln
-   (CleanSlate.App WinUI 3 packagé, CleanSlate.Interop, CleanSlate.Tests), cible x64.
+   (CleanSlate.App WinUI 3 non packagée, CleanSlate.Interop, CleanSlate.Tests), cible x64.
 2. Dans cleanslate-core : le module model avec les types de la section 5 des
    spécifications (serde, snake_case), le type CoreError, les traits FileSystem
    et Registry avec une implémentation réelle et une implémentation de test.
@@ -46,20 +47,22 @@ Propose un plan avant d'écrire du code. J1 doit livrer :
    correctement et transforme ok:false en EngineException.
 5. Dans CleanSlate.App : fenêtre avec NavigationView (Accueil, Applications,
    Restes orphelins, Historique, Réglages), pages vides, jetons de couleur de
-   docs/design.md dans App.xaml, injection de dépendances, manifeste requireAdministrator.
+   docs/design.md dans App.xaml, injection de dépendances, application non packagée
+   (WindowsPackageType=None) avec app.manifest requireAdministrator.
    L'accueil affiche « Moteur CleanSlate 0.1.0 » obtenu via la DLL.
-6. scripts/build.ps1 (cargo puis dotnet, copie de cleanslate.dll) et
-   .github/workflows/ci.yml (fmt, clippy -D warnings, cargo test, build et test .NET).
+6. scripts/build.ps1 (cargo puis dotnet, -Configuration appliquée aux deux, copie de
+   cleanslate.dll) et .github/workflows/ci.yml (fmt, clippy -D warnings, cargo test,
+   couverture cargo-llvm-cov ≥ 80 %, build et test .NET).
 7. Tests : aller-retour JSON des types du modèle, cs_version via FFI depuis xUnit,
    panique simulée convertie en erreur INTERNAL_PANIC.
-8. README.md : prérequis, compilation, lancement.
+8. README.md : prérequis, compilation, lancement ; LICENSE (MIT).
 
 Contraintes
 - Respecte strictement CLAUDE.md, en particulier les règles de sécurité.
 - Aucun scan, aucune lecture du registre réel, aucune suppression à ce jalon.
 - Utilise les dernières versions stables des crates et du Windows App SDK ;
   vérifie-les plutôt que de les deviner.
-- Si un outil manque sur ma machine (cargo, dotnet, MSVC), dis-le-moi et arrête-toi.
+- Si un outil manque sur ma machine (cargo, dotnet, pwsh, MSVC), dis-le-moi et arrête-toi.
 
 Étape 2 — Réalisation
 Après mon accord sur le plan, réalise J1 par petites étapes avec un commit chacune.
@@ -75,13 +78,14 @@ Un prompt par nouvelle session, après le commit du jalon précédent ; chacun r
 ### J2 — Inventaire des applications
 
 ```text
-Jalon J2 — Inventaire (EF-01 à EF-04). Relis CLAUDE.md et les sections 3, 4, 5 et 8
+Jalon J2 — Inventaire (EF-01 à EF-03). Relis CLAUDE.md et les sections 3, 4, 5 et 8
 des spécifications, puis propose un plan avant de coder.
 - Module inventory : lecture en lecture seule des clés Uninstall HKLM 64 bits,
   HKLM WOW6432Node et HKCU via le trait Registry ; normalisation en InstalledApp ;
   id stable ; détection MSI ; filtrage SystemComponent, mises à jour, entrées sans nom.
-- Tests sur une ruche factice (sous-clé HKCU\Software\CleanSlateTest\<uuid>) avec
-  des cas réels : MSI, Inno Setup, NSIS, entrée 32 bits, InstallLocation vide.
+- Tests sur une ruche factice (WinRegistry::sandboxed et TestRegistryKey, sous-clé
+  HKCU\Software\CleanSlateTest\<uuid>) avec des cas réels : MSI, Inno Setup, NSIS,
+  entrée 32 bits, InstallLocation vide.
 - FFI cs_list_apps + EngineClient.ListAppsAsync.
 - Page Applications conforme à la maquette : liste virtualisée, recherche,
   tri, case « composants système », ligne sélectionnée, barre d'action (bouton
@@ -102,6 +106,8 @@ spécifications et propose un plan.
   la liste noire + jonction piégée vers C:\Windows + nom contenant "..".
 - Module scan : racines de EF-05/EF-06, profondeur 1 et 2, rayon + walkdir,
   AtomicBool d'annulation, progression toutes les 250 ms, erreurs collectées.
+- EF-07 (S) : raccourcis du menu Démarrer et du Bureau dont la cible n'existe plus,
+  tâches planifiées et services dont l'exécutable a disparu (en lecture seule).
 - Module matcher : normalisation, Jaro-Winkler (strsim), règles de rattachement
   de la section 6.2, score de la section 6.3 avec reasons lisibles, regroupement.
 - Fixtures : arborescence factice reproduisant 5 applications désinstallées et
@@ -118,13 +124,15 @@ lecture seule montré via la CLI avec --dry-run. Ne commence pas J4.
 ### J4 — Quarantaine et restauration
 
 ```text
-Jalon J4 — Quarantaine (EF-16 à EF-19). Premières opérations destructives :
-sois très prudent. Relis la section 7.2, 7.3 et 9 des spécifications, plan d'abord.
+Jalon J4 — Quarantaine (EF-16 à EF-19) et historique des sessions (EF-20).
+Premières opérations destructives : sois très prudent. Relis les sections 5, 7.2,
+7.3 et 9 des spécifications, plan d'abord.
 - Module quarantine : manifeste écrit avant chaque déplacement, MoveFileExW
   même volume sinon copie vérifiée SHA-256, export .reg UTF-16 LE des clés,
   fichiers verrouillés -> MOVEFILE_DELAY_UNTIL_REBOOT, plafond 20 Go / 50 000 fichiers.
 - Restauration totale et partielle, refus si la destination existe ; purge par âge.
 - Module history : SQLite (rusqlite bundled), tables sessions, items, exclusions, settings.
+- Finaliser QuarantinedItem (provisoire depuis J1) d'après le manifeste de la section 7.2.
 - Tests d'intégration : cycle quarantaine -> restauration à l'identique (contenu,
   dates, clés) uniquement dans tempfile et HKCU\Software\CleanSlateTest ; test de
   reprise après interruption au milieu d'une session.
@@ -158,19 +166,21 @@ Notepad++ écrite dans docs/tests-acceptation.md. Ne commence pas J6.
 ```text
 Jalon J6 — Finition. Plan d'abord.
 - Accueil complet (chiffres, sessions récentes, bandeau simulation), page Réglages
-  complète (exclusions, durée de quarantaine, thème, journaux).
-- Thème sombre et Contraste élevé via ThemeDictionaries ; vérification
-  clavier et Narrateur selon la section 6 du design.
+  complète (exclusions EF-20, durée de quarantaine, thème, journaux).
+- Validation à l'écran des valeurs sombres (en place depuis J1) et ressources
+  HighContrast dans les ThemeDictionaries ; vérification clavier et Narrateur selon
+  la section 6 du design (ENF-08).
 - Tous les états et textes de la section 5 du design.
 - Journaux tracing avec rotation 10 Mo (ENF-10).
-- Installeur (MSIX ou Inno Setup) et README final.
+- Installeur Inno Setup (application non packagée, requireAdministrator, section 10.4
+  des spécifications) et README final.
 - Revue finale : relis toutes les exigences M du cahier des charges et produis
   un tableau exigence -> fichier(s) -> test(s), en signalant ce qui manque.
 ```
 
 ## 5. Prompts utiles en cours de route
 
-Ces prompts courts servent à apprendre Rust en chemin et à garder le moteur sûr ; utilise-les entre deux jalons.
+Ces prompts courts servent à apprendre Rust en chemin et à garder le moteur sûr, entre deux jalons.
 
 | Besoin | Prompt |
 | --- | --- |

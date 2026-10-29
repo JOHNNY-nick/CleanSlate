@@ -1,10 +1,10 @@
 # Dossier de design — CleanSlate
 
-29 oct. 2026
+Dernière mise à jour : 29 oct. 2026
 
 ## 1. Maquettes
 
-Les huit planches sont dans `docs/maquettes/` : ouvrir `index.html` dans un navigateur, puis cliquer d'un écran à l'autre. La version éditable est le canevas [Maquettes CleanSlate](https://claude.ai/artifact/VGuCi3NwJAfp6eCh1Byynk). Canva n'a pas pu être utilisé le 29 oct. 2026 (quota de crédits épuisé) ; le brief de la section 7 permet de les régénérer dans Canva plus tard.
+Les huit planches sont dans [`docs/maquettes/`](maquettes/index.html) : ouvrir `index.html` dans un navigateur, puis cliquer d'un écran à l'autre. Ces fichiers HTML sont la référence ; le brief de la section 7 permet de régénérer les planches dans un outil de design comme Canva.
 
 | Planche | Fichier | Écran | Exigences couvertes |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ L'interface doit rassurer avant tout : l'utilisateur supprime des choses qu'il n
 
 ## 3. Jetons de design
 
-Ces valeurs deviennent des ressources XAML (`ThemeDictionaries` Light / Dark dans `App.xaml`) ; aucune couleur n'est écrite en dur dans une vue. Les valeurs sombres n'ont pas encore de maquette et sont à valider à l'écran.
+Ces valeurs sont des ressources XAML (`ThemeDictionaries` Light / Dark dans `app/CleanSlate.App/App.xaml`, en place depuis J1) ; aucune couleur n'est écrite en dur dans une vue. Chaque badge de confiance utilise deux ressources, `…ForegroundBrush` (texte) et `…BackgroundBrush` (fond), par exemple `ConfidenceHighForegroundBrush`. Les valeurs sombres n'ont pas encore de maquette et sont à valider à l'écran ; les ressources `HighContrast` arrivent en J6.
 
 | Jeton | Clair | Sombre | Usage |
 | --- | --- | --- | --- |
@@ -44,13 +44,13 @@ Ces valeurs deviennent des ressources XAML (`ThemeDictionaries` Light / Dark dan
 | `TextPrimaryBrush` | #1A1A1A | #FFFFFF | Texte |
 | `TextSecondaryBrush` | #5C5C5C | #C5C5C5 | Légendes, métadonnées |
 | `DangerBrush` | #C42B1C | #E0473A | Boutons de suppression uniquement |
-| `ConfidenceHigh` (texte / fond) | #0E700E / #DFF6DD | #6CCB5F / #393D1B | Badge « Élevée » |
-| `ConfidenceMedium` (texte / fond) | #8A5100 / #FFF4CE | #FCE100 / #433519 | Badge « Moyenne » |
-| `ConfidenceLow` (texte / fond) | #5C5C5C / #EDEDED | #C5C5C5 / #3A3A3A | Badge « Faible » |
+| `ConfidenceHigh…Brush` (texte / fond) | #0E700E / #DFF6DD | #6CCB5F / #393D1B | Badge « Élevée » |
+| `ConfidenceMedium…Brush` (texte / fond) | #8A5100 / #FFF4CE | #FCE100 / #433519 | Badge « Moyenne » |
+| `ConfidenceLow…Brush` (texte / fond) | #5C5C5C / #EDEDED | #C5C5C5 / #3A3A3A | Badge « Faible » |
 
 **Typographie** : Segoe UI Variable via les styles WinUI (`TitleTextBlockStyle` 28/600, `SubtitleTextBlockStyle` 20/600, `BodyTextBlockStyle` 14/400, `CaptionTextBlockStyle` 12/400) ; chemins en Cascadia Mono 13.
 
-**Formes et espacements** : cartes rayon 8, contrôles rayon 4, boutons 36 px de haut (cible tactile ≥ 44 px pour les boutons icône) ; espacements par pas de 4 et 8 ; marges de page 40 px, 24 px sous 800 px de large.
+**Formes et espacements** : cartes rayon 8, contrôles rayon 4, boutons 36 px de haut (cible tactile ≥ 44 px pour les boutons icône) ; espacements par pas de 4 et 8 ; marges de page 40 px, 24 px sous 800 px de large. Ressources correspondantes dans `App.xaml` : `CardCornerRadius`, `PageMargin`, `PathFontFamily` et les styles `PageTitleTextBlockStyle`, `SecondaryTextBlockStyle`, `CardBorderStyle`.
 
 ## 4. Parcours utilisateur
 
@@ -105,9 +105,9 @@ L'application doit s'utiliser entièrement au clavier et avec le Narrateur ; vé
 - Progression annoncée via une région `LiveSetting=Polite`, au plus toutes les 2 secondes.
 - Prise en charge du mode Contraste élevé Windows (ressources `HighContrast` dans les `ThemeDictionaries`) et du zoom de texte jusqu'à 200 %.
 
-## 7. Brief Canva à réutiliser
+## 7. Brief pour régénérer les maquettes
 
-Quand tes crédits Canva seront rechargés, deux options : demander à Claude de relancer la génération avec ce brief, ou envoyer directement le canevas existant vers Canva depuis son menu Partager › Exporter › Envoyer vers, s'il est proposé.
+Ce brief décrit les planches de façon autonome. Il peut être donné tel quel à un outil de design (Canva ou autre) ou à un assistant IA pour produire de nouvelles versions des maquettes.
 
 ```text
 Maquettes d'interface (16:9) pour « CleanSlate », utilitaire de bureau Windows 11 en français qui retrouve les fichiers laissés par des applications désinstallées et désinstalle complètement une application.

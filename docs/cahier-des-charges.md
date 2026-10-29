@@ -1,6 +1,6 @@
 # Cahier des charges — CleanSlate
 
-29 oct. 2026
+Dernière mise à jour : 29 oct. 2026
 
 ## 1. Présentation du projet
 
@@ -72,7 +72,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | --- | --- | --- |
 | EF-12 | Sélectionner une application installée et lancer son désinstalleur officiel (`UninstallString`, ou `msiexec /x` pour un MSI), en attendant la fin du processus. | M |
 | EF-13 | Après la désinstallation, scanner automatiquement les restes de cette application et les afficher pour validation. | M |
-| EF-14 | Proposer un mode silencieux (`QuietUninstallString`, `/quiet`) quand il existe. | S |
+| EF-14 | Proposer un mode silencieux (`QuietUninstallString`, ou `/qn` pour un MSI) quand il existe. | S |
 | EF-15 | Créer un point de restauration Windows avant la désinstallation, si la protection système est active. | S |
 
 ### 3.4 Suppression et sécurité
@@ -128,12 +128,25 @@ Le projet avance en six jalons séquentiels ; chacun se termine par une version 
 
 ### 6.1 Jalons
 
-1. **J1 — Socle** : monorepo, workspace Cargo, solution WinUI 3, DLL appelée depuis C# (fonction `version()`), CI verte.
+1. **J1 — Socle** (terminé) : monorepo, workspace Cargo, solution WinUI 3, `cleanslate.dll` appelée depuis C# (fonction `cs_version`), CI.
 2. **J2 — Inventaire** : EF-01 à EF-03 ; écran « Applications » fonctionnel.
 3. **J3 — Moteur de détection** : EF-05 à EF-11 en mode simulation uniquement ; écran « Restes orphelins ».
-4. **J4 — Quarantaine** : EF-16 à EF-19 ; premières suppressions réelles, toujours restaurables.
+4. **J4 — Quarantaine** : EF-16 à EF-19 et historique des sessions (EF-20) ; premières suppressions réelles, toujours restaurables.
 5. **J5 — Désinstallation complète** : EF-12 à EF-15 ; parcours complet de bout en bout.
-6. **J6 — Finition** : historique, exclusions, réglages, thèmes, accessibilité, installeur.
+6. **J6 — Finition** : accueil complet, exclusions (EF-20), réglages, thèmes, accessibilité, journaux, installeur Inno Setup.
+
+Traçabilité des exigences vers les jalons :
+
+| Jalon | Exigences fonctionnelles | Exigences non fonctionnelles |
+| --- | --- | --- |
+| J1 | — | ENF-03 (accès disque sans traverser les reparse points), ENF-12 (CI, couverture) |
+| J2 | EF-01, EF-02, EF-03 | ENF-05 (inventaire < 2 s) |
+| J3 | EF-05 à EF-11 | ENF-01, ENF-03, ENF-04, ENF-05 (scan < 60 s), ENF-06, ENF-09 |
+| J4 | EF-16 à EF-19, EF-20 (historique) | ENF-02, ENF-04, ENF-09 |
+| J5 | EF-12 à EF-15 | ENF-07 |
+| J6 | EF-20 (exclusions dans les réglages) | ENF-08, ENF-10, ENF-11 (revue finale) |
+
+EF-04 (priorité C) n'est encore planifiée dans aucun jalon.
 
 ### 6.2 Livrables
 
