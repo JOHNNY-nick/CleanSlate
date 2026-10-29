@@ -10,6 +10,7 @@ pub mod fs;
 pub mod inventory;
 pub mod model;
 pub mod registry;
+pub mod safety;
 
 pub use engine::{Engine, EngineConfig};
 pub use error::{CoreError, CoreResult};

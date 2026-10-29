@@ -4,7 +4,7 @@
 //! in-memory tree for unit tests. Both are read-only at this stage: writes
 //! will be added with the quarantine (J4), always behind `safety::validate`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,6 +54,26 @@ pub trait FileSystem: Send + Sync {
     fn exists(&self, path: &Path) -> bool {
         self.metadata(path).is_ok()
     }
+
+    /// Final path of `path` once every link is resolved (used by `safety` to
+    /// detect a path that leaves its root). The default keeps the path as is:
+    /// an in-memory tree has no links to resolve.
+    fn canonicalize(&self, path: &Path) -> CoreResult<PathBuf> {
+        self.metadata(path)?;
+        Ok(path.to_path_buf())
+    }
+}
+
+/// Removes the `\\?\` (or `\\?\UNC\`) prefix added by `std::fs::canonicalize`.
+pub fn strip_verbatim(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = text.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        path.to_path_buf()
+    }
 }
 
 /// The real disk, read-only.
@@ -101,6 +121,12 @@ impl FileSystem for RealFileSystem {
         }
         Ok(entries)
     }
+
+    fn canonicalize(&self, path: &Path) -> CoreResult<PathBuf> {
+        // On Windows, std::fs::canonicalize calls GetFinalPathNameByHandleW.
+        let canonical = fs::canonicalize(path).map_err(|e| CoreError::from_io(path, e))?;
+        Ok(strip_verbatim(&canonical))
+    }
 }
 
 /// In-memory file system for tests.
@@ -110,6 +136,8 @@ impl FileSystem for RealFileSystem {
 #[derive(Debug, Default, Clone)]
 pub struct FakeFileSystem {
     nodes: BTreeMap<PathBuf, EntryMetadata>,
+    /// Children of each folder, so that `read_dir` stays fast on big trees.
+    children: BTreeMap<PathBuf, BTreeSet<PathBuf>>,
 }
 
 impl FakeFileSystem {
@@ -157,13 +185,19 @@ impl FakeFileSystem {
     }
 
     fn insert(&mut self, path: &Path, meta: EntryMetadata) {
+        let mut child = path;
         for parent in path.ancestors().skip(1) {
             if parent.as_os_str().is_empty() {
                 break;
             }
+            self.children
+                .entry(parent.to_path_buf())
+                .or_default()
+                .insert(child.to_path_buf());
             self.nodes
                 .entry(parent.to_path_buf())
                 .or_insert_with(|| Self::dir_meta(false, None));
+            child = parent;
         }
         self.nodes.insert(path.to_path_buf(), meta);
     }
@@ -193,13 +227,16 @@ impl FileSystem for FakeFileSystem {
             )));
         }
         Ok(self
-            .nodes
-            .iter()
-            .filter(|(child, _)| child.parent() == Some(path))
-            .map(|(child, meta)| DirEntry {
-                path: child.clone(),
-                name: child.file_name().unwrap_or_default().to_os_string(),
-                metadata: meta.clone(),
+            .children
+            .get(path)
+            .into_iter()
+            .flatten()
+            .filter_map(|child| {
+                self.nodes.get(child).map(|meta| DirEntry {
+                    path: child.clone(),
+                    name: child.file_name().unwrap_or_default().to_os_string(),
+                    metadata: meta.clone(),
+                })
             })
             .collect())
     }
