@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="NavHome.Content" xml:space="preserve">
+    <value>Accueil</value>
+  </data>
+  <data name="NavApps.Content" xml:space="preserve">
+    <value>Applications</value>
+  </data>
+  <data name="NavOrphans.Content" xml:space="preserve">
+    <value>Restes orphelins</value>
+  </data>
+  <data name="NavHistory.Content" xml:space="preserve">
+    <value>Historique</value>
+  </data>
+  <data name="NavSettings.Content" xml:space="preserve">
+    <value>Réglages</value>
+  </data>
+  <data name="HomeTitle.Text" xml:space="preserve">
+    <value>Accueil</value>
+  </data>
+  <data name="HomeEngineLabel.Text" xml:space="preserve">
+    <value>Moteur CleanSlate</value>
+  </data>
+  <data name="HomeEngineCaption.Text" xml:space="preserve">
+    <value>Le moteur d'analyse est chargé. Mode simulation actif : rien n'est modifié.</value>
+  </data>
+  <data name="HomeEngineError.Title" xml:space="preserve">
+    <value>Le moteur CleanSlate est indisponible.</value>
+  </data>
+  <data name="AppsTitle.Text" xml:space="preserve">
+    <value>Applications</value>
+  </data>
+  <data name="AppsPlaceholder.Text" xml:space="preserve">
+    <value>La liste des applications installées arrive au jalon J2.</value>
+  </data>
+  <data name="OrphansTitle.Text" xml:space="preserve">
+    <value>Restes orphelins</value>
+  </data>
+  <data name="OrphansPlaceholder.Text" xml:space="preserve">
+    <value>L'analyse des restes arrive au jalon J3.</value>
+  </data>
+  <data name="HistoryTitle.Text" xml:space="preserve">
+    <value>Historique</value>
+  </data>
+  <data name="HistoryPlaceholder.Text" xml:space="preserve">
+    <value>Aucune session pour l'instant.</value>
+  </data>
+  <data name="SettingsTitle.Text" xml:space="preserve">
+    <value>Réglages</value>
+  </data>
+  <data name="SettingsPlaceholder.Text" xml:space="preserve">
+    <value>Les réglages arrivent aux jalons J4 et J6.</value>
+  </data>
+</root>

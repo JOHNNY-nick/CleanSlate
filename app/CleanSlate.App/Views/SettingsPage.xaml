@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="CleanSlate.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel Margin="{StaticResource PageMargin}" Spacing="8">
+        <TextBlock x:Uid="SettingsTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
+        <TextBlock x:Uid="SettingsPlaceholder" Style="{StaticResource SecondaryTextBlockStyle}" />
+    </StackPanel>
+</Page>
