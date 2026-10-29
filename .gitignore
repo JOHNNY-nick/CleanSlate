@@ -1,0 +1,23 @@
+# Rust
+core/target/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+packages/
+
+# Build outputs
+artifacts/
+*.dll.pdb
+
+# Coverage
+lcov.info
+coverage/
+
+# OS / editors
+Thumbs.db
+.DS_Store
