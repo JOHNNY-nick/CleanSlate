@@ -141,10 +141,13 @@ impl Errors {
 /// Scans the whole machine for orphan leftovers (specs § 6.1).
 pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) -> ScanReport {
     let started = Instant::now();
-    let known = KnownSet::new(env.apps, env.extra_executables);
+    let mut known = KnownSet::new(env.apps, env.extra_executables);
     let errors = Errors::default();
     let listing = Reporter::new(progress, 0);
     listing.emit(ScanPhase::Listing, "");
+    for name in present_programs(env, &errors) {
+        known.add_present_program(&name);
+    }
 
     let mut candidates = Vec::new();
     let personal = [env.folders.documents.clone()];
@@ -265,6 +268,52 @@ fn folder_candidate(
         personal,
         in_program_files,
     }
+}
+
+/// Depth searched for executables when deciding whether a program folder
+/// is still present.
+const PRESENT_PROGRAM_DEPTH: usize = 3;
+
+/// Names of program folders that still contain executables in `Program
+/// Files`, `Program Files (x86)` and `Local\Programs`: software present on
+/// disk even without an Uninstall entry (portable or per-user installs).
+/// Their data folders must not be proposed.
+fn present_programs(env: &ScanEnv, errors: &Errors) -> Vec<String> {
+    let roots = [
+        &env.folders.program_files,
+        &env.folders.program_files_x86,
+        &env.folders.local_programs,
+    ];
+    let mut names = Vec::new();
+    for root in roots {
+        for entry in read_dir_or_record(env.fs, root, errors) {
+            if entry.metadata.is_dir
+                && contains_executable(env.fs, &entry.path, PRESENT_PROGRAM_DEPTH)
+            {
+                names.push(entry.name.to_string_lossy().into_owned());
+            }
+        }
+    }
+    names
+}
+
+/// `true` if a `.exe` exists below `dir` within `depth` levels (reparse
+/// points are not traversed).
+fn contains_executable(fs: &dyn FileSystem, dir: &Path, depth: usize) -> bool {
+    let Ok(entries) = fs.read_dir(dir) else {
+        return false;
+    };
+    entries.iter().any(|e| {
+        if e.metadata.is_reparse_point {
+            false
+        } else if e.metadata.is_dir {
+            depth > 1 && contains_executable(fs, &e.path, depth - 1)
+        } else {
+            e.path
+                .extension()
+                .is_some_and(|x| x.eq_ignore_ascii_case("exe"))
+        }
+    })
 }
 
 fn read_dir_or_record(
@@ -404,6 +453,7 @@ fn analyze(
 
     let mut facts = Facts {
         personal_folder: candidate.personal,
+        under_installed_publisher: candidate.publisher.is_some(),
         in_program_files: candidate.in_program_files,
         dead_shortcut: candidate.kind == LeftoverKind::Shortcut,
         ..Facts::default()
@@ -635,7 +685,10 @@ pub(crate) mod tests {
                 100,
                 recent,
             )
-            .add_file(format!(r"{l}\Mozilla\Firefox\cache.bin"), 9_000, recent);
+            .add_file(format!(r"{l}\Mozilla\Firefox\cache.bin"), 9_000, recent)
+            // Per-user install without an Uninstall entry: present on disk.
+            .add_file(format!(r"{l}\Programs\Obsidian\Obsidian.exe"), 90_000, old)
+            .add_file(format!(r"{r}\obsidian\obsidian.json"), 300, old);
         // Leftovers of uninstalled applications.
         fs.add_file(format!(r"{r}\audacity\audacity.cfg"), 4_000, old)
             .add_file(format!(r"{pf}\Audacity\Nyquist\init.lsp"), 40_000, old)
@@ -776,6 +829,7 @@ pub(crate) mod tests {
             "microsoft",
             "temp",
             "trap",
+            "obsidian",
             r"roaming\mozilla",
         ] {
             assert!(

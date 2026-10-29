@@ -1,11 +1,11 @@
 //! Debug command-line front-end for the CleanSlate engine.
 //!
-//! Every command is read-only: `scan --dry-run --json` arrives with J3.
+//! Every command is read-only: nothing is ever moved or deleted from here.
 
 use std::process::ExitCode;
 use std::time::Instant;
 
-use cleanslate_core::model::InstalledApp;
+use cleanslate_core::model::{Confidence, InstalledApp, ScanOptions};
 use cleanslate_core::{Engine, EngineConfig};
 
 const USAGE: &str = "\
@@ -15,6 +15,8 @@ Commands:
   version [--json]          Print the engine version
   apps [--json] [--all]     List installed applications (read-only, EF-01);
                             --all also shows system components and updates
+  scan --dry-run [--json]   Look for orphan leftovers (read-only simulation,
+                            EF-05 to EF-11); --dry-run is mandatory
   help                      Print this help";
 
 fn main() -> ExitCode {
@@ -35,6 +37,15 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("apps") => apps(flag("--json"), flag("--all")),
+        Some("scan") => {
+            if !flag("--dry-run") {
+                eprintln!(
+                    "scan requires --dry-run (safety rule 1): the CLI never deletes anything."
+                );
+                return ExitCode::from(2);
+            }
+            scan(flag("--json"))
+        }
         Some("help") | None => {
             println!("{USAGE}");
             ExitCode::SUCCESS
@@ -87,6 +98,51 @@ fn apps(json: bool, all: bool) -> ExitCode {
         apps.len(),
         shown.len(),
         elapsed.as_millis()
+    );
+    ExitCode::SUCCESS
+}
+
+/// `scan --dry-run`: read-only scan of this machine; progress on stderr.
+fn scan(json: bool) -> ExitCode {
+    let engine = Engine::with_system(EngineConfig::default());
+    let progress = |p: &cleanslate_core::model::ScanProgress| {
+        eprintln!("[{:?}] {}/{} {}", p.phase, p.current, p.total, p.path);
+    };
+    let report = match engine.scan_orphans(&ScanOptions::default(), &progress) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!("error {}: {err}", err.code());
+            return ExitCode::FAILURE;
+        }
+    };
+    if json {
+        match serde_json::to_string_pretty(&report) {
+            Ok(text) => println!("{text}"),
+            Err(err) => {
+                eprintln!("error: {err}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else {
+        for group in &report.groups {
+            println!("{} ({} bytes)", group.label, group.total_bytes);
+            for item in &group.items {
+                let level = match item.confidence {
+                    Confidence::High => "high",
+                    Confidence::Medium => "medium",
+                    Confidence::Low => "low",
+                };
+                println!("  [{level:<6}] {:?} {}", item.kind, item.location);
+            }
+        }
+    }
+    let items: usize = report.groups.iter().map(|g| g.items.len()).sum();
+    eprintln!(
+        "simulation: {} groups, {items} items, {} errors, {} ms{}",
+        report.groups.len(),
+        report.errors.len(),
+        report.duration_ms,
+        if report.cancelled { " (cancelled)" } else { "" }
     );
     ExitCode::SUCCESS
 }

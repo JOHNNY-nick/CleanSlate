@@ -141,6 +141,15 @@ impl KnownSet {
         set
     }
 
+    /// Adds the name of a program found on disk without an Uninstall entry
+    /// (folder with executables in Program Files or `Local\Programs`).
+    pub fn add_present_program(&mut self, name: &str) {
+        let normalized = normalize(name);
+        if !normalized.is_empty() {
+            push_unique(&mut self.names, normalized);
+        }
+    }
+
     /// Best similarity of `normalized` with an installed name or publisher.
     pub fn best_similarity(&self, normalized: &str) -> f64 {
         self.names
@@ -242,6 +251,9 @@ pub struct Facts {
     pub dead_shortcut: bool,
     /// The item lies in a personal folder (Documents): never pre-checked.
     pub personal_folder: bool,
+    /// The item lies in the folder of a publisher that still has an
+    /// installed application: at most Medium (never pre-checked).
+    pub under_installed_publisher: bool,
 }
 
 /// Computes the confidence score of an orphan (specs § 6.3) with its
@@ -300,6 +312,13 @@ pub fn score(
         p if p >= MEDIUM_THRESHOLD => Confidence::Medium,
         _ => Confidence::Low,
     };
+    if facts.under_installed_publisher && confidence == Confidence::High {
+        confidence = Confidence::Medium;
+        reasons.push(
+            "Dans le dossier d'un éditeur dont une application est encore installée : jamais précoché"
+                .to_owned(),
+        );
+    }
     if facts.personal_folder {
         confidence = Confidence::Low;
         reasons.push("Dossier personnel possible : jamais précoché".to_owned());
@@ -507,6 +526,28 @@ mod tests {
             score(LeftoverKind::Shortcut, "App.lnk", 0.9, &lnk, now()).1,
             Confidence::High
         );
+    }
+
+    #[test]
+    fn items_under_an_installed_publisher_are_at_most_medium() {
+        let facts = Facts {
+            last_modified: Some(now() - Duration::days(400)),
+            under_installed_publisher: true,
+            ..Facts::default()
+        };
+        let (_, confidence, reasons) = score(LeftoverKind::Folder, "NGX", 0.1, &facts, now());
+        assert_eq!(confidence, Confidence::Medium);
+        assert!(reasons.last().unwrap().contains("éditeur"));
+    }
+
+    #[test]
+    fn present_programs_attach_their_data() {
+        let mut known = KnownSet::default();
+        assert!(known.attach("obsidian", None, &[]).is_none());
+        known.add_present_program("Obsidian");
+        assert!(known.attach("obsidian", None, &[]).is_some());
+        known.add_present_program("1.0");
+        assert!(known.attach("Other", None, &[]).is_none());
     }
 
     #[test]
