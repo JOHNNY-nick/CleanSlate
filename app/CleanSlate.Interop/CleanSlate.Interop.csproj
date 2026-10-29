@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>CleanSlate.Interop</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CleanSlate.Tests" />
+  </ItemGroup>
+
+  <!-- cleanslate.dll is copied next to every project that references this one. -->
+  <ItemGroup>
+    <Content Include="$(CleanSlateNativeDll)" Link="cleanslate.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="CheckNativeEngine" BeforeTargets="Build">
+    <Error Condition="!Exists('$(CleanSlateNativeDll)')"
+           Text="cleanslate.dll not found at $(CleanSlateNativeDll). Run: pwsh scripts/build.ps1 -Configuration $(Configuration)" />
+  </Target>
+
+</Project>

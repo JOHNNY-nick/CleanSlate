@@ -1,0 +1,21 @@
+<Project>
+  <!-- Settings shared by every .NET project of the solution. -->
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Authors>Mysterion</Authors>
+    <Product>CleanSlate</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Native engine built by cargo: Debug -> target\debug, Release -> target\release. -->
+    <CleanSlateCargoProfile Condition="'$(Configuration)' == 'Release'">release</CleanSlateCargoProfile>
+    <CleanSlateCargoProfile Condition="'$(Configuration)' != 'Release'">debug</CleanSlateCargoProfile>
+    <CleanSlateNativeDll>$(MSBuildThisFileDirectory)..\core\target\$(CleanSlateCargoProfile)\cleanslate.dll</CleanSlateNativeDll>
+  </PropertyGroup>
+</Project>
