@@ -28,6 +28,7 @@ public sealed class OrphansViewModelTests
         var settings = Substitute.For<ISettingsService>();
         settings.SimulationMode.Returns(simulation);
         settings.QuarantineDays.Returns(30);
+        settings.Exclusions.Returns([]);
         return settings;
     }
 

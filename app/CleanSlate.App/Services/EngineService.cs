@@ -14,6 +14,7 @@ public sealed class EngineService : IEngineService, IDisposable
     private readonly object _gate = new();
     private EngineClient? _client;
     private bool _clientSimulation;
+    private IReadOnlyList<string> _clientExclusions = [];
 
     /// <summary>Creates the service.</summary>
     public EngineService(ISettingsService settings)
@@ -28,11 +29,13 @@ public sealed class EngineService : IEngineService, IDisposable
             lock (_gate)
             {
                 bool simulation = _settings.SimulationMode;
-                if (_client is null || _clientSimulation != simulation)
+                IReadOnlyList<string> exclusions = _settings.Exclusions;
+                if (_client is null || _clientSimulation != simulation || !_clientExclusions.SequenceEqual(exclusions))
                 {
                     _client?.Dispose();
-                    _client = new EngineClient(new EngineConfig(DryRun: simulation));
+                    _client = new EngineClient(new EngineConfig(DryRun: simulation) { Exclusions = exclusions });
                     _clientSimulation = simulation;
+                    _clientExclusions = exclusions.ToList();
                 }
 
                 return _client;

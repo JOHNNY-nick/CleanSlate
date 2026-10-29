@@ -52,9 +52,13 @@ public partial class App : Application
     /// <inheritdoc/>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = GetService<MainWindow>();
-        _window.Closed += (_, _) => _host.Dispose();
-        _window.Activate();
+        var window = GetService<MainWindow>();
+        _window = window;
+        var settings = GetService<ISettingsService>();
+        window.ApplyTheme(settings.Theme);
+        settings.Changed += (_, _) => window.DispatcherQueue.TryEnqueue(() => window.ApplyTheme(settings.Theme));
+        window.Closed += (_, _) => _host.Dispose();
+        window.Activate();
         _ = PurgeOldSessionsAsync();
     }
 

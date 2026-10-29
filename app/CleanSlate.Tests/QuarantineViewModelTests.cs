@@ -135,6 +135,32 @@ public sealed class QuarantineViewModelTests
     }
 
     [Fact]
+    public void Settings_ExclusionsAndTheme()
+    {
+        var settings = OrphansViewModelTests.Settings();
+        var stored = new List<string>();
+        settings.Exclusions.Returns(_ => stored.ToList());
+        settings.When(s => s.AddExclusion(Arg.Any<string>())).Do(c => stored.Add(c.Arg<string>().Trim()));
+        var vm = new SettingsViewModel(settings);
+
+        vm.NewExclusion = @"relative\path";
+        Assert.False(vm.AddExclusionCommand.CanExecute(null));
+        vm.NewExclusion = @"C:\Users\Ana\AppData\Roaming\KeepMe";
+        Assert.True(vm.AddExclusionCommand.CanExecute(null));
+        vm.AddExclusionCommand.Execute(null);
+        Assert.Single(vm.Exclusions);
+        Assert.Equal(string.Empty, vm.NewExclusion);
+        Assert.True(SettingsViewModel.IsValidExclusion(@"HKCU\Software\KeepMe"));
+
+        vm.RemoveExclusionCommand.Execute(@"C:\Users\Ana\AppData\Roaming\KeepMe");
+        settings.Received(1).RemoveExclusion(@"C:\Users\Ana\AppData\Roaming\KeepMe");
+        Assert.Empty(vm.Exclusions);
+
+        vm.ThemeIndex = 2;
+        settings.Received().Theme = AppTheme.Dark;
+    }
+
+    [Fact]
     public void Settings_ClampDaysAndWriteThrough()
     {
         var settings = OrphansViewModelTests.Settings();

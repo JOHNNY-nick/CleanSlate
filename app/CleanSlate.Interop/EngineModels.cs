@@ -8,7 +8,11 @@ namespace CleanSlate.Interop;
 /// </summary>
 /// <param name="DryRun">Simulation mode: nothing is modified. True by default.</param>
 /// <param name="DataDir">Data folder; null means <c>%LOCALAPPDATA%\CleanSlate</c>.</param>
-public sealed record EngineConfig(bool DryRun = true, string? DataDir = null);
+public sealed record EngineConfig(bool DryRun = true, string? DataDir = null)
+{
+    /// <summary>Folders or keys never proposed (EF-20).</summary>
+    public IReadOnlyList<string> Exclusions { get; init; } = [];
+}
 
 /// <summary>Payload of <c>cs_version</c>.</summary>
 public sealed record EngineVersion(string Version);

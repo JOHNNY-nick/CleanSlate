@@ -51,6 +51,6 @@ public sealed class EnvelopeTests
     {
         string json = JsonSerializer.Serialize(new EngineConfig(), EngineJsonContext.Default.EngineConfig);
 
-        Assert.Equal("""{"dry_run":true,"data_dir":null}""", json);
+        Assert.Equal("""{"dry_run":true,"data_dir":null,"exclusions":[]}""", json);
     }
 }

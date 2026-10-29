@@ -423,4 +423,49 @@
   <data name="WizardSimulatedDone.Text" xml:space="preserve">
     <value>Simulation : la commande ci-dessous aurait été lancée ; rien n'a été désinstallé ni déplacé.</value>
   </data>
+  <data name="SettingsExclusionsTitle.Text" xml:space="preserve">
+    <value>Exclusions</value>
+  </data>
+  <data name="SettingsExclusionsHelp.Text" xml:space="preserve">
+    <value>Dossiers ou clés de registre que CleanSlate ne proposera jamais, ni leur contenu. Exemples : C:\Jeux\Sauvegardes, HKCU\Software\MonOutil.</value>
+  </data>
+  <data name="SettingsExclusionBox.PlaceholderText" xml:space="preserve">
+    <value>Chemin complet ou clé HKCU\… / HKLM\…</value>
+  </data>
+  <data name="SettingsExclusionAdd.Content" xml:space="preserve">
+    <value>Ajouter</value>
+  </data>
+  <data name="SettingsExclusionRemove.Content" xml:space="preserve">
+    <value>Retirer</value>
+  </data>
+  <data name="SettingsTheme.Header" xml:space="preserve">
+    <value>Thème</value>
+  </data>
+  <data name="SettingsThemeSystem.Content" xml:space="preserve">
+    <value>Suivre Windows</value>
+  </data>
+  <data name="SettingsThemeLight.Content" xml:space="preserve">
+    <value>Clair</value>
+  </data>
+  <data name="SettingsThemeDark.Content" xml:space="preserve">
+    <value>Sombre</value>
+  </data>
+  <data name="SettingsLogsTitle.Text" xml:space="preserve">
+    <value>Journaux</value>
+  </data>
+  <data name="SettingsLogsHelp.Text" xml:space="preserve">
+    <value>Chaque analyse, mise en quarantaine, restauration et purge y est notée. Un fichier par jour, les 7 derniers sont conservés. Rien n'est envoyé sur Internet.</value>
+  </data>
+  <data name="SettingsLogsOpen.Content" xml:space="preserve">
+    <value>Ouvrir le dossier des journaux</value>
+  </data>
+  <data name="SettingsAboutTitle.Text" xml:space="preserve">
+    <value>CleanSlate 0.1.0</value>
+  </data>
+  <data name="SettingsAboutEngine.Text" xml:space="preserve">
+    <value>Moteur</value>
+  </data>
+  <data name="SettingsAboutLicense.Text" xml:space="preserve">
+    <value>Logiciel libre sous licence MIT. Aucune donnée n'est collectée ni envoyée.</value>
+  </data>
 </root>

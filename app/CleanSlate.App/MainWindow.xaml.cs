@@ -25,6 +25,20 @@ public sealed partial class MainWindow : Window
         NavView.SelectedItem = NavView.MenuItems[0];
     }
 
+    /// <summary>Applies the theme of the settings (ENF-08).</summary>
+    public void ApplyTheme(Presentation.Services.AppTheme theme)
+    {
+        if (Content is FrameworkElement root)
+        {
+            root.RequestedTheme = theme switch
+            {
+                Presentation.Services.AppTheme.Light => ElementTheme.Light,
+                Presentation.Services.AppTheme.Dark => ElementTheme.Dark,
+                _ => ElementTheme.Default,
+            };
+        }
+    }
+
     /// <summary>Shows the uninstall wizard (reached from the Applications page).</summary>
     public void ShowUninstallWizard() => ContentFrame.Navigate(typeof(UninstallWizardPage));
 
