@@ -60,6 +60,16 @@ pub enum CoreError {
         location: String,
     },
 
+    /// Above 20 GB or 50 000 files, the user must type « QUARANTAINE »
+    /// (specs § 9.2).
+    #[error("confirmation required: {bytes} bytes, {files} files")]
+    ConfirmationRequired {
+        /// Total size of the plan.
+        bytes: u64,
+        /// Total number of files of the plan.
+        files: u64,
+    },
+
     /// Another long operation is already running on this engine.
     #[error("the engine is busy with another operation")]
     Busy,
@@ -79,6 +89,7 @@ impl CoreError {
             CoreError::Registry { .. } => "REGISTRY_ERROR",
             CoreError::InvalidInput(_) => "INVALID_INPUT",
             CoreError::Protected { .. } => "PROTECTED",
+            CoreError::ConfirmationRequired { .. } => "CONFIRMATION_REQUIRED",
             CoreError::Busy => "BUSY",
             CoreError::Cancelled => "CANCELLED",
         }
@@ -92,7 +103,10 @@ impl CoreError {
             | CoreError::Protected { location } => Some(location.clone()),
             CoreError::Io { path, .. } => Some(path.display().to_string()),
             CoreError::Registry { key, .. } => Some(key.clone()),
-            CoreError::InvalidInput(_) | CoreError::Busy | CoreError::Cancelled => None,
+            CoreError::InvalidInput(_)
+            | CoreError::ConfirmationRequired { .. }
+            | CoreError::Busy
+            | CoreError::Cancelled => None,
         }
     }
 

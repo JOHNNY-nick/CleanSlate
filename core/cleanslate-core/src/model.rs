@@ -359,6 +359,9 @@ pub struct Session {
     pub errors: Vec<ItemError>,
     /// Current state.
     pub status: SessionStatus,
+    /// `true` for a simulation: nothing was moved and nothing is saved.
+    #[serde(default)]
+    pub simulated: bool,
 }
 
 #[cfg(test)]
@@ -524,6 +527,7 @@ mod tests {
             freed_bytes: 512,
             errors: vec![],
             status: SessionStatus::Completed,
+            simulated: false,
         };
         let json = round_trip(&session);
         assert!(json.contains(r#""created_at":"2026-10-22T14:05:00Z""#));

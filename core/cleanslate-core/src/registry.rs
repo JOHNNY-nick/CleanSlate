@@ -78,6 +78,22 @@ impl RegKeyPath {
         self
     }
 
+    /// Parses `HKCU\…` or `HKLM\…` (as produced by `Display`); HKLM keys
+    /// use the 64-bit view, where `WOW6432Node` is an explicit path.
+    pub fn parse(text: &str) -> Option<Self> {
+        let (hive, path) = text.split_once('\\').unwrap_or((text, ""));
+        let hive = match hive.to_ascii_uppercase().as_str() {
+            "HKCU" | "HKEY_CURRENT_USER" => Hive::CurrentUser,
+            "HKLM" | "HKEY_LOCAL_MACHINE" => Hive::LocalMachine,
+            _ => return None,
+        };
+        let view = match hive {
+            Hive::LocalMachine => KeyView::Force64,
+            Hive::CurrentUser => KeyView::Default,
+        };
+        Some(RegKeyPath::new(hive, path).with_view(view))
+    }
+
     /// Returns the path of the sub-key `name`.
     pub fn join(&self, name: &str) -> Self {
         let path = if self.path.is_empty() {

@@ -10,6 +10,8 @@ pub mod fs;
 pub mod inventory;
 pub mod matcher;
 pub mod model;
+pub mod native;
+pub mod quarantine;
 pub mod registry;
 pub mod safety;
 pub mod scan;
