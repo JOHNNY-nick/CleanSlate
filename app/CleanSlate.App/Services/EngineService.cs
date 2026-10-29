@@ -16,6 +16,10 @@ public sealed class EngineService : IEngineService, IDisposable
         _client.Value.VersionAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public Task<IReadOnlyList<InstalledApp>> ListAppsAsync(CancellationToken cancellationToken) =>
+        _client.Value.ListAppsAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_client.IsValueCreated)
