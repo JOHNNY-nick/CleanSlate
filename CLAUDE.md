@@ -24,22 +24,28 @@ demande-moi au lieu d'inventer. Cite l'ID d'exigence dans les commits et les tes
 - core/cleanslate-ffi : cdylib, [lib] name = "cleanslate" -> cleanslate.dll,
   API C extern "C", JSON UTF-8, ByteBuffer libéré par cs_buffer_free
 - core/cleanslate-cli : binaire de debug
-- app/CleanSlate.App : WinUI 3 non packagée (WindowsPackageType=None), .NET 8, MVVM
-  (CommunityToolkit.Mvvm), app.manifest requireAdministrator ; installeur Inno Setup en J6.
-  Exécutable CleanSlate.App.exe : aucune assembly ne doit s'appeler CleanSlate
-  (CleanSlate.dll entrerait en conflit avec cleanslate.dll).
-- app/CleanSlate.Interop : NativeMethods.g.cs (généré par csbindgen, versionné dans Git,
-  ne jamais l'éditer) + EngineClient, seul code C# qui touche aux pointeurs
-- app/CleanSlate.Tests : xUnit v3
+- app/CleanSlate.App : WinUI 3 non packagée (WindowsPackageType=None), .NET 8,
+  app.manifest requireAdministrator, exécutable CleanSlate.App.exe ; vues, MainWindow,
+  implémentations Windows des services (EngineService) ; installeur Inno Setup en J6
+- app/CleanSlate.Presentation : net8.0 sans WinUI ; ViewModels (CommunityToolkit.Mvvm)
+  et interfaces de services (IEngineService, INavigationService, IDialogService,
+  ISettingsService) ; référencé par CleanSlate.App et CleanSlate.Tests
+- app/CleanSlate.Interop : net8.0 ; NativeMethods.g.cs (généré par csbindgen, versionné
+  dans Git, ne jamais l'éditer) + EngineClient, seul code C# qui touche aux pointeurs
+- app/CleanSlate.Tests : xUnit v3 + NSubstitute
 
 ## Commandes
+Toutes les commandes se lancent depuis la racine du dépôt.
 - Compiler tout : pwsh scripts/build.ps1 -Configuration Debug
   (-Configuration s'applique à cargo et à dotnet : Debug = profil dev, Release = --release)
-- Tests Rust : cargo test --workspace (depuis core/)
-- Lint Rust : cargo fmt --all --check ; cargo clippy --workspace --all-targets -- -D warnings
+- Tests Rust : cargo test --manifest-path core/Cargo.toml --workspace
+- Lint Rust : cargo fmt --manifest-path core/Cargo.toml --all --check ;
+  cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings
 - Tests C# : dotnet test app/CleanSlate.sln -p:Platform=x64
-- Couverture Rust : cargo llvm-cov --workspace (depuis core/ ; outil de dev, objectif ≥ 80 %, ENF-12)
-- CLI : cargo run -p cleanslate-cli -- version --json (scan --dry-run --json à partir de J3)
+- Couverture Rust : cargo llvm-cov --manifest-path core/Cargo.toml --workspace
+  (outil de dev, objectif ≥ 80 %, ENF-12)
+- CLI : cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- version --json
+  (scan --dry-run --json à partir de J3)
 Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 
 ## Règles de sécurité (non négociables)
@@ -67,14 +73,21 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 - Chaque fonction FFI est enveloppée dans std::panic::catch_unwind.
 - Chaque bloc unsafe est court et précédé d'un commentaire // SAFETY: ...
 - Chemins en PathBuf / OsString jusqu'à la sérialisation.
-- Journalisation avec tracing, jamais println! dans le core.
+- Journalisation avec tracing, jamais println! dans le core ; fichiers dans
+  %LOCALAPPDATA%\CleanSlate\logs, rotation quotidienne (tracing-appender),
+  7 derniers fichiers conservés (ENF-10).
 - Fonctions publiques documentées (///), tests unitaires dans le même fichier.
 
 ## Conventions C#
-- C# 12, nullable activé, MVVM strict : aucune logique métier dans les vues.
+- C# 12, nullable activé, MVVM strict : aucune logique métier dans les vues ;
+  ViewModels et interfaces de services dans CleanSlate.Presentation, jamais dans CleanSlate.App.
+- Aucune assembly .NET ne doit s'appeler CleanSlate.dll : elle écraserait la DLL native
+  cleanslate.dll, Windows ne distinguant pas la casse (d'où CleanSlate.App.exe).
 - Aucune couleur en dur : ressources de App.xaml (jetons de docs/design.md).
 - Textes d'interface en français dans Strings/fr-FR/Resources.resw.
-- Appels au moteur via IEngineService, en async, avec CancellationToken.
+- Appels au moteur via IEngineService, en async, avec CancellationToken ; les ViewModels
+  n'appellent jamais EngineClient directement.
+- Tests de ViewModels avec NSubstitute (IEngineService simulé).
 
 ## Façon de travailler
 - Commence chaque jalon par un plan court (fichiers, étapes, tests) et attends mon accord.

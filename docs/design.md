@@ -91,6 +91,7 @@ Chaque écran a un état vide, un état de chargement et un état d'erreur, écr
 | Historique vide | « Aucune session pour l'instant. » | Analyser les restes |
 | Lancé sans droits admin | « CleanSlate a besoin des droits administrateur pour analyser Program Files et le registre machine. » | Redémarrer en administrateur |
 | Désinstalleur introuvable | « Le programme de désinstallation de cette application est introuvable. » | Rechercher ses restes quand même |
+| Confirmation renforcée (plus de 20 Go ou 50 000 fichiers) | « Vous allez mettre en quarantaine 23,4 Go (61 200 fichiers). Pour confirmer, tapez QUARANTAINE. » | Champ de saisie ; « Mettre en quarantaine » actif seulement quand le mot est exact |
 
 Vocabulaire fixe : « mettre en quarantaine » (jamais « supprimer » tant que l'élément est restaurable), « restes », « confiance », « session ». Tailles en Ko / Mo / Go avec virgule décimale ; dates au format « 22 oct. 2026 ».
 

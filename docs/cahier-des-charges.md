@@ -19,8 +19,8 @@ Les outils existants (Revo Uninstaller, BCUninstaller) couvrent ce besoin en par
 
 ### 1.2 Objectifs
 
-1. **Détecter automatiquement les restes orphelins** : repérer les dossiers et clés qui n'appartiennent plus à aucune application installée, sans que l'utilisateur fournisse de nom.
-2. **Désinstaller complètement** : lancer le désinstalleur officiel d'une application installée, puis trouver et supprimer tous ses restes.
+1. **Tout supprimer en une seule désinstallation** : l'application et tous les fichiers qu'elle laisse derrière elle (désinstalleur officiel, puis recherche et suppression de ses restes).
+2. **Retrouver les restes d'applications déjà désinstallées** et les supprimer, sans avoir besoin de connaître leur nom (dossiers et clés qui n'appartiennent plus à aucune application installée).
 3. **Ne jamais casser le système** : tout élément supprimé est sauvegardé et restaurable ; aucun fichier système ou partagé n'est proposé à la suppression par défaut.
 4. **Objectif personnel** : servir de projet d'apprentissage de Rust, avec un moteur Rust propre et testé.
 
@@ -30,7 +30,7 @@ La version 1.0 cible un poste Windows personnel, un utilisateur averti mais non 
 
 | Inclus en v1.0 | Exclu de la v1.0 |
 | --- | --- |
-| Applications Win32 (MSI, EXE, installeurs Inno Setup, NSIS, InstallShield) | Applications Microsoft Store (AppX/MSIX) : listées en lecture seule seulement |
+| Applications Win32 (MSI, EXE, installeurs Inno Setup, NSIS, InstallShield) | Applications Microsoft Store : ni désinstallées ni nettoyées ; leur liste en lecture seule (EF-04) est reportée en v1.1 |
 | Inventaire des applications installées (registre Uninstall) | Pilotes, mises à jour Windows, composants système |
 | Scan des restes orphelins : dossiers, registre, raccourcis, tâches planifiées | Nettoyage généraliste du registre (« registry cleaner ») |
 | Désinstallation complète : désinstalleur officiel puis restes | Surveillance en temps réel des installations |
@@ -52,7 +52,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | EF-01 | Lister les applications installées depuis les trois clés Uninstall (HKLM 64 bits, HKLM WOW6432Node, HKCU) avec nom, éditeur, version, date d'installation, taille, dossier d'installation et commande de désinstallation. | M |
 | EF-02 | Masquer par défaut les composants système (`SystemComponent = 1`), les mises à jour et les entrées sans nom ; un filtre permet de les afficher. | M |
 | EF-03 | Rechercher par nom ou éditeur, trier par nom, taille ou date. | M |
-| EF-04 | Lister les applications Microsoft Store en lecture seule, avec un lien vers Paramètres pour les désinstaller. | C |
+| EF-04 | Lister les applications Microsoft Store en lecture seule, avec un lien vers Paramètres pour les désinstaller. Reportée en v1.1. | C |
 
 ### 3.2 Recherche des restes orphelins
 
@@ -101,11 +101,11 @@ La sécurité prime sur tout le reste : un faux positif supprimé est bien plus 
 | ENF-03 | Sécurité | Ne jamais suivre les liens symboliques ni les points de jonction pendant le scan et la suppression. | Test avec jonction piégée vers `C:\Windows` |
 | ENF-04 | Sécurité | Mode « simulation » (dry run) qui produit la liste sans rien toucher. | Test : aucun fichier modifié |
 | ENF-05 | Performance | Inventaire des applications en moins de 2 s ; scan complet des restes en moins de 60 s sur SSD avec 500 000 fichiers. | Benchmark Criterion + chronométrage UI |
-| ENF-06 | Performance | Interface toujours réactive : tout travail long hors du thread UI, progression au moins toutes les 250 ms. | Revue de code + test manuel |
+| ENF-06 | Performance | Interface toujours réactive : tout travail long hors du thread UI. Le moteur n'envoie jamais plus d'un événement de progression par 250 ms, et en envoie au moins un toutes les 250 ms tant que le travail avance. | Revue de code + test manuel |
 | ENF-07 | Ergonomie | Une désinstallation complète en 5 clics maximum depuis l'écran Applications, confirmation comprise. | Test utilisateur |
 | ENF-08 | Ergonomie | Thèmes clair et sombre suivant Windows ; accessibilité clavier et lecteur d'écran (Narrateur). | Accessibility Insights |
 | ENF-09 | Fiabilité | Une erreur sur un élément (fichier verrouillé, accès refusé) n'interrompt pas la session ; elle est listée dans le rapport final. | Tests d'intégration |
-| ENF-10 | Traçabilité | Journal local de chaque opération (scan, déplacement, restauration) dans `%LOCALAPPDATA%\CleanSlate\logs`, rotation à 10 Mo. | Inspection des journaux |
+| ENF-10 | Traçabilité | Journal local de chaque opération (scan, déplacement, restauration) dans `%LOCALAPPDATA%\CleanSlate\logs`, rotation quotidienne, conservation des 7 derniers fichiers. | Inspection des journaux |
 | ENF-11 | Confidentialité | Aucune donnée envoyée sur Internet ; aucune télémétrie. | Revue des dépendances |
 | ENF-12 | Maintenabilité | Couverture de tests du moteur Rust ≥ 80 % ; `cargo clippy` sans avertissement ; code C# en MVVM. | CI GitHub Actions, couverture mesurée avec `cargo-llvm-cov` |
 
@@ -119,8 +119,9 @@ L'architecture est hybride : un moteur en Rust, une interface en C# / WinUI 3, r
 - **Accès Windows côté Rust** : crates `windows` (API Win32 officielles de Microsoft) et `winreg` pour le registre.
 - **Privilèges** : application lancée en administrateur (manifeste `requireAdministrator`).
 - **Développement** : Claude Code comme assistant principal ; dépôt Git unique (monorepo) ; GitHub Actions pour la CI.
-- **Distribution** : installeur Inno Setup en v1.0 (MSIX écarté : incompatible avec `requireAdministrator`) ; signature de code à prévoir avant diffusion publique.
+- **Distribution** : installeur Inno Setup en v1.0 (une application packagée ne peut pas demander `requireAdministrator`) ; signature de code à prévoir avant diffusion publique.
 - **Licence** : MIT (fichier `LICENSE` à la racine du dépôt).
+- **Versions retenues** (au J1) : Rust stable du moment (1.99.1), .NET 8, Windows App SDK 1.8.x, Microsoft.Extensions.Hosting 8.x, xUnit v3 ; détail dans les spécifications techniques (§ 2 et § 8.3).
 
 ## 6. Livrables, jalons et acceptation
 
@@ -146,7 +147,7 @@ Traçabilité des exigences vers les jalons :
 | J5 | EF-12 à EF-15 | ENF-07 |
 | J6 | EF-20 (exclusions dans les réglages) | ENF-08, ENF-10, ENF-11 (revue finale) |
 
-EF-04 (priorité C) n'est encore planifiée dans aucun jalon.
+EF-04 (priorité C) est reportée en v1.1 (§ 6.5) et ne fait partie d'aucun jalon de la v1.0.
 
 ### 6.2 Livrables
 
@@ -171,3 +172,9 @@ EF-04 (priorité C) n'est encore planifiée dans aucun jalon.
 | Désinstalleurs qui relancent un processus enfant et rendent la main trop tôt | Moyen | Suivre l'arbre de processus (Job Object) et attendre leur fin |
 | Complexité de la frontière Rust / C# | Moyen | API C minimale en JSON, tests de la frontière dès J1 |
 | Courbe d'apprentissage de Rust | Moyen | Jalons courts, moteur découpé en modules simples, tests unitaires fournis par Claude Code |
+| Windows App SDK 1.8 dépassé par la ligne 2.x, déjà disponible | Faible | Rester en 1.8 jusqu'à J6, puis évaluer la migration vers la 2.x en J6 |
+
+### 6.5 Évolutions envisagées
+
+- **v1.1** : liste des applications Microsoft Store en lecture seule (EF-04) ; version portable sans installation.
+- **J6** : évaluation de la ligne Windows App SDK 2.x.

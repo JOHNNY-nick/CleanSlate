@@ -8,9 +8,11 @@ CleanSlate se compose de trois couches : une interface C# / WinUI 3, une DLL nat
 
 ```text
 ┌──────────────────── Interface — C# / .NET 8 / WinUI 3 ────────────────────┐
-│  Vues XAML  ──▶  ViewModels  ──▶  Services  ──▶  EngineClient              │
-│  (pages,         (MVVM            (IEngineService,  (CleanSlate.Interop)   │
-│   dialogues)      Toolkit)         DI)                     │               │
+│  Vues XAML  ──▶  ViewModels  ──▶  IEngineService  ──▶  EngineClient        │
+│  (App : pages,   (Presentation,   (interface dans     (Interop : seul      │
+│   dialogues)      MVVM Toolkit)    Presentation,       code C# à           │
+│                                    impl. dans App)     pointeurs)          │
+│                                                            │               │
 └────────────────────────────────────────────────────────────┼──────────────┘
                                    P/Invoke : JSON et progression ▲▼
 ┌──────── cleanslate.dll — API C : poignée opaque, JSON UTF-8, callbacks ────┐
@@ -62,9 +64,10 @@ cleanslate/
 ├─ app/
 │  ├─ CleanSlate.sln          # configurations Debug|x64 et Release|x64 uniquement
 │  ├─ Directory.Build.props   # réglages communs (C# 12, nullable, x64, chemin de cleanslate.dll)
-│  ├─ CleanSlate.App/         # WinUI 3 non packagée : Views/, ViewModels/, Services/, Strings/
-│  ├─ CleanSlate.Interop/     # NativeMethods.g.cs (généré, versionné) + EngineClient
-│  └─ CleanSlate.Tests/       # xUnit v3
+│  ├─ CleanSlate.App/         # WinUI 3 non packagée : Views/, Services/ (EngineService), Strings/
+│  ├─ CleanSlate.Presentation/ # net8.0 sans WinUI : ViewModels/, Services/ (interfaces)
+│  ├─ CleanSlate.Interop/     # net8.0 : NativeMethods.g.cs (généré, versionné) + EngineClient
+│  └─ CleanSlate.Tests/       # xUnit v3 + NSubstitute
 ├─ tests/fixtures/            # arborescences et .reg de test (J3)
 ├─ scripts/build.ps1          # cargo build puis dotnet build
 └─ .github/workflows/ci.yml
@@ -72,16 +75,16 @@ cleanslate/
 
 | Outil | Version de référence | Rôle |
 | --- | --- | --- |
-| Rust (rustup) | stable (1.99.1 au J1), édition 2021, cible `x86_64-pc-windows-msvc`, composants `rustfmt` et `clippy` | Moteur |
+| Rust (rustup) | stable du moment (1.99.1 au J1), édition 2021, cible `x86_64-pc-windows-msvc`, composants `rustfmt` et `clippy` | Moteur |
 | Visual Studio 2022 (ou Build Tools 2022) | charges « Développement Desktop C++ » (linker MSVC), « Développement .NET Desktop » et « Développement d'applications WinUI » | Compilation, débogage mixte |
 | .NET SDK | 8.0 (8.0.427 au J1) | Interface |
-| Windows App SDK | dernière version stable 1.x (1.8.260921001 au J1), application **non packagée** (`WindowsPackageType=None`) | WinUI 3 |
+| Windows App SDK | 1.8.x (1.8.260921001 au J1) jusqu'à J6, où la ligne 2.x sera évaluée ; application **non packagée** (`WindowsPackageType=None`) | WinUI 3 |
 | PowerShell | 7.x (`pwsh`) ; `build.ps1` reste compatible avec Windows PowerShell 5.1 | `scripts/build.ps1` |
 | cargo-llvm-cov | dernière version, avec le composant `llvm-tools-preview` (outil de développement, pas une dépendance du code) | Couverture du moteur (ENF-12) |
 | Claude Code | dernière version | Développement assisté |
 | Git + GitHub | — | Versionnement, CI |
 
-L'application est **non packagée** : un `app.manifest` demande `requireAdministrator`, ce qui est incompatible avec un paquet MSIX. Pour déboguer, Visual Studio doit être lancé en administrateur. L'exécutable s'appelle `CleanSlate.App.exe` : aucune assembly .NET ne doit s'appeler `CleanSlate`, car `CleanSlate.dll` entrerait en conflit avec `cleanslate.dll` (Windows ne distingue pas la casse). Le fichier `NativeMethods.g.cs` est généré par `build.rs` directement dans `app/CleanSlate.Interop/` et **versionné** dans Git (fins de ligne LF imposées par `.gitattributes`), pour que la solution .NET compile même sans avoir lancé cargo.
+L'application est **non packagée** : un `app.manifest` demande `requireAdministrator`, ce qu'une application packagée ne peut pas faire. Pour déboguer, Visual Studio doit être lancé en administrateur. L'exécutable s'appelle `CleanSlate.App.exe` : aucune assembly .NET ne doit s'appeler `CleanSlate.dll`, car elle écraserait la DLL native `cleanslate.dll` (Windows ne distingue pas la casse). `CleanSlate.Interop` cible `net8.0` (et non `net8.0-windows…`) pour pouvoir être référencé par `CleanSlate.Presentation`. Le fichier `NativeMethods.g.cs` est généré par `build.rs` directement dans `app/CleanSlate.Interop/` et **versionné** dans Git (fins de ligne LF imposées par `.gitattributes`), pour que la solution .NET compile même sans avoir lancé cargo.
 
 Crate `cleanslate-cli` : un petit binaire qui permet de tester le moteur sans l'interface, pratique pour apprendre Rust étape par étape. Commandes : `version [--json]` (J1), `apps --json` (J2), `scan --dry-run --json` (J3).
 
@@ -115,7 +118,7 @@ Toute la logique métier vit dans `cleanslate-core`, une bibliothèque Rust sans
 | `rusqlite` (feature `bundled`) | Historique et réglages |
 | `strsim` | Similarité de noms (Jaro-Winkler) |
 | `thiserror` / `anyhow` | Erreurs typées dans le core, contexte dans la CLI |
-| `tracing` + `tracing-appender` | Journalisation avec rotation |
+| `tracing` + `tracing-appender` | Journalisation dans `%LOCALAPPDATA%\CleanSlate\logs`, rotation quotidienne, 7 derniers fichiers conservés (ENF-10) |
 | `chrono`, `uuid` | Dates et identifiants de session |
 | `csbindgen` (build) | Génération des déclarations C# |
 | `tempfile`, `criterion` (dev) | Tests et benchmarks |
@@ -137,7 +140,7 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | Fonction | Entrée | Sortie (`data` du JSON) | Jalon |
 | --- | --- | --- | --- |
 | `cs_version()` | — | `{ "version": "0.1.0" }` | J1 ✔ |
-| `cs_engine_new(config, len)` | `EngineConfig` (longueur 0 : valeurs par défaut, donc simulation) | pointeur opaque `*mut EngineHandle` (null en cas d'erreur) | J1 ✔ |
+| `cs_engine_new(config, len, out_error)` | `EngineConfig` (longueur 0 : valeurs par défaut, donc simulation) ; `out_error: *mut *mut ByteBuffer` | pointeur opaque `*mut EngineHandle`. En cas d'échec : null, et `*out_error` reçoit l'enveloppe `{ ok: false, error }` (à libérer par `cs_buffer_free`) ; en cas de succès, `*out_error` vaut null. `out_error` peut être null si l'appelant ne veut pas le détail | J1 ✔ |
 | `cs_engine_free(engine)` | poignée (null ignoré) | — | J1 ✔ |
 | `cs_buffer_free(buf)` | `*mut ByteBuffer` (null ignoré) | libère toute réponse renvoyée par Rust | J1 ✔ |
 | `cs_list_apps(engine)` | — | `InstalledApp[]` | J2 |
@@ -156,16 +159,16 @@ Les types `ScanOptions`, `UninstallRequest`, `UninstallResult` et `RestoreResult
 
 - **Chaînes** : entrées en `(*const u8, i32)` UTF-8 ; sorties en `*mut ByteBuffer { ptr: *mut u8, len: usize, cap: usize }` (`nuint` côté C#) alloué par Rust et libéré **uniquement** par `cs_buffer_free`.
 - **Enveloppe de réponse** : `{ "ok": true, "data": … }` ou `{ "ok": false, "error": { "code": "ACCESS_DENIED", "message": "…", "path": "…" | null } }`.
-- **Codes d'erreur** : côté moteur, `NOT_FOUND`, `ACCESS_DENIED`, `IO_ERROR`, `REGISTRY_ERROR`, `INVALID_INPUT`, `PROTECTED`, `BUSY`, `CANCELLED` (`CoreError::code`), plus `INTERNAL_PANIC` et `SERIALIZATION_ERROR` produits par `cleanslate-ffi`. Côté C#, `EngineClient` ajoute `ENGINE_CREATE_FAILED`, `NULL_RESPONSE` et `INVALID_RESPONSE`.
+- **Codes d'erreur** : côté moteur, `NOT_FOUND`, `ACCESS_DENIED`, `IO_ERROR`, `REGISTRY_ERROR`, `INVALID_INPUT`, `PROTECTED`, `BUSY`, `CANCELLED` (`CoreError::code`), plus `INTERNAL_PANIC` et `SERIALIZATION_ERROR` produits par `cleanslate-ffi`. Côté C#, `EngineClient` ajoute `ENGINE_CREATE_FAILED` (échec sans détail), `NULL_RESPONSE` et `INVALID_RESPONSE`.
 - **Paniques** : `catch_unwind` sur chaque fonction ; une panique devient l'erreur `INTERNAL_PANIC`.
-- **Progression** : callback `extern "C" fn(ctx: *mut c_void, json: *const u8, len: i32)` appelé au plus toutes les 250 ms avec `{ "phase", "current", "total", "path" }`. Côté C#, méthode statique `[UnmanagedCallersOnly]` + `GCHandle` pour retrouver l'objet, puis passage au thread UI via `DispatcherQueue`.
+- **Progression** : callback `extern "C" fn(ctx: *mut c_void, json: *const u8, len: i32)` recevant `{ "phase", "current", "total", "path" }`. Le moteur n'envoie jamais plus d'un événement de progression par 250 ms, et en envoie au moins un toutes les 250 ms tant que le travail avance (ENF-06). Côté C#, méthode statique `[UnmanagedCallersOnly]` + `GCHandle` pour retrouver l'objet, puis passage au thread UI via `DispatcherQueue`.
 - **Threads** : les appels longs sont faits depuis `Task.Run` côté C# ; le moteur n'accepte qu'une opération longue à la fois par poignée (erreur `BUSY` sinon).
 - **Annulation** : `cs_cancel` lève un `AtomicBool` consulté dans les boucles de scan ; résultat partiel avec `"cancelled": true`.
 - **Génération** : `build.rs` appelle `csbindgen` qui écrit `app/CleanSlate.Interop/NativeMethods.g.cs` (réécrit seulement si son contenu change) ; ce fichier est versionné et n'est jamais modifié à la main. La CI échoue s'il n'est pas à jour.
 
 ### 4.3 Wrapper C# (`EngineClient`)
 
-Le projet `CleanSlate.Interop` expose une classe `EngineClient : IDisposable`, construite avec un `EngineConfig` facultatif (simulation par défaut). La poignée native est tenue par un `SafeHandle` qui appelle `cs_engine_free`, et chaque `ByteBuffer` est libéré dans un bloc `finally`. Méthodes asynchrones typées : `Task<string> VersionAsync(CancellationToken)` (J1), puis `Task<IReadOnlyList<InstalledApp>> ListAppsAsync(CancellationToken)` (J2), `Task<ScanReport> ScanOrphansAsync(ScanOptions, IProgress<ScanProgress>, CancellationToken)` (J3)… Il désérialise le JSON avec `System.Text.Json` (génération de source, propriétés en `snake_case`), transforme `ok: false` en `EngineException` (propriétés `Code` et `Path`), et relie `CancellationToken` à `cs_cancel` (J3). Aucun autre projet ne touche aux pointeurs.
+Le projet `CleanSlate.Interop` expose une classe `EngineClient : IDisposable`, construite avec un `EngineConfig` facultatif (simulation par défaut). La poignée native est tenue par un `SafeHandle` qui appelle `cs_engine_free`, et chaque `ByteBuffer` est libéré dans un bloc `finally`. Méthodes asynchrones typées : `Task<string> VersionAsync(CancellationToken)` (J1), puis `Task<IReadOnlyList<InstalledApp>> ListAppsAsync(CancellationToken)` (J2), `Task<ScanReport> ScanOrphansAsync(ScanOptions, IProgress<ScanProgress>, CancellationToken)` (J3)… Il désérialise le JSON avec `System.Text.Json` (génération de source, propriétés en `snake_case`), transforme `ok: false` en `EngineException` (propriétés `Code` et `Path`), y compris à la création du moteur (le contenu de `out_error` donne le vrai code, par exemple `INVALID_INPUT`), et relie `CancellationToken` à `cs_cancel` (J3). Aucun autre projet ne touche aux pointeurs ; `CleanSlate.Presentation` ne le référence que pour les records du modèle.
 
 ## 5. Modèle de données
 
@@ -302,7 +305,15 @@ La restauration rejoue le manifeste à l'envers : fichiers remis à leur chemin 
 
 ## 8. Interface C# / WinUI 3
 
-L'interface ne contient aucune logique métier : elle affiche, demande confirmation et délègue tout au moteur via `EngineClient`.
+L'interface ne contient aucune logique métier : elle affiche, demande confirmation et délègue tout au moteur via `IEngineService`, dont l'implémentation appelle `EngineClient`.
+
+Trois projets se partagent l'interface :
+
+| Projet | Cible | Contenu |
+| --- | --- | --- |
+| `CleanSlate.App` | `net8.0-windows10.0.19041.0`, WinUI 3 | `App.xaml` (jetons), `MainWindow`, pages (`Views/`), implémentations Windows des services (`Services/EngineService`…), textes `.resw` |
+| `CleanSlate.Presentation` | `net8.0`, sans WinUI | ViewModels (`ViewModels/`) et interfaces de services (`Services/`) ; testable par xUnit sans interface graphique |
+| `CleanSlate.Interop` | `net8.0` | `NativeMethods.g.cs`, `EngineClient`, records du modèle |
 
 ### 8.1 Organisation MVVM
 
@@ -316,12 +327,12 @@ L'interface ne contient aucune logique métier : elle affiche, demande confirmat
 | `SettingsPage` | `SettingsViewModel` | Exclusions, délai de quarantaine, thème, mode simulation, journaux |
 | `CleanConfirmDialog` | — | `ContentDialog` récapitulatif obligatoire avant suppression |
 
-Pages dans `CleanSlate.App/Views/`, ViewModels dans `ViewModels/`, services dans `Services/`, textes dans `Strings/fr-FR/Resources.resw`. Au J1, les cinq pages de navigation existent, mais seule `HomePage` est remplie. `UninstallWizardPage` arrive en J5 et `CleanConfirmDialog` en J4.
+Pages dans `CleanSlate.App/Views/`, ViewModels dans `CleanSlate.Presentation/ViewModels/`, textes dans `CleanSlate.App/Strings/fr-FR/Resources.resw`. Au J1, les cinq pages de navigation existent, mais seule `HomePage` est remplie. `UninstallWizardPage` arrive en J5 et `CleanConfirmDialog` en J4.
 
 ### 8.2 Services et injection
 
 - `Microsoft.Extensions.Hosting` (`Host` générique et injection de dépendances) dans `App.xaml.cs` ; chaque page obtient son ViewModel par `App.GetService<T>()`.
-- `IEngineService` (façade de `EngineClient`, singleton, créé en simulation ; seule `GetVersionAsync` existe au J1). À créer au fil des jalons : `INavigationService`, `IDialogService`, `ISettingsService`, `ILocalizationService`.
+- Interfaces dans `CleanSlate.Presentation/Services/`, implémentations dans `CleanSlate.App/Services/`, enregistrées dans le conteneur. `IEngineService` (façade de `EngineClient`, implémentée par `EngineService`, singleton créé en simulation ; seule `GetVersionAsync` existe au J1). À créer au fil des jalons : `INavigationService`, `IDialogService`, `ISettingsService`, `ILocalizationService`.
 - Navigation par `NavigationView` (volet gauche, « Réglages » en pied de volet) + `Frame`, dans `MainWindow`.
 - `CommunityToolkit.Mvvm` : `[ObservableProperty]`, `[RelayCommand]` asynchrones, `IProgress<T>` pour la progression.
 
@@ -330,10 +341,10 @@ Pages dans `CleanSlate.App/Views/`, ViewModels dans `ViewModels/`, services dans
 | Paquet | Version au J1 | Projet |
 | --- | --- | --- |
 | `Microsoft.WindowsAppSDK` | 1.8.260921001 (runtime embarqué, `WindowsAppSDKSelfContained`) | CleanSlate.App |
-| `CommunityToolkit.Mvvm` | 8.4.2 | CleanSlate.App |
-| `Microsoft.Extensions.Hosting` | 8.0.1 (alignée sur .NET 8) | CleanSlate.App |
+| `CommunityToolkit.Mvvm` | 8.4.2 | CleanSlate.Presentation |
+| `Microsoft.Extensions.Hosting` | 8.x (8.0.1, alignée sur .NET 8) | CleanSlate.App |
 | `xunit.v3`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk` | 3.2.2, 4.0.1, 18.11.0 | CleanSlate.Tests |
-| `Moq` | à ajouter avec les premiers tests de ViewModels | CleanSlate.Tests |
+| `NSubstitute`, `NSubstitute.Analyzers.CSharp` | 6.2.0, 1.0.17 | CleanSlate.Tests |
 
 ### 8.4 Règles d'interface
 
@@ -350,6 +361,7 @@ Le module `safety` est le dernier rempart : toute action destructive appelle `sa
 ### 9.1 Liste noire (codée en dur, non désactivable)
 
 - **Chemins** : `%WINDIR%` et tout son contenu ; racine de chaque lecteur ; `Program Files`, `Program Files (x86)`, `ProgramData`, `AppData\Roaming`, `AppData\Local`, `AppData\LocalLow` eux-mêmes (seuls leurs sous-dossiers sont candidats) ; `Users\<nom>` et ses dossiers connus (Documents, Bureau, Téléchargements…) eux-mêmes ; `System Volume Information`, `$Recycle.Bin`, `Recovery`.
+- **Racines de scan elles-mêmes** : chaque racine de EF-05 (`Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`) et de EF-06 (`HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`) est protégée en tant que telle ; seuls ses enfants sont candidats. Cela évite par exemple que `%LOCALAPPDATA%\Programs`, enfant direct de `%LOCALAPPDATA%`, soit proposé en bloc comme reste.
 - **Noms de sous-dossiers** : `Microsoft`, `Windows`, `Windows Defender`, `Windows NT`, `Common Files`, `Packages` (Store), `WindowsApps`, `Temp`, `Microsoft.NET`, `dotnet`, `Intel`, `NVIDIA Corporation`, `AMD` (pilotes), `Package Cache`, `CleanSlate`.
 - **Registre** : `HKLM\SYSTEM`, `HKLM\SAM`, `HKLM\SECURITY`, `HKLM\HARDWARE`, toute clé `Microsoft`, `Classes`, `Policies`, `Clients`, `RegisteredApplications`, `Wow6432Node` elle-même, `Windows`, `Uninstall` d'une application encore présente.
 
@@ -357,9 +369,9 @@ Le module `safety` est le dernier rempart : toute action destructive appelle `sa
 
 - Chemins canonisés (`GetFinalPathNameByHandleW`) puis comparés sans tenir compte de la casse ; un chemin qui sort de sa racine après canonisation est refusé.
 - `FILE_ATTRIBUTE_REPARSE_POINT` détecté → l'élément lui-même peut être traité, mais jamais traversé.
-- Plafond par session : au-delà de 20 Go ou 50 000 fichiers, confirmation supplémentaire avec saisie du mot « SUPPRIMER ».
+- Plafond par session : au-delà de 20 Go ou 50 000 fichiers, confirmation supplémentaire avec saisie du mot « QUARANTAINE » (vocabulaire fixe de design § 5 : jamais « supprimer » tant que l'élément est restaurable).
 - Mode simulation actif par défaut au premier lancement, jusqu'à ce que l'utilisateur le désactive dans les réglages.
-- Tests obligatoires : un test unitaire par entrée de la liste noire, un test avec une jonction piégée vers `C:\Windows`, un test `../` dans un nom.
+- Tests obligatoires : un test unitaire par entrée de la liste noire et par racine de scan, un test avec une jonction piégée vers `C:\Windows`, un test `../` dans un nom.
 
 ## 10. Tests, CI, compilation et packaging
 
@@ -372,7 +384,7 @@ Le moteur est testé sans jamais toucher au vrai système : racines de scan et r
 | Unitaire Rust | `cargo test` | Normalisation, similarité, score, liste noire, découpage d'`UninstallString`, manifeste |
 | Intégration Rust | `cargo test` + `tempfile` | Arborescences factices (`tests/fixtures`), clés créées sous `HKCU\Software\CleanSlateTest\` puis supprimées, cycle quarantaine → restauration à l'identique |
 | FFI | `cargo test` + xUnit v3 | Aller-retour JSON, libération mémoire, panique convertie en erreur, annulation |
-| C# | xUnit v3 + Moq | `EngineClient` contre la vraie `cleanslate.dll` (J1) ; ViewModels avec un `IEngineService` simulé |
+| C# | xUnit v3 + NSubstitute | `EngineClient` contre la vraie `cleanslate.dll` ; ViewModels de `CleanSlate.Presentation` avec un `IEngineService` simulé |
 | Couverture | `cargo llvm-cov` | Moteur Rust ≥ 80 % des lignes (ENF-12), vérifiée en CI |
 | Performance | `criterion` | Scan de 500 000 fichiers factices (ENF-05) |
 | Acceptation | Machine virtuelle Windows (Hyper-V ou Windows Sandbox) | Scénario des 5 applications (cahier des charges § 6.3) |
@@ -394,4 +406,4 @@ Sortie : `app/CleanSlate.App/bin/x64/<Configuration>/net8.0-windows10.0.19041.0/
 
 ### 10.4 Packaging
 
-v1.0 : installeur **Inno Setup** (réalisé en J6) pour une application WinUI 3 non packagée ; le runtime Windows App SDK est embarqué dans l'application (`WindowsAppSDKSelfContained=true`, choix fait au J1) ; manifeste d'application `requireAdministrator`. Le format MSIX est écarté, car incompatible avec `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.
+v1.0 : installeur **Inno Setup** (réalisé en J6) pour une application WinUI 3 non packagée ; le runtime Windows App SDK est embarqué dans l'application (`WindowsAppSDKSelfContained=true`, choix fait au J1) ; manifeste d'application `requireAdministrator`. Une distribution packagée est écartée, car incompatible avec `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.

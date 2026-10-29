@@ -6,9 +6,9 @@ Dernière mise à jour : 29 oct. 2026
 
 Claude Code travaille mieux par petites étapes vérifiables : un jalon par session, toujours avec les documents du projet sous les yeux.
 
-1. **Installer l'outillage** sous Windows (pas dans WSL : WinUI 3 et le linker MSVC doivent compiler côté Windows) : Rust stable via rustup avec `rustfmt` et `clippy`, le SDK .NET 8, PowerShell 7, Visual Studio 2022 (ou ses Build Tools) avec les charges « Développement Desktop C++ », « Développement .NET Desktop » et « Développement d'applications WinUI », Git, puis Claude Code selon la [documentation officielle](https://docs.claude.com/en/docs/claude-code/overview). Le [README](../README.md) donne les commandes d'installation.
+1. **Installer l'outillage** sous Windows (pas dans WSL : WinUI 3 et le linker MSVC doivent compiler côté Windows) : Rust stable via rustup avec `rustfmt`, `clippy` et `cargo-llvm-cov` (composant `llvm-tools-preview`), le SDK .NET 8, PowerShell 7, Visual Studio 2022 (ou ses Build Tools) avec les charges « Développement Desktop C++ », « Développement .NET Desktop » et « Développement d'applications WinUI », Git, puis Claude Code selon la [documentation officielle](https://docs.claude.com/en/docs/claude-code/overview). Le [README](../README.md) donne les commandes d'installation.
 2. **Cloner le dépôt** : `git clone <url-du-dépôt> cleanslate`, puis `cd cleanslate`.
-3. **Vérifier l'installation** : `pwsh scripts/build.ps1 -Configuration Debug` doit réussir, ainsi que les tests (section « Tester » du README).
+3. **Vérifier l'installation** depuis la racine du dépôt : `pwsh scripts/build.ps1 -Configuration Debug` doit réussir, ainsi que les tests (section « Tester » du README).
 4. **Relire `CLAUDE.md`** à la racine (section 2 ci-dessous). Claude Code le relit à chaque session : c'est là que vivent les règles permanentes.
 5. **Lancer Claude Code** à la racine du dépôt et coller le prompt du prochain jalon (section 4). Le jalon J1 est déjà réalisé dans le dépôt ; son prompt (section 3) est conservé comme référence.
 6. **À chaque jalon** : relire le plan proposé avant de le valider, laisser Claude Code compiler et tester, lire le résumé, faire un commit, puis ouvrir une nouvelle session avec le prompt du jalon suivant.
@@ -87,12 +87,13 @@ des spécifications, puis propose un plan avant de coder.
   HKCU\Software\CleanSlateTest\<uuid>) avec des cas réels : MSI, Inno Setup, NSIS,
   entrée 32 bits, InstallLocation vide.
 - FFI cs_list_apps + EngineClient.ListAppsAsync.
+- AppsViewModel dans CleanSlate.Presentation, testé avec NSubstitute.
 - Page Applications conforme à la maquette : liste virtualisée, recherche,
   tri, case « composants système », ligne sélectionnée, barre d'action (bouton
   « Désinstaller complètement » visible mais désactivé jusqu'à J5).
 - cleanslate-cli apps --json.
 Condition de fin : inventaire < 2 s (ENF-05) mesuré sur ma machine, tests verts,
-résumé avec explications Rust. Ne commence pas J3.
+couverture du moteur ≥ 80 %, résumé avec explications Rust. Ne commence pas J3.
 ```
 
 ### J3 — Moteur de détection (simulation seulement)
@@ -101,11 +102,14 @@ résumé avec explications Rust. Ne commence pas J3.
 Jalon J3 — Détection des restes orphelins (EF-05 à EF-11), EN SIMULATION UNIQUEMENT :
 aucun déplacement ni suppression à ce jalon. Relis les sections 6 et 9 des
 spécifications et propose un plan.
-- Module safety d'abord : liste noire complète de la section 9.1, canonisation des
-  chemins, refus des reparse points, exclusions utilisateur ; un test par entrée de
-  la liste noire + jonction piégée vers C:\Windows + nom contenant "..".
+- Module safety d'abord : liste noire complète de la section 9.1, y compris chaque
+  racine de scan elle-même (EF-05, dont %LOCALAPPDATA%\Programs, et EF-06 : seuls
+  leurs enfants sont candidats), canonisation des chemins, refus des reparse points,
+  exclusions utilisateur ; un test par entrée de la liste noire et par racine de scan
+  + jonction piégée vers C:\Windows + nom contenant "..".
 - Module scan : racines de EF-05/EF-06, profondeur 1 et 2, rayon + walkdir,
-  AtomicBool d'annulation, progression toutes les 250 ms, erreurs collectées.
+  AtomicBool d'annulation, erreurs collectées ; progression : jamais plus d'un
+  événement par 250 ms, et au moins un toutes les 250 ms tant que le travail avance.
 - EF-07 (S) : raccourcis du menu Démarrer et du Bureau dont la cible n'existe plus,
   tâches planifiées et services dont l'exécutable a disparu (en lecture seule).
 - Module matcher : normalisation, Jaro-Winkler (strsim), règles de rattachement
@@ -129,7 +133,8 @@ Premières opérations destructives : sois très prudent. Relis les sections 5, 
 7.3 et 9 des spécifications, plan d'abord.
 - Module quarantine : manifeste écrit avant chaque déplacement, MoveFileExW
   même volume sinon copie vérifiée SHA-256, export .reg UTF-16 LE des clés,
-  fichiers verrouillés -> MOVEFILE_DELAY_UNTIL_REBOOT, plafond 20 Go / 50 000 fichiers.
+  fichiers verrouillés -> MOVEFILE_DELAY_UNTIL_REBOOT, plafond 20 Go / 50 000 fichiers
+  (au-delà, saisie du mot « QUARANTAINE »).
 - Restauration totale et partielle, refus si la destination existe ; purge par âge.
 - Module history : SQLite (rusqlite bundled), tables sessions, items, exclusions, settings.
 - Finaliser QuarantinedItem (provisoire depuis J1) d'après le manifeste de la section 7.2.
@@ -170,8 +175,14 @@ Jalon J6 — Finition. Plan d'abord.
 - Validation à l'écran des valeurs sombres (en place depuis J1) et ressources
   HighContrast dans les ThemeDictionaries ; vérification clavier et Narrateur selon
   la section 6 du design (ENF-08).
+- Couleur d'accent de la NavigationView : encore le bleu Windows au J1, à remplacer
+  par la sarcelle #0F766E (AccentBrush) en redéfinissant les ressources d'accent
+  système dans App.xaml.
 - Tous les états et textes de la section 5 du design.
-- Journaux tracing avec rotation 10 Mo (ENF-10).
+- Journaux tracing dans %LOCALAPPDATA%\CleanSlate\logs, rotation quotidienne,
+  7 derniers fichiers conservés (ENF-10).
+- Réévaluer la migration de Windows App SDK 1.8 vers la ligne 2.x (risques,
+  changements cassants, compatibilité .NET 8) et me proposer une décision.
 - Installeur Inno Setup (application non packagée, requireAdministrator, section 10.4
   des spécifications) et README final.
 - Revue finale : relis toutes les exigences M du cahier des charges et produis
