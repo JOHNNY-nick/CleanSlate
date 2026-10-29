@@ -269,7 +269,7 @@ pub enum ScanPhase { Listing, Analyzing, Done }
 pub struct ScanProgress { pub phase: ScanPhase, pub current: u64, pub total: u64, pub path: String }
 ```
 
-**Stockage** : `%LOCALAPPDATA%\CleanSlate\` contient `cleanslate.db` (SQLite : historique des sessions et de leurs éléments), `settings.json` (réglages de l'application et exclusions, transmises au moteur dans `EngineConfig.exclusions`, décision D40), `quarantine\<session_id>\` (fichiers déplacés, fichiers `.reg` exportés, `manifest.json`) et `logs\` (fichiers quotidiens `cleanslate.AAAA-MM-JJ.log`, 7 conservés, ENF-10).
+**Stockage** : `%LOCALAPPDATA%\CleanSlate\` contient `cleanslate.db` (SQLite : tables `sessions` et `items` ; les tables `exclusions` et `settings` existent et sont testées, mais l'application v1.0 ne les utilise pas), `settings.json` (réglages de l'application et exclusions, transmises au moteur dans `EngineConfig.exclusions`, décision D40), `quarantine\<session_id>\` (fichiers déplacés, fichiers `.reg` exportés, `manifest.json`) et `logs\` (fichiers quotidiens `cleanslate.AAAA-MM-JJ.log`, 7 conservés, ENF-10).
 
 ## 6. Algorithme de détection des restes
 

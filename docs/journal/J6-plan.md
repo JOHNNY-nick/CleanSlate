@@ -10,3 +10,7 @@ Dernière mise à jour : 29 oct. 2026
 | 4 | `feat(theme)` | Accent sarcelle de la `NavigationView` et des contrôles, ressources `HighContrast`, annonce de la progression au Narrateur au plus toutes les 2 s |
 | 5 | `build(installer)` | Publication autonome (.NET et Windows App SDK embarqués), script Inno Setup (`SetupIconFile`, `PrivilegesRequired=admin`), `scripts/package.ps1` |
 | 6 | `docs` | Réévaluation Windows App SDK 2.x, revue finale, scénario des 5 applications, README final avec captures sans données personnelles (D17), bilan |
+
+## Avancement
+
+Étapes 1 à 6 terminées le 30 oct. 2026 : voir [J6-bilan.md](J6-bilan.md) et [revue-finale.md](revue-finale.md).

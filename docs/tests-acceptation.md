@@ -87,4 +87,62 @@ winget install --id Notepad++.Notepad++ -e --source winget --accept-package-agre
 
 ## 4. Scénario d'acceptation des 5 applications (cahier § 6.3)
 
-Voir la section ajoutée à la fin du projet.
+But : vérifier les trois critères mesurables du cahier § 6.3 sur un jeu de 5 applications connues, dans une Sandbox **neuve** (relancer `CleanSlate.wsb`).
+
+### 4.1 Préparation
+
+1. Installer les 5 applications :
+   ```powershell
+   $ids = 'VideoLAN.VLC', '7zip.7zip', 'Notepad++.Notepad++', 'Audacity.Audacity', 'GIMP.GIMP.3'
+   foreach ($id in $ids) { winget install --id $id -e --source winget --accept-package-agreements --accept-source-agreements }
+   ```
+   (Si l'identifiant de GIMP a changé : `winget search GIMP`.)
+2. Lancer chaque application une fois, changer un réglage (par exemple la langue ou un dossier récent) pour qu'elle écrive ses données dans `%APPDATA%`, `%LOCALAPPDATA%` et `HKCU\Software`, puis la fermer.
+3. **Relevé de référence** des restes attendus, avant toute désinstallation. Dans un PowerShell de la Sandbox :
+   ```powershell
+   $roots = "$env:ProgramFiles", "${env:ProgramFiles(x86)}", $env:APPDATA, $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs", $env:ProgramData
+   $names = 'vlc','VideoLAN','7-Zip','Notepad++','Audacity','GIMP'
+   $ref = foreach ($r in $roots) { Get-ChildItem $r -Directory -ErrorAction SilentlyContinue | Where-Object { $n = $_.Name; $names | Where-Object { $n -like "*$_*" } } | ForEach-Object FullName }
+   $ref += foreach ($k in 'HKCU:\Software','HKLM:\SOFTWARE','HKLM:\SOFTWARE\WOW6432Node') { Get-ChildItem $k -ErrorAction SilentlyContinue | Where-Object { $n = $_.PSChildName; $names | Where-Object { $n -like "*$_*" } } | ForEach-Object Name }
+   $ref | Sort-Object | Set-Content "$env:USERPROFILE\Desktop\reference.txt"
+   ```
+   Ce relevé compte les **dossiers de premier niveau et les clés** de chaque application (l'unité des groupes de CleanSlate).
+4. Désinstaller les 5 applications **avec leur désinstalleur officiel** (Paramètres → Applications, ou leur `Uninstall.exe`), sans CleanSlate : c'est la « désinstallation classique » du critère.
+5. Pour chaque ligne de `reference.txt`, noter si elle existe encore : ce sont les **restes réels** (R). Une ligne supprimée par le désinstalleur n'est pas un reste.
+6. Installer en plus une application **qu'on garde** (par exemple `winget install Mozilla.Firefox`) et la lancer une fois : elle sert de témoin pour le critère « zéro élément d'une application encore installée ».
+
+### 4.2 Déroulé
+
+| # | Étape | Résultat attendu |
+| --- | --- | --- |
+| 1 | Lancer CleanSlate (mode simulation activé) → Restes orphelins → Analyser les restes | Analyse terminée en moins de 60 s (ENF-05) ; groupes « Probablement : … » pour VLC, 7-Zip, Notepad++, Audacity, GIMP |
+| 2 | Compter, parmi les restes réels R de l'étape 4.1.5, ceux qui apparaissent dans la liste (élément ou dossier parent) : T | **T / R ≥ 90 %** (critère 2) |
+| 3 | Relever tous les éléments **précochés** (confiance Élevée) | Aucun n'appartient à Firefox, à une application encore installée ni à Windows (`Microsoft`, `Windows`, `Common Files`, `Packages`…) (critère 3) |
+| 4 | Réglages → désactiver la simulation ; relancer l'analyse ; garder la présélection → Mettre en quarantaine → Confirmer | Session « Terminée » ; éléments absents du disque et du registre |
+| 5 | Avant l'étape 4, enregistrer l'empreinte des fichiers concernés : `Get-ChildItem <dossier> -Recurse -File \| Get-FileHash \| Export-Csv avant.csv` ; exporter les clés : `reg export <clé> avant.reg` | — |
+| 6 | Historique → Restaurer la session | Session « Restaurée » ; `Get-FileHash` identique à `avant.csv` (même contenu, mêmes dates) ; `reg export` identique à `avant.reg` (critère 4) |
+| 7 | Remettre en quarantaine puis Historique → Purger | Dossiers `files` et `registry` de la session supprimés ; `manifest.json` gardé |
+
+### 4.3 Grille de résultats
+
+| Critère (cahier § 6.3) | Mesure | Résultat |
+| --- | --- | --- |
+| Exigences M satisfaites | `docs/journal/revue-finale.md` | |
+| ≥ 90 % des restes retrouvés | T / R = … / … | |
+| Zéro élément d'une application installée ou du système précoché | Nombre d'éléments précochés fautifs : … | |
+| Session restaurable à l'identique | Empreintes et `.reg` identiques : oui / non | |
+| Tests automatisés et `clippy` sans alerte | `cargo test`, `cargo clippy -D warnings`, `dotnet test` | |
+
+Noter dans la colonne « Résultat » les éléments manqués ou précochés à tort, avec leur chemin : ce sont les cas à ajouter aux tests du `matcher`.
+
+## 5. Installeur (J6)
+
+1. Sur le PC de développement : `pwsh scripts/package.ps1` → `artifacts\installer\CleanSlate-0.1.0-setup.exe`.
+2. Dans une Sandbox neuve, partager `artifacts\installer` (lecture seule) au lieu du dossier `bin`, copier l'installeur sur le Bureau, le lancer.
+
+| # | Étape | Résultat attendu |
+| --- | --- | --- |
+| 1 | Lancer `CleanSlate-0.1.0-setup.exe` | Demande d'élévation (UAC) ; assistant en français, icône CleanSlate, licence MIT |
+| 2 | Terminer l'installation, cocher « Exécuter CleanSlate » | Installé dans `C:\Program Files\CleanSlate` ; raccourci dans le menu Démarrer ; l'application s'ouvre sans rien installer d'autre (.NET et Windows App SDK embarqués) |
+| 3 | Réglages → À propos | Icône CleanSlate, version 0.1.0 |
+| 4 | Faire une quarantaine (§ 2), puis désinstaller CleanSlate depuis Paramètres → Applications | `C:\Program Files\CleanSlate` supprimé ; `%LOCALAPPDATA%\CleanSlate` (quarantaine, historique) **conservé** (D43) |

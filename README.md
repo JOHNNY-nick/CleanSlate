@@ -5,7 +5,7 @@
 
 # CleanSlate
 
-Dernière mise à jour : 29 oct. 2026
+Dernière mise à jour : 30 oct. 2026
 
 Utilitaire Windows qui désinstalle complètement une application et retrouve les
 restes d'applications déjà désinstallées.
@@ -25,12 +25,51 @@ qui répond à deux besoins :
 Par sécurité, rien n'est effacé directement : tout passe par une quarantaine
 restaurable pendant 30 jours, et le mode simulation est actif par défaut.
 
-> **État : jalon J5 (désinstallation complète).** Toutes les fonctions sont en place :
-> applications, désinstallation complète, restes orphelins, quarantaine restaurable,
-> historique. Le mode simulation est actif par défaut. Finitions en J6.
+> **État : v0.1.0, jalons J1 à J6 terminés.** Installeur Windows disponible ; les
+> critères d'acceptation en conditions réelles se vérifient dans Windows Sandbox
+> ([tests d'acceptation](docs/tests-acceptation.md)). Bilan : [revue finale](docs/journal/revue-finale.md).
 
 - Moteur : Rust (`core/`), exposé en `cleanslate.dll` par une API C en JSON.
 - Interface : C# 12 / .NET 8 / WinUI 3 non packagée (`app/`), patron MVVM.
+
+## Fonctionnalités
+
+- **Applications** : inventaire des trois clés Uninstall (64 bits, 32 bits, utilisateur),
+  recherche, tri, composants système masqués par défaut.
+- **Désinstallation complète** en 5 clics : point de restauration, désinstalleur
+  officiel (mode silencieux s'il existe), attente de tous ses processus, puis restes
+  de l'application proposés au nettoyage.
+- **Restes orphelins** : analyse de `Program Files`, `AppData`, `ProgramData` et du
+  registre sans saisir de nom ; restes regroupés par application probable, avec un
+  niveau de confiance ; seuls les éléments à confiance « Élevée » sont précochés.
+- **Quarantaine** : rien n'est supprimé directement. Fichiers et clés sont déplacés
+  avec un manifeste écrit avant chaque déplacement, restaurables à l'identique,
+  en totalité ou élément par élément, pendant 30 jours (durée réglable).
+- **Sécurité** : mode simulation actif par défaut, liste noire non désactivable
+  (`C:\Windows`, `Microsoft`, racines…), liens symboliques et jonctions jamais suivis,
+  confirmation explicite, mot « QUARANTAINE » au-delà de 20 Go.
+- **Historique**, exclusions personnelles, thèmes clair, sombre et contraste élevé,
+  journaux locaux (7 jours). Aucune donnée envoyée sur Internet.
+
+## Captures
+
+| Accueil | Restes orphelins | Réglages |
+| --- | --- | --- |
+| ![Accueil](docs/captures/accueil.png) | ![Restes orphelins](docs/captures/restes-orphelins.png) | ![Réglages](docs/captures/reglages.png) |
+
+Captures prises en développement, sans droits administrateur (d'où l'avertissement
+sur l'Accueil) et en mode simulation.
+
+## Installer
+
+Télécharger ou produire `CleanSlate-0.1.0-setup.exe` (voir « Produire l'installeur »),
+puis le lancer : il demande les droits administrateur et installe CleanSlate dans
+`C:\Program Files\CleanSlate`. Le runtime .NET et le Windows App SDK sont inclus ;
+rien d'autre à installer. Windows 10 2004 ou plus récent, x64.
+
+L'installeur n'est pas encore signé : Windows SmartScreen affichera un avertissement.
+Désinstaller CleanSlate garde `%LOCALAPPDATA%\CleanSlate` (quarantaine et historique),
+pour que vous puissiez encore restaurer vos fichiers.
 
 ## Prérequis
 
@@ -61,6 +100,18 @@ MSBuild copie alors `cleanslate.dll` à côté de l'application et des tests.
 `-Configuration` s'applique aux deux : `Debug` utilise le profil cargo `dev`,
 `Release` utilise `--release`.
 
+## Produire l'installeur
+
+Prérequis en plus : Inno Setup 6 (`winget install JRSoftware.InnoSetup --source winget --scope user`).
+
+```powershell
+pwsh scripts/package.ps1
+```
+
+Le script compile en Release, publie l'application en mode autonome dans
+`artifacts/publish`, puis compile `installer/cleanslate.iss`. Résultat :
+`artifacts/installer/CleanSlate-0.1.0-setup.exe` (environ 59 Mo).
+
 ## Tester
 
 ```powershell
@@ -73,6 +124,9 @@ dotnet test app/CleanSlate.sln -p:Platform=x64
 
 Les tests n'écrivent que dans des dossiers temporaires et sous
 `HKCU\Software\CleanSlateTest\<uuid>`, supprimée à la fin de chaque test.
+Les essais réels (quarantaine, désinstallation, scénario des 5 applications,
+installeur) se font uniquement dans Windows Sandbox :
+[docs/tests-acceptation.md](docs/tests-acceptation.md).
 
 ## Lancer
 
@@ -113,7 +167,8 @@ cargo run --manifest-path core/Cargo.toml --release -p cleanslate-cli -- scan --
 
 ```text
 core/                     workspace Cargo
-  cleanslate-core/        logique métier (modèle, erreurs, accès disque et registre)
+  cleanslate-core/        logique métier : inventaire, scan, matcher, sécurité,
+                          quarantaine, historique, désinstallation, journaux
   cleanslate-ffi/         cleanslate.dll : API C extern "C", JSON UTF-8
   cleanslate-cli/         binaire de debug
 app/
@@ -122,7 +177,11 @@ app/
   CleanSlate.Interop/     NativeMethods.g.cs (généré, versionné) + EngineClient
   CleanSlate.Tests/       xUnit v3 + NSubstitute
 scripts/build.ps1         compilation complète
-docs/                     cahier des charges, spécifications, design, maquettes, prompts
+scripts/package.ps1       publication autonome et installeur
+installer/cleanslate.iss  script Inno Setup
+assets/branding/          logo et icônes
+docs/                     cahier des charges, spécifications, design, maquettes,
+                          décisions, journal des jalons, tests d'acceptation, captures
 .github/workflows/        CI GitHub Actions (fmt, clippy, tests, couverture, build)
 ```
 
@@ -135,6 +194,9 @@ docs/                     cahier des charges, spécifications, design, maquettes
 | [`docs/design.md`](docs/design.md) | Principes, jetons de couleur, parcours, textes d'interface, accessibilité |
 | [`docs/maquettes/`](docs/maquettes/index.html) | 8 écrans en HTML : ouvrir `index.html` dans un navigateur |
 | [`docs/prompt-claude-code.md`](docs/prompt-claude-code.md) | Mode d'emploi avec Claude Code et prompts des jalons J1 à J6 |
+| [`docs/decisions.md`](docs/decisions.md) | Décisions prises en cours de projet (D01 à D44) |
+| [`docs/journal/`](docs/journal/) | Plan et bilan de chaque jalon, revue finale |
+| [`docs/tests-acceptation.md`](docs/tests-acceptation.md) | Procédures manuelles dans Windows Sandbox |
 | [`CLAUDE.md`](CLAUDE.md) | Consignes permanentes pour Claude Code (règles de sécurité, conventions) |
 
 ## Licence

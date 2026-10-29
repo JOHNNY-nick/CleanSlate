@@ -19,8 +19,8 @@ demande-moi au lieu d'inventer. Cite l'ID d'exigence dans les commits et les tes
 
 ## Architecture
 - core/cleanslate-core : bibliothèque Rust, toute la logique métier
-  (depuis J1 : engine, error, model, fs, registry ; à venir : inventory, scan, matcher,
-  safety, quarantine, history, uninstall)
+  (engine, error, model, fs, registry, native, system, inventory, scan, matcher,
+  safety, quarantine, history, uninstall, logging)
 - core/cleanslate-ffi : cdylib, [lib] name = "cleanslate" -> cleanslate.dll,
   API C extern "C", JSON UTF-8, ByteBuffer libéré par cs_buffer_free
 - core/cleanslate-cli : binaire de debug
