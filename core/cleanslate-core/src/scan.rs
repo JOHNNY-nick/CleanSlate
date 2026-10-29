@@ -17,8 +17,8 @@ use crate::fs::FileSystem;
 use crate::inventory::fnv1a_hex;
 use crate::matcher::{group, normalize, score, Facts, KnownSet};
 use crate::model::{
-    InstalledApp, ItemError, Leftover, LeftoverKind, ScanOptions, ScanPhase, ScanProgress,
-    ScanReport,
+    Confidence, InstalledApp, ItemError, Leftover, LeftoverKind, ScanOptions, ScanPhase,
+    ScanProgress, ScanReport,
 };
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
 use crate::safety::{KnownFolders, SafetyRules};
@@ -75,6 +75,8 @@ struct Candidate {
     publisher: Option<String>,
     personal: bool,
     in_program_files: bool,
+    /// Target of a shortcut.
+    target: Option<String>,
 }
 
 /// Emits throttled progress events (at most one per 250 ms).
@@ -267,6 +269,7 @@ fn folder_candidate(
         publisher,
         personal,
         in_program_files,
+        target: None,
     }
 }
 
@@ -375,6 +378,7 @@ fn key_candidate(key: RegKeyPath, name: &str, publisher: Option<String>) -> Cand
         publisher,
         personal: false,
         in_program_files: false,
+        target: None,
     }
 }
 
@@ -425,8 +429,187 @@ fn list_shortcuts(
                 publisher: None,
                 personal: false,
                 in_program_files: false,
+                target: Some(target.clone()),
             });
         }
+    }
+}
+
+/// Similarity above which a candidate carries the name of the uninstalled
+/// application (specs § 6.4).
+pub const APP_NAME_SIMILARITY: f64 = 0.85;
+
+/// Leftovers of one application just uninstalled (EF-13, specs § 6.4).
+///
+/// `app` is the record captured before uninstalling. Items attached to
+/// another installed application are never proposed. Returns an empty
+/// report if `app` is still installed (its files are not leftovers).
+pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressFn) -> ScanReport {
+    let started = Instant::now();
+    let errors = Errors::default();
+    let reporter = Reporter::new(progress, 0);
+    reporter.emit(ScanPhase::Listing, "");
+    if env.apps.iter().any(|a| a.id == app.id) {
+        reporter.emit(ScanPhase::Done, "");
+        return ScanReport::default();
+    }
+    let app_name = normalize(&app.display_name);
+    let install = app
+        .install_location
+        .as_ref()
+        .map(|p| p.to_string_lossy().trim_end_matches('\\').to_lowercase())
+        .filter(|p| !p.is_empty());
+    let within_install = |path: &str| {
+        install.as_ref().is_some_and(|root| {
+            let path = path.to_lowercase();
+            path == *root || path.starts_with(&format!(r"{root}\"))
+        })
+    };
+    let carries_name = |name: &str| {
+        let normalized = normalize(name);
+        !normalized.is_empty()
+            && !app_name.is_empty()
+            && strsim::jaro_winkler(&normalized, &app_name) >= APP_NAME_SIMILARITY
+    };
+
+    let mut known = KnownSet::new(env.apps, env.extra_executables);
+    for name in present_programs(env, &errors) {
+        // The app's own folder may still hold an executable: not "present".
+        if !carries_name(&name) {
+            known.add_present_program(&name);
+        }
+    }
+    let mut candidates = Vec::new();
+    let mut roots = env.folders.scan_roots();
+    roots.sort();
+    roots.dedup();
+    let personal = env.folders.documents.clone();
+    for root in &roots {
+        list_folder_root(
+            env,
+            &known,
+            root,
+            *root == personal,
+            &mut candidates,
+            &errors,
+        );
+    }
+    for root in registry_roots() {
+        list_registry_root(env, &known, &root, &mut candidates, &errors);
+    }
+    for folder in &env.folders.shortcut_folders {
+        list_shortcuts(env, folder, 0, &mut candidates, &errors);
+    }
+    if let Some(location) = &app.install_location {
+        if env.fs.exists(location) && env.rules.check_path(location).is_ok() {
+            candidates.push(folder_candidate(location, None, false, false));
+        }
+    }
+    candidates.sort_by_key(|c| c.location.to_lowercase());
+    candidates.dedup_by_key(|c| c.location.to_lowercase());
+
+    let publisher = app
+        .publisher
+        .as_deref()
+        .map(normalize)
+        .filter(|p| !p.is_empty());
+    let reporter = Reporter::new(progress, candidates.len() as u64);
+    let found: Vec<(Option<String>, Leftover)> = candidates
+        .iter()
+        .filter_map(|c| {
+            reporter.tick(ScanPhase::Analyzing, &c.location, true);
+            if env.cancel.load(Ordering::Relaxed) {
+                return None;
+            }
+            let path_text = c.path.as_ref().map(|p| p.to_string_lossy().into_owned());
+            let in_install = path_text.as_deref().is_some_and(within_install);
+            let (mut confidence, reason) = if in_install {
+                (
+                    Confidence::High,
+                    "Ancien dossier d'installation de l'application",
+                )
+            } else if c.kind == LeftoverKind::RegistryKey
+                && app
+                    .product_code
+                    .as_deref()
+                    .is_some_and(|code| c.name.eq_ignore_ascii_case(code))
+            {
+                (
+                    Confidence::High,
+                    "Clé portant le code produit de l'application",
+                )
+            } else if c.target.as_deref().is_some_and(within_install) {
+                (
+                    Confidence::High,
+                    "Raccourci vers l'ancien dossier de l'application",
+                )
+            } else if carries_name(&c.name) {
+                (
+                    Confidence::High,
+                    "Porte le nom de l'application désinstallée",
+                )
+            } else if publisher.as_ref().is_some_and(|p| {
+                strsim::jaro_winkler(&normalize(&c.name), p) >= crate::matcher::ATTACH_SIMILARITY
+            }) && !known.is_installed_publisher(&normalize(&c.name))
+            {
+                (
+                    Confidence::Medium,
+                    "Dossier de l'éditeur, sans autre application installée",
+                )
+            } else {
+                return None;
+            };
+            // Never something that belongs to another installed application.
+            if known.attach(&c.name, path_text.as_deref(), &[]).is_some() {
+                return None;
+            }
+            let mut reasons = vec![reason.to_owned()];
+            if c.personal {
+                confidence = Confidence::Low;
+                reasons.push("Dossier personnel possible : jamais précoché".to_owned());
+            }
+            let (size_bytes, last_modified) = match (&c.path, &c.key) {
+                (Some(path), _) => {
+                    env.rules.validate_path(env.fs, path).ok()?;
+                    let stats = measure(env, path, &reporter, &errors);
+                    if known.attach(&c.name, None, &stats.executables).is_some() {
+                        return None;
+                    }
+                    (stats.size, stats.last_modified)
+                }
+                (None, Some(key)) => {
+                    let values = env.registry.values(key).ok()?;
+                    (
+                        values
+                            .iter()
+                            .map(|(n, v)| (n.len() * 2) as u64 + data_len(v))
+                            .sum(),
+                        None,
+                    )
+                }
+                (None, None) => return None,
+            };
+            Some((
+                app.publisher.clone(),
+                Leftover {
+                    id: fnv1a_hex(&c.location.to_lowercase()),
+                    kind: c.kind,
+                    location: c.location.clone(),
+                    size_bytes,
+                    last_modified,
+                    confidence,
+                    reasons,
+                    guessed_app: Some(app.display_name.clone()),
+                },
+            ))
+        })
+        .collect();
+    reporter.emit(ScanPhase::Done, "");
+    ScanReport {
+        groups: group(found),
+        errors: errors.into_vec(),
+        duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        cancelled: env.cancel.load(Ordering::Relaxed),
     }
 }
 
@@ -614,7 +797,7 @@ pub fn shortcut_target(bytes: &[u8]) -> Option<String> {
 pub(crate) mod tests {
     use super::*;
     use crate::fs::FakeFileSystem;
-    use crate::model::{AppKind, Confidence, InstallerKind, RegistryView};
+    use crate::model::{AppKind, InstallerKind, RegistryView};
     use crate::registry::TestRegistryKey;
     use chrono::{Duration as Days, TimeZone};
 
@@ -861,6 +1044,95 @@ pub(crate) mod tests {
             .find(|g| g.label.eq_ignore_ascii_case("audacity"))
             .unwrap();
         assert_eq!(audacity.items.len(), 4);
+    }
+
+    #[test]
+    fn leftovers_of_a_just_uninstalled_app() {
+        let old = Some(now() - Days::days(100));
+        let r = r"C:\Users\Ana\AppData\Roaming";
+        let mut fs = FakeFileSystem::new();
+        fs.add_file(
+            r"C:\Program Files\GIMP 2\share\gimp\2.0\tips.xml",
+            5_000,
+            old,
+        )
+        .add_file(format!(r"{r}\GIMP\2.10\gimprc"), 2_000, old)
+        .add_file(format!(r"{r}\The GIMP Team\prefs.ini"), 10, old)
+        .add_file(r"C:\Users\Ana\Documents\GIMP\photo.xcf", 90_000, old)
+        .add_file_with_content(
+            r"C:\Users\Ana\Desktop\Mon éditeur.lnk",
+            lnk(r"C:\Program Files\GIMP 2\bin\gimp-2.10.exe"),
+            old,
+        )
+        .add_file(format!(r"{r}\vlc\vlcrc"), 1_000, old)
+        .add_file(r"C:\Program Files\VideoLAN\VLC\vlc.exe", 3_000_000, old);
+        let area = TestRegistryKey::new();
+        let software = RegKeyPath::new(Hive::CurrentUser, "Software");
+        area.create(&software.join("GIMP"))
+            .set_value("Lang", &"fr")
+            .unwrap();
+        area.create(&software.join("VideoLAN"))
+            .set_value("x", &"y")
+            .unwrap();
+
+        let gimp = app(
+            "GIMP 2.10.38",
+            "The GIMP Team",
+            Some(r"C:\Program Files\GIMP 2"),
+        );
+        let others = vec![app(
+            "VLC media player",
+            "VideoLAN",
+            Some(r"C:\Program Files\VideoLAN\VLC"),
+        )];
+        let folders = KnownFolders::under(r"C:\");
+        let rules = SafetyRules::new(&folders, &[]);
+        let registry = area.registry();
+        let cancel = AtomicBool::new(false);
+        let env = ScanEnv {
+            fs: &fs,
+            registry: &registry,
+            folders: &folders,
+            rules: &rules,
+            apps: &others,
+            extra_executables: &[],
+            cancel: &cancel,
+            now: now(),
+        };
+        let report = scan_app_leftovers(&env, &gimp, &|_| {});
+        let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let find = |suffix: &str| {
+            items
+                .iter()
+                .find(|i| i.location.to_lowercase().ends_with(suffix))
+                .unwrap_or_else(|| panic!("missing {suffix}: {items:#?}"))
+        };
+        assert_eq!(find(r"program files\gimp 2").confidence, Confidence::High);
+        assert_eq!(find(r"roaming\gimp").confidence, Confidence::High);
+        assert_eq!(find(r"hkcu\software\gimp").confidence, Confidence::High);
+        assert_eq!(
+            find(r"mon éditeur.lnk").reasons[0],
+            "Raccourci vers l'ancien dossier de l'application"
+        );
+        assert_eq!(
+            find(r"roaming\the gimp team").confidence,
+            Confidence::Medium
+        );
+        assert_eq!(find(r"documents\gimp").confidence, Confidence::Low);
+        assert!(!items
+            .iter()
+            .any(|i| i.location.to_lowercase().contains("vlc")
+                || i.location.to_lowercase().contains("videolan")));
+        assert_eq!(report.groups.len(), 1);
+        assert_eq!(report.groups[0].label, "GIMP 2.10.38");
+
+        // Still installed (uninstaller cancelled): nothing is proposed.
+        let with_gimp = vec![gimp.clone()];
+        let env = ScanEnv {
+            apps: &with_gimp,
+            ..env
+        };
+        assert!(scan_app_leftovers(&env, &gimp, &|_| {}).groups.is_empty());
     }
 
     #[test]
