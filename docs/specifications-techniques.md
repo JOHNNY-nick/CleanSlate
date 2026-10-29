@@ -146,10 +146,10 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_list_apps(engine)` | — | `InstalledApp[]` (entrées masquées comprises) | J2 ✔ |
 | `cs_scan_orphans(engine, opts, len, cb, ctx)` | `ScanOptions` (longueur 0 : défauts) ; rappel facultatif, appelable depuis un thread de travail, jamais après le retour | `ScanReport` (partiel et `cancelled: true` si annulé) | J3 ✔ |
 | `cs_cancel(engine)` | — | annule l'opération en cours (drapeau atomique, remis à zéro à l'opération suivante) | J3 ✔ |
-| `cs_clean(engine, plan, len, cb, ctx)` | `CleanPlan` | `Session` | J4 |
-| `cs_restore(engine, req, len)` | `{ "session_id", "item_ids"? }` | `RestoreResult` | J4 |
-| `cs_list_sessions(engine)` | — | `Session[]` | J4 |
-| `cs_purge_quarantine(engine, req, len)` | `{ "older_than_days" }` | `{ "freed_bytes" }` | J4 |
+| `cs_clean(engine, plan, len, cb, ctx)` | `CleanPlan` (éléments du dernier scan uniquement ; rappel réservé) | `Session` (`simulated: true` si le moteur ou le plan est en simulation, D27) | J4 ✔ |
+| `cs_restore(engine, req, len)` | `RestoreRequest { session_id, item_ids?, dry_run }` | `Session` (`errors` = éléments non restaurés) | J4 ✔ |
+| `cs_list_sessions(engine)` | — | `Session[]` (sessions interrompues reprises au passage) | J4 ✔ |
+| `cs_purge_quarantine(engine, req, len)` | `PurgeRequest { older_than_days, dry_run }` | `PurgeResult { freed_bytes, simulated }` | J4 ✔ |
 | `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest` | `UninstallResult` | J5 |
 | `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `{ "app_id": … }` | `ScanReport` | J5 |
 
@@ -218,12 +218,16 @@ pub struct ScanReport { pub groups: Vec<LeftoverGroup>, pub errors: Vec<ItemErro
 pub struct ItemError { pub code: String, pub message: String, pub path: Option<String> } // code de CoreError
 
 pub enum Origin { Orphans, App { app_id: String } } // JSON : {"kind":"orphans"} | {"kind":"app","app_id":"…"}
-pub struct CleanPlan { pub item_ids: Vec<String>, pub dry_run: bool, pub origin: Origin } // dry_run absent du JSON = true
+pub struct CleanPlan { pub item_ids: Vec<String>, pub dry_run: bool, pub origin: Origin, pub confirmation: Option<String> } // dry_run absent = true ; « QUARANTAINE » au-delà du plafond
+pub struct RestoreRequest { pub session_id: Uuid, pub item_ids: Option<Vec<String>>, pub dry_run: bool } // dry_run absent = true
+pub struct PurgeRequest { pub older_than_days: u32, pub dry_run: bool }                           // dry_run absent = true
+pub struct PurgeResult { pub freed_bytes: u64, pub simulated: bool }
 
 pub struct Session {
     pub id: Uuid, pub created_at: DateTime<Utc>, pub origin: Origin,
     pub items: Vec<QuarantinedItem>, pub freed_bytes: u64, pub errors: Vec<ItemError>,
     pub status: SessionStatus,   // Completed | Partial | Restored | Purged
+    pub simulated: bool,         // simulation : rien n'a été déplacé ni enregistré
 }
 
 pub enum QuarantineStatus { Quarantined, Restored, Purged, PendingReboot, Failed }
@@ -328,7 +332,11 @@ Rien n'est jamais supprimé directement : chaque élément passe par la quaranta
 - **Raccourcis, tâches, services** : raccourci déplacé comme un fichier ; tâche exportée en XML avant suppression ; service : configuration sauvegardée en JSON avant `DeleteService`.
 - **Manifeste** : `manifest.json` liste chaque élément sous forme de `QuarantinedItem` (§ 5 : chemin d'origine, chemin en quarantaine, taille, SHA-256, ACL d'origine en SDDL, horodatages, statut), plus, pour un dossier, l'empreinte SHA-256 détaillée de chacun de ses fichiers (chemin relatif, taille, SHA-256) ; la `Session` renvoyée à l'interface ne contient que l'empreinte globale. Il est écrit **avant** chaque déplacement et mis à jour après, pour survivre à un plantage.
 - **SHA-256** : calculé avec l'API Windows CNG (`BCryptHash`) via la crate `windows`, sans dépendance supplémentaire.
-- **Fichier verrouillé** : proposé à la suppression au prochain redémarrage (`MOVEFILE_DELAY_UNTIL_REBOOT`), listé comme tel.
+- **Fichier verrouillé** : proposé à la suppression au prochain redémarrage (`MOVEFILE_DELAY_UNTIL_REBOOT`, droits administrateur), listé comme tel (statut `PendingReboot`).
+- **Refus** (élément laissé en place, erreur listée) : chemin ou clé protégés au moment d'agir, dossier contenant un lien ou une jonction (D29), type non pris en charge (tâches, services).
+- **Clés** : la restauration réécrit l'instantané JSON (types exacts, D30) ; le `.reg` permet une restauration manuelle avec `regedit`.
+- **ACL** : enregistrée en SDDL ; conservée par un déplacement sur le même volume (D31).
+- **Reprise** : `manifest.json` porte l'élément en cours (`pending`) ; au prochain accès, il est marqué en quarantaine si le déplacement a eu lieu, sinon « Non déplacé » (copie partielle supprimée).
 
 ### 7.3 Restauration et purge
 
