@@ -269,7 +269,7 @@ pub enum ScanPhase { Listing, Analyzing, Done }
 pub struct ScanProgress { pub phase: ScanPhase, pub current: u64, pub total: u64, pub path: String }
 ```
 
-**Stockage** : `%LOCALAPPDATA%\CleanSlate\` contient `cleanslate.db` (SQLite : tables `sessions`, `items`, `exclusions`, `settings`), `quarantine\<session_id>\` (fichiers déplacés, fichiers `.reg` exportés, `manifest.json`) et `logs\`.
+**Stockage** : `%LOCALAPPDATA%\CleanSlate\` contient `cleanslate.db` (SQLite : historique des sessions et de leurs éléments), `settings.json` (réglages de l'application et exclusions, transmises au moteur dans `EngineConfig.exclusions`, décision D40), `quarantine\<session_id>\` (fichiers déplacés, fichiers `.reg` exportés, `manifest.json`) et `logs\` (fichiers quotidiens `cleanslate.AAAA-MM-JJ.log`, 7 conservés, ENF-10).
 
 ## 6. Algorithme de détection des restes
 
@@ -455,4 +455,14 @@ Sortie : `app/CleanSlate.App/bin/x64/<Configuration>/net8.0-windows10.0.19041.0/
 
 ### 10.4 Packaging
 
-v1.0 : installeur **Inno Setup** (réalisé en J6) pour une application WinUI 3 non packagée ; le runtime Windows App SDK est embarqué dans l'application (`WindowsAppSDKSelfContained=true`, choix fait au J1) ; manifeste d'application `requireAdministrator`. Une distribution packagée est écartée, car incompatible avec `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.
+v1.0 : installeur **Inno Setup 6** (réalisé en J6) pour une application WinUI 3 non packagée ; manifeste d'application `requireAdministrator`. Une distribution packagée est écartée, car incompatible avec `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.
+
+`pwsh scripts/package.ps1 [-SkipBuild]` :
+
+1. `scripts/build.ps1 -Configuration Release` ;
+2. `dotnet publish app/CleanSlate.App -c Release -p:Platform=x64 -r win-x64 --self-contained true -o artifacts/publish` : le runtime .NET 8 et le runtime Windows App SDK (`WindowsAppSDKSelfContained=true`) sont embarqués, le PC cible n'a rien à installer. La cible `PublishXamlResources` copie les `.xbf` et `CleanSlate.App.pri`, que la publication non packagée oublie (D41) ;
+3. `ISCC installer/cleanslate.iss` avec `AppVersion` (lue dans `core/Cargo.toml`) et `PublishDir`.
+
+Script `installer/cleanslate.iss` : `SetupIconFile=..\assets\branding\cleanslate.ico`, `PrivilegesRequired=admin`, installation dans `{autopf}\CleanSlate` (64 bits, Windows 10 2004 minimum), raccourci dans le menu Démarrer et, en option, sur le bureau, licence MIT affichée, assistant en français. La désinstallation de CleanSlate garde `%LOCALAPPDATA%\CleanSlate` (quarantaine restaurable, D43).
+
+Sortie : `artifacts/installer/CleanSlate-<version>-setup.exe` (environ 59 Mo).

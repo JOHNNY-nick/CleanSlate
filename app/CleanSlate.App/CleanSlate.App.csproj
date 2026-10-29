@@ -27,6 +27,16 @@
     <Content Include="..\..\assets\branding\cleanslate.ico" Link="Assets\cleanslate.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Unpackaged publish leaves out the compiled XAML (*.xbf) and the app's
+       resources.pri; without them the app crashes at startup (J6, D41). -->
+  <Target Name="PublishXamlResources" AfterTargets="Publish">
+    <ItemGroup>
+      <XamlPublishFiles Include="$(OutDir)**\*.xbf;$(OutDir)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(XamlPublishFiles)"
+          DestinationFiles="@(XamlPublishFiles->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\CleanSlate.Interop\CleanSlate.Interop.csproj" />
     <ProjectReference Include="..\CleanSlate.Presentation\CleanSlate.Presentation.csproj" />
