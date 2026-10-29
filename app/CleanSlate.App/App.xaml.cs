@@ -25,6 +25,8 @@ public partial class App : Application
                 services.AddSingleton<IEngineService, EngineService>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<IDialogService, DialogService>();
+                services.AddSingleton<INavigationService, NavigationService>();
+                services.AddSingleton<UninstallWizardViewModel>();
                 services.AddTransient<HomeViewModel>();
                 services.AddTransient<AppsViewModel>();
                 // Singleton: scan results survive navigation between pages.

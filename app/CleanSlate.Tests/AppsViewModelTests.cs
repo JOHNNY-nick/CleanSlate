@@ -38,7 +38,7 @@ public sealed class AppsViewModelTests
     {
         var engine = Substitute.For<IEngineService>();
         engine.ListAppsAsync(Arg.Any<CancellationToken>()).Returns(apps);
-        var viewModel = new AppsViewModel(engine);
+        var viewModel = new AppsViewModel(engine, Substitute.For<INavigationService>());
         await viewModel.LoadCommand.ExecuteAsync(null);
         return viewModel;
     }
@@ -123,13 +123,25 @@ public sealed class AppsViewModelTests
     }
 
     [Fact]
-    public async Task UninstallCommands_AreDisabledUntilJ5()
+    public async Task UninstallCommands_NeedAnUninstallerAndOpenTheWizard()
     {
-        var vm = await LoadedAsync(App("GIMP"));
-        vm.SelectedApp = vm.Apps[0];
+        var engine = Substitute.For<IEngineService>();
+        engine.ListAppsAsync(Arg.Any<CancellationToken>()).Returns([App("GIMP") with { UninstallString = "u.exe" }, App("NoUninstaller")]);
+        var navigation = Substitute.For<INavigationService>();
+        var vm = new AppsViewModel(engine, navigation);
+        await vm.LoadCommand.ExecuteAsync(null);
 
-        Assert.False(vm.ClassicUninstallCommand.CanExecute(null));
         Assert.False(vm.UninstallCompletelyCommand.CanExecute(null));
+        vm.SelectedApp = vm.Apps[1];
+        Assert.False(vm.UninstallCompletelyCommand.CanExecute(null));
+        vm.SelectedApp = vm.Apps[0];
+        Assert.True(vm.UninstallCompletelyCommand.CanExecute(null));
+        Assert.True(vm.ClassicUninstallCommand.CanExecute(null));
+
+        vm.UninstallCompletelyCommand.Execute(null);
+        navigation.Received(1).OpenUninstallWizard(Arg.Is<InstalledApp>(a => a.DisplayName == "GIMP"), true);
+        vm.ClassicUninstallCommand.Execute(null);
+        navigation.Received(1).OpenUninstallWizard(Arg.Any<InstalledApp>(), false);
     }
 
     [Fact]
@@ -137,7 +149,7 @@ public sealed class AppsViewModelTests
     {
         var engine = Substitute.For<IEngineService>();
         engine.ListAppsAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new EngineException("ACCESS_DENIED", "denied"));
-        var vm = new AppsViewModel(engine);
+        var vm = new AppsViewModel(engine, Substitute.For<INavigationService>());
 
         await vm.LoadCommand.ExecuteAsync(null);
 

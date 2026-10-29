@@ -278,6 +278,25 @@ public sealed record PurgeRequest(uint OlderThanDays, bool DryRun = true);
 /// <summary>Result of <c>cs_purge_quarantine</c>.</summary>
 public sealed record PurgeResult(ulong FreedBytes, bool Simulated);
 
+/// <summary>Request of <c>cs_uninstall</c>; simulation by default, restore point requested.</summary>
+public sealed record UninstallRequest(string AppId, bool Quiet = false, bool CreateRestorePoint = true, bool DryRun = true);
+
+/// <summary>Result of <c>cs_uninstall</c>.</summary>
+public sealed record UninstallResult(
+    string AppId,
+    string DisplayName,
+    string Command,
+    bool Simulated,
+    bool RestorePointCreated,
+    string? RestorePointError,
+    uint? ExitCode,
+    bool TimedOut,
+    bool Cancelled,
+    bool StillInstalled);
+
+/// <summary>Request of <c>cs_scan_app_leftovers</c>.</summary>
+public sealed record AppLeftoversRequest(string AppId);
+
 /// <summary>System.Text.Json source generation, snake_case like the Rust side.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(EngineConfig))]
@@ -292,6 +311,9 @@ public sealed record PurgeResult(ulong FreedBytes, bool Simulated);
 [JsonSerializable(typeof(EngineResponse<Session>))]
 [JsonSerializable(typeof(EngineResponse<List<Session>>))]
 [JsonSerializable(typeof(EngineResponse<PurgeResult>))]
+[JsonSerializable(typeof(UninstallRequest))]
+[JsonSerializable(typeof(AppLeftoversRequest))]
+[JsonSerializable(typeof(EngineResponse<UninstallResult>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext
 {
 }

@@ -25,6 +25,21 @@ public sealed partial class MainWindow : Window
         NavView.SelectedItem = NavView.MenuItems[0];
     }
 
+    /// <summary>Shows the uninstall wizard (reached from the Applications page).</summary>
+    public void ShowUninstallWizard() => ContentFrame.Navigate(typeof(UninstallWizardPage));
+
+    /// <summary>Selects « Historique » in the navigation pane.</summary>
+    public void ShowHistory()
+    {
+        NavigationViewItem? history = NavView.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(i => i.Tag as string == "History");
+        if (history is not null)
+        {
+            NavView.SelectedItem = history;
+        }
+    }
+
     private void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is NavigationViewItem { Tag: string tag }

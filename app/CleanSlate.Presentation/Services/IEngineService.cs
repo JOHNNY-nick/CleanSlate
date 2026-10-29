@@ -29,6 +29,12 @@ public interface IEngineService
     /// <summary>Sessions of the history, most recent first (EF-20).</summary>
     Task<IReadOnlyList<Session>> ListSessionsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Runs the official uninstaller (EF-12 to EF-15); cancelling only stops waiting.</summary>
+    Task<UninstallResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Leftovers of an application just uninstalled (EF-13).</summary>
+    Task<ScanReport> ScanAppLeftoversAsync(AppLeftoversRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken);
+
     /// <summary>Deletes for good the old sessions (EF-19).</summary>
     Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken);
 }

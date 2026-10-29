@@ -354,4 +354,73 @@
   <data name="PurgePrimary" xml:space="preserve">
     <value>Purger définitivement</value>
   </data>
+  <data name="WizardTitlePrefix.Text" xml:space="preserve">
+    <value>Désinstaller</value>
+  </data>
+  <data name="WizardStep.Text" xml:space="preserve">
+    <value>Étape</value>
+  </data>
+  <data name="WizardStepOf.Text" xml:space="preserve">
+    <value>sur 4</value>
+  </data>
+  <data name="WizardError.Title" xml:space="preserve">
+    <value>La désinstallation n'a pas pu démarrer.</value>
+  </data>
+  <data name="WizardSimulationBanner.Title" xml:space="preserve">
+    <value>Mode simulation : aucun programme ne sera lancé, rien ne sera déplacé.</value>
+  </data>
+  <data name="WizardRestorePoint.Content" xml:space="preserve">
+    <value>Créer un point de restauration</value>
+  </data>
+  <data name="WizardQuiet.Content" xml:space="preserve">
+    <value>Désinstallation silencieuse (sans fenêtre du désinstalleur)</value>
+  </data>
+  <data name="WizardStep1Help.Text" xml:space="preserve">
+    <value>Le désinstalleur officiel de l'application va s'ouvrir. CleanSlate attend sa fin, puis recherche les restes.</value>
+  </data>
+  <data name="WizardLaunch.Content" xml:space="preserve">
+    <value>Lancer la désinstallation</value>
+  </data>
+  <data name="WizardWaiting.Text" xml:space="preserve">
+    <value>En attente du désinstalleur…</value>
+  </data>
+  <data name="WizardWaitingBar.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>En attente du désinstalleur</value>
+  </data>
+  <data name="WizardWaitingHelp.Text" xml:space="preserve">
+    <value>Suivez les étapes de la fenêtre du désinstalleur. CleanSlate attend que tous ses processus soient terminés (30 minutes au plus).</value>
+  </data>
+  <data name="WizardStopWaiting.Content" xml:space="preserve">
+    <value>Ne plus attendre</value>
+  </data>
+  <data name="WizardUninstalled.Title" xml:space="preserve">
+    <value>L'application a été désinstallée.</value>
+  </data>
+  <data name="WizardLeftoversTitle.Text" xml:space="preserve">
+    <value>Restes trouvés</value>
+  </data>
+  <data name="WizardSkipLeftovers.Content" xml:space="preserve">
+    <value>Ignorer les restes</value>
+  </data>
+  <data name="WizardQuarantine.Content" xml:space="preserve">
+    <value>Mettre les restes en quarantaine</value>
+  </data>
+  <data name="WizardDone.Text" xml:space="preserve">
+    <value>Terminé</value>
+  </data>
+  <data name="WizardStillInstalled.Text" xml:space="preserve">
+    <value>Le désinstalleur a été annulé ou a échoué : l'application est toujours installée. Vous pouvez rechercher les restes orphelins depuis la page Restes orphelins.</value>
+  </data>
+  <data name="WizardCommand.Text" xml:space="preserve">
+    <value>Commande :</value>
+  </data>
+  <data name="WizardCleaned.Text" xml:space="preserve">
+    <value>reste(s) mis en quarantaine ·</value>
+  </data>
+  <data name="WizardOpenHistory.Content" xml:space="preserve">
+    <value>Voir l'historique</value>
+  </data>
+  <data name="WizardSimulatedDone.Text" xml:space="preserve">
+    <value>Simulation : la commande ci-dessous aurait été lancée ; rien n'a été désinstallé ni déplacé.</value>
+  </data>
 </root>

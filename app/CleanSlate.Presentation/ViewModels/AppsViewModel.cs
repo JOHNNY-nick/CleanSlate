@@ -1,3 +1,4 @@
+using CleanSlate.Interop;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CleanSlate.Presentation.Services;
@@ -26,12 +27,14 @@ public sealed partial class AppsViewModel : ObservableObject
     private static readonly CompareInfo Compare = French.CompareInfo;
     private static readonly StringComparer NameComparer = StringComparer.Create(French, ignoreCase: true);
     private readonly IEngineService _engine;
+    private readonly INavigationService _navigation;
     private List<AppItemViewModel> _all = [];
 
     /// <summary>Creates the ViewModel.</summary>
-    public AppsViewModel(IEngineService engine)
+    public AppsViewModel(IEngineService engine, INavigationService navigation)
     {
         _engine = engine;
+        _navigation = navigation;
     }
 
     /// <summary>Rows currently shown, filtered and sorted.</summary>
@@ -55,6 +58,7 @@ public sealed partial class AppsViewModel : ObservableObject
     /// <summary>Selected row, if any.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyCanExecuteChangedFor(nameof(ClassicUninstallCommand), nameof(UninstallCompletelyCommand))]
     private AppItemViewModel? _selectedApp;
 
     /// <summary>True while the inventory is being read.</summary>
@@ -104,19 +108,29 @@ public sealed partial class AppsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Official uninstaller only (EF-12 without EF-13): enabled in J5.</summary>
+    /// <summary>Official uninstaller only (EF-12 without EF-13).</summary>
     [RelayCommand(CanExecute = nameof(CanUninstall))]
     private void ClassicUninstall()
     {
+        if (SelectedApp is { } row)
+        {
+            _navigation.OpenUninstallWizard(row.App, complete: false);
+        }
     }
 
-    /// <summary>Full uninstall with leftovers (EF-12, EF-13): enabled in J5.</summary>
+    /// <summary>Full uninstall with leftovers (EF-12, EF-13).</summary>
     [RelayCommand(CanExecute = nameof(CanUninstall))]
     private void UninstallCompletely()
     {
+        if (SelectedApp is { } row)
+        {
+            _navigation.OpenUninstallWizard(row.App, complete: true);
+        }
     }
 
-    private bool CanUninstall() => false;
+    /// <summary>Win32 application with an uninstaller (Store apps are read-only, EF-04).</summary>
+    private bool CanUninstall() =>
+        SelectedApp?.App is { Kind: AppKind.Win32 } app && (app.UninstallString is not null || app.IsMsi);
 
     partial void OnSearchTextChanged(string value) => Refresh();
 

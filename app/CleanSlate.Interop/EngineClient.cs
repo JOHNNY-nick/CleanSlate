@@ -77,8 +77,44 @@ public sealed class EngineClient : IDisposable
         return Task.Run<IReadOnlyList<Session>>(() => WithEngine(ListSessionsNative), cancellationToken);
     }
 
+    /// <summary>
+    /// Runs the official uninstaller and waits for its whole process tree
+    /// (EF-12 to EF-15). Cancelling only stops waiting (<c>cs_cancel</c>).
+    /// </summary>
+    public Task<UninstallResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.UninstallRequest);
+        return Task.Run(() => WithEngine(engine => Uninstall(engine, json, cancellationToken)));
+    }
+
+    /// <summary>Leftovers of an application just uninstalled (EF-13).</summary>
+    public Task<ScanReport> ScanAppLeftoversAsync(
+        AppLeftoversRequest request,
+        IProgress<ScanProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.AppLeftoversRequest);
+        return Task.Run(() => WithEngine(engine => ScanOrphans(engine, json, progress, cancellationToken, appLeftovers: true)));
+    }
+
     /// <summary>Releases the native engine.</summary>
     public void Dispose() => _handle.Dispose();
+
+    private static unsafe UninstallResult Uninstall(IntPtr engine, byte[] json, CancellationToken cancellationToken)
+    {
+        ByteBuffer* buffer;
+        using (cancellationToken.Register(() => NativeMethods.cs_cancel((EngineHandle*)engine)))
+        {
+            fixed (byte* input = json)
+            {
+                buffer = NativeMethods.cs_uninstall((EngineHandle*)engine, input, json.Length, null, null);
+            }
+        }
+
+        return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseUninstallResult);
+    }
 
     private Task<T> CallWithInput<T>(
         byte[] json,
@@ -120,7 +156,7 @@ public sealed class EngineClient : IDisposable
     private static unsafe List<Session> ListSessionsNative(IntPtr engine) =>
         ReadResponse(NativeMethods.cs_list_sessions((EngineHandle*)engine), EngineJsonContext.Default.EngineResponseListSession);
 
-    private static unsafe ScanReport ScanOrphans(IntPtr engine, byte[] json, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
+    private static unsafe ScanReport ScanOrphans(IntPtr engine, byte[] json, IProgress<ScanProgress>? progress, CancellationToken cancellationToken, bool appLeftovers = false)
     {
         GCHandle context = progress is null ? default : GCHandle.Alloc(progress);
         ByteBuffer* buffer;
@@ -132,7 +168,9 @@ public sealed class EngineClient : IDisposable
             {
                 delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback = progress is null ? null : &OnProgress;
                 void* ctx = progress is null ? null : (void*)GCHandle.ToIntPtr(context);
-                buffer = NativeMethods.cs_scan_orphans((EngineHandle*)engine, options, json.Length, callback, ctx);
+                buffer = appLeftovers
+                    ? NativeMethods.cs_scan_app_leftovers((EngineHandle*)engine, options, json.Length, callback, ctx)
+                    : NativeMethods.cs_scan_orphans((EngineHandle*)engine, options, json.Length, callback, ctx);
             }
         }
         finally
