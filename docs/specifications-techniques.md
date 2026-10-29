@@ -43,6 +43,7 @@ Un seul dépôt Git contient le moteur Rust, l'interface C# et la documentation 
 cleanslate/
 ├─ CLAUDE.md                  # consignes permanentes pour Claude Code
 ├─ README.md
+├─ LICENSE                    # MIT
 ├─ docs/                      # cahier des charges, specs, design (export Markdown)
 ├─ core/                      # workspace Cargo
 │  ├─ Cargo.toml
@@ -54,8 +55,8 @@ cleanslate/
 │  └─ cleanslate-cli/         # binaire de debug : scan en ligne de commande
 ├─ app/
 │  ├─ CleanSlate.sln
-│  ├─ CleanSlate.App/         # WinUI 3 : vues, ViewModels, services
-│  ├─ CleanSlate.Interop/     # P/Invoke généré + wrapper sûr (EngineClient)
+│  ├─ CleanSlate.App/         # WinUI 3 non packagé : vues, ViewModels, services
+│  ├─ CleanSlate.Interop/     # P/Invoke généré (NativeMethods.g.cs, versionné) + EngineClient
 │  └─ CleanSlate.Tests/       # xUnit
 ├─ tests/fixtures/            # arborescences et .reg de test
 ├─ scripts/build.ps1          # cargo build puis dotnet build, copie de la DLL
@@ -65,11 +66,15 @@ cleanslate/
 | Outil | Version | Rôle |
 | --- | --- | --- |
 | Rust (rustup) | stable, édition 2021, cible `x86_64-pc-windows-msvc` | Moteur |
-| Visual Studio 2022 | charges « Développement .NET Desktop » et « Développement Desktop C++ » (linker MSVC) | Interface, débogage mixte |
+| Visual Studio 2022 | charges « Développement .NET Desktop », « Développement d'applications WinUI » et « Développement Desktop C++ » (linker MSVC) | Interface, débogage mixte |
 | .NET SDK | 8.0 | Interface |
-| Windows App SDK | dernière version stable 1.x | WinUI 3 |
+| Windows App SDK | dernière version stable 1.x, application **non packagée** (`WindowsPackageType=None`) | WinUI 3 |
+| PowerShell | 7.x (`pwsh`) | `scripts/build.ps1` |
+| cargo-llvm-cov | dernière version (outil de développement, pas une dépendance du code) | Couverture du moteur (ENF-12) |
 | Claude Code | dernière version | Développement assisté |
 | Git + GitHub | — | Versionnement, CI |
+
+L'application est **non packagée** : un `app.manifest` demande `requireAdministrator`, ce qui est incompatible avec un paquet MSIX. Pour déboguer, Visual Studio doit être lancé en administrateur. Le fichier `NativeMethods.g.cs` est généré par `build.rs` directement dans `app/CleanSlate.Interop/` et **versionné** dans Git, pour que la solution .NET compile même sans avoir lancé cargo.
 
 Crate `cleanslate-cli` : un petit binaire (`cleanslate-cli scan --dry-run --json`) qui permet de tester le moteur sans l'interface, pratique pour apprendre Rust étape par étape.
 
@@ -334,16 +339,16 @@ Abstractions pour les tests : trait `FileSystem` (réel / racines factices) et t
 
 ### 10.2 Compilation
 
-`scripts/build.ps1 [-Configuration Debug|Release]` :
+`pwsh scripts/build.ps1 [-Configuration Debug|Release]` ; la configuration choisie s'applique **à la fois** à cargo (`Debug` → profil `dev`, `Release` → `--release`) et à dotnet :
 
-1. `cargo build -p cleanslate-ffi --release` (la crate fixe `[lib] name = "cleanslate"` et `crate-type = ["cdylib"]` ; génère aussi `NativeMethods.g.cs`) ;
+1. `cargo build -p cleanslate-ffi [--release]` (la crate fixe `[lib] name = "cleanslate"` et `crate-type = ["cdylib"]` ; génère aussi `NativeMethods.g.cs`) ;
 2. copie de `cleanslate.dll` dans le dossier de sortie de `CleanSlate.App` (cible MSBuild `<Content>` avec `CopyToOutputDirectory`) ;
-3. `dotnet build app/CleanSlate.sln -c Release -p:Platform=x64`.
+3. `dotnet build app/CleanSlate.sln -c <Configuration> -p:Platform=x64`.
 
 ### 10.3 Intégration continue (GitHub Actions, `windows-latest`)
 
-`cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → build .NET → `dotnet test` → artefact zip de l'application.
+`cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo llvm-cov` (rapport de couverture du moteur, seuil 80 %) → build .NET → `dotnet test` → artefact zip de l'application.
 
 ### 10.4 Packaging
 
-v1.0 : MSIX non signé pour les tests locaux, ou Inno Setup pour une installation classique ; manifeste d'application `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.
+v1.0 : installeur **Inno Setup** (réalisé en J6) pour une application WinUI 3 non packagée ; le runtime Windows App SDK est embarqué (`WindowsAppSDKSelfContained`) ou installé par l'installeur ; manifeste d'application `requireAdministrator`. Le format MSIX est écarté, car incompatible avec `requireAdministrator`. Signature de code (certificat) avant toute diffusion publique, sinon SmartScreen bloquera l'exécutable.

@@ -107,20 +107,20 @@ La sécurité prime sur tout le reste : un faux positif supprimé est bien plus 
 | ENF-09 | Fiabilité | Une erreur sur un élément (fichier verrouillé, accès refusé) n'interrompt pas la session ; elle est listée dans le rapport final. | Tests d'intégration |
 | ENF-10 | Traçabilité | Journal local de chaque opération (scan, déplacement, restauration) dans `%LOCALAPPDATA%\CleanSlate\logs`, rotation à 10 Mo. | Inspection des journaux |
 | ENF-11 | Confidentialité | Aucune donnée envoyée sur Internet ; aucune télémétrie. | Revue des dépendances |
-| ENF-12 | Maintenabilité | Couverture de tests du moteur Rust ≥ 80 % ; `cargo clippy` sans avertissement ; code C# en MVVM. | CI GitHub Actions |
+| ENF-12 | Maintenabilité | Couverture de tests du moteur Rust ≥ 80 % ; `cargo clippy` sans avertissement ; code C# en MVVM. | CI GitHub Actions, couverture mesurée avec `cargo-llvm-cov` |
 
 ## 5. Contraintes techniques
 
 L'architecture est hybride : un moteur en Rust, une interface en C# / WinUI 3, reliés par une DLL native.
 
 - **Moteur** : Rust édition 2021 (stable), compilé en `cdylib` (`cleanslate.dll`), avec une API C stable (`extern "C"`).
-- **Interface** : C# 12, .NET 8, WinUI 3 (Windows App SDK), patron MVVM avec CommunityToolkit.Mvvm.
+- **Interface** : C# 12, .NET 8, WinUI 3 (Windows App SDK) en application non packagée (`WindowsPackageType=None`), patron MVVM avec CommunityToolkit.Mvvm.
 - **Liaison** : P/Invoke depuis C#, liaisons générées par `csbindgen` ; échanges de données structurées en JSON UTF-8.
 - **Accès Windows côté Rust** : crates `windows` (API Win32 officielles de Microsoft) et `winreg` pour le registre.
 - **Privilèges** : application lancée en administrateur (manifeste `requireAdministrator`).
 - **Développement** : Claude Code comme assistant principal ; dépôt Git unique (monorepo) ; GitHub Actions pour la CI.
-- **Distribution** : installeur MSIX ou Inno Setup en v1.0 ; signature de code à prévoir avant diffusion publique.
-- **Licence** : à décider (MIT conseillée si le code est publié).
+- **Distribution** : installeur Inno Setup en v1.0 (MSIX écarté : incompatible avec `requireAdministrator`) ; signature de code à prévoir avant diffusion publique.
+- **Licence** : MIT (fichier `LICENSE` à la racine du dépôt).
 
 ## 6. Livrables, jalons et acceptation
 

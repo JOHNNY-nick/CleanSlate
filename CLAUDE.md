@@ -21,16 +21,19 @@ demande-moi au lieu d'inventer. Cite l'ID d'exigence dans les commits et les tes
 - core/cleanslate-ffi : cdylib, [lib] name = "cleanslate" -> cleanslate.dll,
   API C extern "C", JSON UTF-8, ByteBuffer libéré par cs_buffer_free
 - core/cleanslate-cli : binaire de debug
-- app/CleanSlate.App : WinUI 3, .NET 8, MVVM (CommunityToolkit.Mvvm)
-- app/CleanSlate.Interop : NativeMethods.g.cs (généré par csbindgen, ne jamais
-  l'éditer) + EngineClient, seul code C# qui touche aux pointeurs
+- app/CleanSlate.App : WinUI 3 non packagé (WindowsPackageType=None), .NET 8, MVVM
+  (CommunityToolkit.Mvvm), app.manifest requireAdministrator ; installeur Inno Setup en J6
+- app/CleanSlate.Interop : NativeMethods.g.cs (généré par csbindgen, versionné dans Git,
+  ne jamais l'éditer) + EngineClient, seul code C# qui touche aux pointeurs
 - app/CleanSlate.Tests : xUnit
 
 ## Commandes
 - Compiler tout : pwsh scripts/build.ps1 -Configuration Debug
+  (-Configuration s'applique à cargo et à dotnet : Debug = profil dev, Release = --release)
 - Tests Rust : cargo test --workspace (depuis core/)
 - Lint Rust : cargo fmt --all --check ; cargo clippy --workspace --all-targets -- -D warnings
 - Tests C# : dotnet test app/CleanSlate.sln -p:Platform=x64
+- Couverture Rust : cargo llvm-cov --workspace (depuis core/ ; outil de dev, objectif ≥ 80 %, ENF-12)
 - CLI : cargo run -p cleanslate-cli -- scan --dry-run --json
 Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 
