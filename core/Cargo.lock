@@ -71,6 +71,7 @@ name = "cleanslate-cli"
 version = "0.1.0"
 dependencies = [
  "cleanslate-core",
+ "serde_json",
 ]
 
 [[package]]
