@@ -12,6 +12,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cleanslate-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+csbindgen.workspace = true
 
 [lints]
 workspace = true
