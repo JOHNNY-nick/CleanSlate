@@ -13,4 +13,10 @@ public interface IEngineService
 
     /// <summary>Lists installed applications, hidden ones included (EF-01).</summary>
     Task<IReadOnlyList<InstalledApp>> ListAppsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Scans for orphan leftovers, read-only (EF-05 to EF-11). Cancelling
+    /// returns a partial report flagged <see cref="ScanReport.Cancelled"/>.
+    /// </summary>
+    Task<ScanReport> ScanOrphansAsync(ScanOptions options, IProgress<ScanProgress>? progress, CancellationToken cancellationToken);
 }

@@ -20,6 +20,10 @@ public sealed class EngineService : IEngineService, IDisposable
         _client.Value.ListAppsAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public Task<ScanReport> ScanOrphansAsync(ScanOptions options, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
+        _client.Value.ScanOrphansAsync(options, progress, cancellationToken);
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_client.IsValueCreated)

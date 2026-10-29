@@ -45,9 +45,6 @@
   <data name="OrphansTitle.Text" xml:space="preserve">
     <value>Restes orphelins</value>
   </data>
-  <data name="OrphansPlaceholder.Text" xml:space="preserve">
-    <value>L'analyse des restes arrive au jalon J3.</value>
-  </data>
   <data name="HistoryTitle.Text" xml:space="preserve">
     <value>Historique</value>
   </data>
@@ -125,5 +122,107 @@
   </data>
   <data name="AppsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Applications installées</value>
+  </data>
+  <data name="OrphansSummaryDate.Text" xml:space="preserve">
+    <value>Analyse du</value>
+  </data>
+  <data name="OrphansSummaryGroups.Text" xml:space="preserve">
+    <value>groupes</value>
+  </data>
+  <data name="OrphansScan.Content" xml:space="preserve">
+    <value>Analyser les restes</value>
+  </data>
+  <data name="OrphansProgressLabel.Text" xml:space="preserve">
+    <value>Analyse en cours…</value>
+  </data>
+  <data name="OrphansProgressBar.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Progression de l'analyse</value>
+  </data>
+  <data name="OrphansCancel.Content" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="OrphansEngineError.Title" xml:space="preserve">
+    <value>L'analyse a échoué.</value>
+  </data>
+  <data name="OrphansCancelled.Title" xml:space="preserve">
+    <value>Analyse interrompue : résultats partiels affichés.</value>
+  </data>
+  <data name="OrphansAccessDenied.Text" xml:space="preserve">
+    <value>élément(s) ignoré(s) : accès refusé.</value>
+  </data>
+  <data name="OrphansFilter.Header" xml:space="preserve">
+    <value>Confiance</value>
+  </data>
+  <data name="OrphansFilterAll.Content" xml:space="preserve">
+    <value>Toutes</value>
+  </data>
+  <data name="OrphansFilterHigh.Content" xml:space="preserve">
+    <value>Élevée</value>
+  </data>
+  <data name="OrphansFilterMedium.Content" xml:space="preserve">
+    <value>Moyenne</value>
+  </data>
+  <data name="OrphansFilterLow.Content" xml:space="preserve">
+    <value>Faible</value>
+  </data>
+  <data name="OrphansGroups.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Restes trouvés, regroupés par application</value>
+  </data>
+  <data name="OrphansProbably.Text" xml:space="preserve">
+    <value>Probablement :</value>
+  </data>
+  <data name="OrphansItems.Text" xml:space="preserve">
+    <value>élément(s)</value>
+  </data>
+  <data name="OrphansIntro.Text" xml:space="preserve">
+    <value>Lancez une analyse pour retrouver les restes d'applications déjà désinstallées. Rien n'est modifié : vous choisissez ensuite quoi mettre en quarantaine.</value>
+  </data>
+  <data name="OrphansEmpty.Text" xml:space="preserve">
+    <value>Rien à nettoyer : aucun reste d'application désinstallée.</value>
+  </data>
+  <data name="OrphansSelected.Text" xml:space="preserve">
+    <value>élément(s) sélectionné(s)</value>
+  </data>
+  <data name="OrphansSimulate.Content" xml:space="preserve">
+    <value>Simuler</value>
+  </data>
+  <data name="OrphansQuarantine.Content" xml:space="preserve">
+    <value>Mettre en quarantaine</value>
+  </data>
+  <data name="OrphansSimulationPrefix.Text" xml:space="preserve">
+    <value>Simulation :</value>
+  </data>
+  <data name="OrphansSimulationMiddle.Text" xml:space="preserve">
+    <value>élément(s) auraient été mis en quarantaine (</value>
+  </data>
+  <data name="Kind_Folder" xml:space="preserve">
+    <value>Dossier</value>
+  </data>
+  <data name="Kind_File" xml:space="preserve">
+    <value>Fichier</value>
+  </data>
+  <data name="Kind_RegistryKey" xml:space="preserve">
+    <value>Clé de registre</value>
+  </data>
+  <data name="Kind_RegistryValue" xml:space="preserve">
+    <value>Valeur de registre</value>
+  </data>
+  <data name="Kind_Shortcut" xml:space="preserve">
+    <value>Raccourci</value>
+  </data>
+  <data name="Kind_ScheduledTask" xml:space="preserve">
+    <value>Tâche planifiée</value>
+  </data>
+  <data name="Kind_Service" xml:space="preserve">
+    <value>Service</value>
+  </data>
+  <data name="Confidence_High" xml:space="preserve">
+    <value>Élevée</value>
+  </data>
+  <data name="Confidence_Medium" xml:space="preserve">
+    <value>Moyenne</value>
+  </data>
+  <data name="Confidence_Low" xml:space="preserve">
+    <value>Faible</value>
   </data>
 </root>
