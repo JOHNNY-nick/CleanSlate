@@ -510,7 +510,7 @@ fn data_len(value: &RegData) -> u64 {
         RegData::MultiString(v) => v.iter().map(|s| (s.len() as u64 + 1) * 2).sum::<u64>() + 2,
         RegData::Dword(_) => 4,
         RegData::Qword(_) => 8,
-        RegData::Binary(b) => b.len() as u64,
+        RegData::Binary(b) | RegData::Raw { bytes: b, .. } => b.len() as u64,
     }
 }
 

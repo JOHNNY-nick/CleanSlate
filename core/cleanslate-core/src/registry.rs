@@ -2,12 +2,15 @@
 //!
 //! [`WinRegistry::system`] reads the real registry. [`WinRegistry::sandboxed`]
 //! redirects every hive below `HKCU\Software\CleanSlateTest\…`, the only key
-//! tests may write to (safety rule 2). Read-only at this stage.
+//! tests may write to (safety rule 2). Writes are only used by the
+//! quarantine, after `SafetyRules::validate_key`, outside simulation mode.
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 use winreg::enums::{
-    RegType, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_32KEY, KEY_WOW64_64KEY,
+    RegType, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS, KEY_READ, KEY_SET_VALUE,
+    KEY_WOW64_32KEY, KEY_WOW64_64KEY,
 };
 use winreg::types::FromRegValue;
 use winreg::{RegKey, RegValue};
@@ -101,7 +104,8 @@ impl fmt::Display for RegKeyPath {
 }
 
 /// Typed content of a registry value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum RegData {
     /// `REG_SZ`.
     String(String),
@@ -113,8 +117,49 @@ pub enum RegData {
     Dword(u32),
     /// `REG_QWORD`.
     Qword(u64),
-    /// `REG_BINARY` and every other type, as raw bytes.
+    /// `REG_BINARY`.
     Binary(Vec<u8>),
+    /// Any other type (`REG_NONE`, resource lists…), kept as is.
+    Raw {
+        /// Numeric value type (`REG_*`).
+        vtype: u32,
+        /// Raw bytes.
+        bytes: Vec<u8>,
+    },
+}
+
+/// Numeric `REG_*` type of a winreg value type.
+fn vtype_number(vtype: &RegType) -> u32 {
+    vtype.clone() as u32
+}
+
+/// winreg value type of a numeric `REG_*` type (`REG_BINARY` if unknown).
+fn vtype_from_number(number: u32) -> RegType {
+    [
+        RegType::REG_NONE,
+        RegType::REG_SZ,
+        RegType::REG_EXPAND_SZ,
+        RegType::REG_BINARY,
+        RegType::REG_DWORD,
+        RegType::REG_DWORD_BIG_ENDIAN,
+        RegType::REG_LINK,
+        RegType::REG_MULTI_SZ,
+        RegType::REG_RESOURCE_LIST,
+        RegType::REG_FULL_RESOURCE_DESCRIPTOR,
+        RegType::REG_RESOURCE_REQUIREMENTS_LIST,
+        RegType::REG_QWORD,
+    ]
+    .into_iter()
+    .find(|t| vtype_number(t) == number)
+    .unwrap_or(RegType::REG_BINARY)
+}
+
+/// UTF-16 LE bytes of `text` followed by a NUL character.
+fn utf16_z(text: &str) -> Vec<u8> {
+    text.encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect()
 }
 
 impl RegData {
@@ -146,13 +191,156 @@ impl RegData {
                 .map(RegData::MultiString),
             RegType::REG_DWORD => u32::from_reg_value(value).ok().map(RegData::Dword),
             RegType::REG_QWORD => u64::from_reg_value(value).ok().map(RegData::Qword),
+            RegType::REG_BINARY => Some(RegData::Binary(value.bytes.to_vec())),
             _ => None,
         };
-        decoded.unwrap_or_else(|| RegData::Binary(value.bytes.to_vec()))
+        decoded.unwrap_or_else(|| RegData::Raw {
+            vtype: vtype_number(&value.vtype),
+            bytes: value.bytes.to_vec(),
+        })
+    }
+
+    /// Raw winreg value, for writing back exactly what was read.
+    fn to_winreg(&self) -> RegValue<'static> {
+        let (vtype, bytes) = match self {
+            RegData::String(s) => (RegType::REG_SZ, utf16_z(s)),
+            RegData::ExpandString(s) => (RegType::REG_EXPAND_SZ, utf16_z(s)),
+            RegData::MultiString(items) => {
+                let mut bytes: Vec<u8> = items.iter().flat_map(|s| utf16_z(s)).collect();
+                bytes.extend([0, 0]);
+                (RegType::REG_MULTI_SZ, bytes)
+            }
+            RegData::Dword(v) => (RegType::REG_DWORD, v.to_le_bytes().to_vec()),
+            RegData::Qword(v) => (RegType::REG_QWORD, v.to_le_bytes().to_vec()),
+            RegData::Binary(b) => (RegType::REG_BINARY, b.clone()),
+            RegData::Raw { vtype, bytes } => (vtype_from_number(*vtype), bytes.clone()),
+        };
+        RegValue {
+            bytes: bytes.into(),
+            vtype,
+        }
+    }
+
+    /// `regedit` text of the data (`"…"`, `dword:…`, `hex(N):…`).
+    fn to_reg_text(&self) -> String {
+        let hex = |kind: Option<u32>, bytes: &[u8]| {
+            let list: Vec<String> = bytes.iter().map(|b| format!("{b:02x}")).collect();
+            match kind {
+                Some(k) => format!("hex({k:x}):{}", list.join(",")),
+                None => format!("hex:{}", list.join(",")),
+            }
+        };
+        match self {
+            RegData::String(s) => format!("\"{}\"", s.replace('\\', r"\\").replace('"', "\\\"")),
+            RegData::Dword(v) => format!("dword:{v:08x}"),
+            RegData::Binary(b) => hex(None, b),
+            RegData::Raw { vtype, bytes } => hex(Some(*vtype), bytes),
+            other => {
+                let raw = other.to_winreg();
+                hex(Some(vtype_number(&raw.vtype)), &raw.bytes)
+            }
+        }
     }
 }
 
-/// Read access to the registry.
+/// A registry key with all its values and sub-keys (quarantine snapshot).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeySnapshot {
+    /// Values of the key.
+    pub values: Vec<(String, RegData)>,
+    /// Sub-keys, by name.
+    pub subkeys: Vec<(String, KeySnapshot)>,
+}
+
+/// Deepest key tree copied into a snapshot.
+const MAX_SNAPSHOT_DEPTH: usize = 64;
+
+impl KeySnapshot {
+    /// Reads `key` and everything below it.
+    pub fn read(registry: &dyn Registry, key: &RegKeyPath) -> CoreResult<Self> {
+        Self::read_depth(registry, key, 0)
+    }
+
+    fn read_depth(registry: &dyn Registry, key: &RegKeyPath, depth: usize) -> CoreResult<Self> {
+        if depth > MAX_SNAPSHOT_DEPTH {
+            return Err(CoreError::InvalidInput(format!("key too deep: {key}")));
+        }
+        let mut subkeys = Vec::new();
+        for name in registry.subkeys(key)? {
+            let child = Self::read_depth(registry, &key.join(&name), depth + 1)?;
+            subkeys.push((name, child));
+        }
+        Ok(KeySnapshot {
+            values: registry.values(key)?,
+            subkeys,
+        })
+    }
+
+    /// Recreates the snapshot at `key` (which must not exist yet).
+    pub fn write(&self, registry: &dyn Registry, key: &RegKeyPath) -> CoreResult<()> {
+        registry.create_key(key)?;
+        for (name, data) in &self.values {
+            registry.set_value(key, name, data)?;
+        }
+        for (name, child) in &self.subkeys {
+            child.write(registry, &key.join(name))?;
+        }
+        Ok(())
+    }
+
+    /// Total size of names and data, in bytes (approximation).
+    pub fn size_bytes(&self) -> u64 {
+        let own: u64 = self
+            .values
+            .iter()
+            .map(|(n, v)| (n.len() * 2) as u64 + v.to_winreg().bytes.len() as u64)
+            .sum();
+        own + self
+            .subkeys
+            .iter()
+            .map(|(_, s)| s.size_bytes())
+            .sum::<u64>()
+    }
+
+    /// Text of a `.reg` file re-importable with `regedit` (specs § 7.2).
+    pub fn to_reg_file(&self, key: &RegKeyPath) -> String {
+        let mut out = String::from("Windows Registry Editor Version 5.00\r\n");
+        self.append_reg(key, &mut out);
+        out
+    }
+
+    fn append_reg(&self, key: &RegKeyPath, out: &mut String) {
+        let hive = match key.hive {
+            Hive::CurrentUser => "HKEY_CURRENT_USER",
+            Hive::LocalMachine => "HKEY_LOCAL_MACHINE",
+        };
+        out.push_str(&format!("\r\n[{hive}\\{}]\r\n", key.path));
+        for (name, data) in &self.values {
+            let name = if name.is_empty() {
+                "@".to_owned()
+            } else {
+                format!("\"{}\"", name.replace('\\', r"\\").replace('"', "\\\""))
+            };
+            out.push_str(&format!("{name}={}\r\n", data.to_reg_text()));
+        }
+        for (name, child) in &self.subkeys {
+            child.append_reg(&key.join(name), out);
+        }
+    }
+}
+
+/// UTF-16 LE bytes with BOM, the encoding of `regedit` exports.
+pub fn utf16_le_with_bom(text: &str) -> Vec<u8> {
+    [0xFF, 0xFE]
+        .into_iter()
+        .chain(text.encode_utf16().flat_map(u16::to_le_bytes))
+        .collect()
+}
+
+/// Access to the registry.
+///
+/// The write methods are only called by `quarantine`, after
+/// `SafetyRules::validate_key` and outside simulation mode.
 pub trait Registry: Send + Sync {
     /// Lists the names of the direct sub-keys of `key`.
     fn subkeys(&self, key: &RegKeyPath) -> CoreResult<Vec<String>>;
@@ -164,6 +352,15 @@ pub trait Registry: Send + Sync {
     fn key_exists(&self, key: &RegKeyPath) -> bool {
         self.subkeys(key).is_ok()
     }
+
+    /// Creates `key` (and its missing parents).
+    fn create_key(&self, key: &RegKeyPath) -> CoreResult<()>;
+
+    /// Writes one value of `key`, with its exact type.
+    fn set_value(&self, key: &RegKeyPath, name: &str, data: &RegData) -> CoreResult<()>;
+
+    /// Deletes `key` and everything below it.
+    fn delete_tree(&self, key: &RegKeyPath) -> CoreResult<()>;
 }
 
 /// The Windows registry, real or redirected to a test area.
@@ -197,7 +394,14 @@ impl WinRegistry {
     }
 
     fn open(&self, key: &RegKeyPath) -> CoreResult<RegKey> {
-        let (root, path, view_flag) = match &self.sandbox {
+        let (root, path, view_flag) = self.locate(key);
+        root.open_subkey_with_flags(&path, KEY_READ | view_flag)
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))
+    }
+
+    /// Root, path and WOW64 flag of `key` (redirected in sandbox mode).
+    fn locate(&self, key: &RegKeyPath) -> (RegKey, String, u32) {
+        match &self.sandbox {
             Some(prefix) => {
                 let path = if key.path.is_empty() {
                     format!(r"{prefix}\{}", key.hive.short_name())
@@ -219,9 +423,7 @@ impl WinRegistry {
                 };
                 (root, key.path.clone(), view_flag)
             }
-        };
-        root.open_subkey_with_flags(&path, KEY_READ | view_flag)
-            .map_err(|e| CoreError::from_registry(key.to_string(), e))
+        }
     }
 }
 
@@ -243,6 +445,48 @@ impl Registry for WinRegistry {
                     .map_err(|e| CoreError::from_registry(key.to_string(), e))
             })
             .collect()
+    }
+
+    fn create_key(&self, key: &RegKeyPath) -> CoreResult<()> {
+        if key.path.is_empty() {
+            return Err(CoreError::Protected {
+                location: key.to_string(),
+            });
+        }
+        let (root, path, view_flag) = self.locate(key);
+        root.create_subkey_with_flags(&path, KEY_ALL_ACCESS | view_flag)
+            .map(|_| ())
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))
+    }
+
+    fn set_value(&self, key: &RegKeyPath, name: &str, data: &RegData) -> CoreResult<()> {
+        let (root, path, view_flag) = self.locate(key);
+        let opened = root
+            .open_subkey_with_flags(&path, KEY_SET_VALUE | view_flag)
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))?;
+        opened
+            .set_raw_value(name, &data.to_winreg())
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))
+    }
+
+    fn delete_tree(&self, key: &RegKeyPath) -> CoreResult<()> {
+        // Never a whole hive: deleting starts at a named sub-key.
+        let Some((parent_path, name)) = key.path.rsplit_once('\\') else {
+            return Err(CoreError::Protected {
+                location: key.to_string(),
+            });
+        };
+        let parent = RegKeyPath {
+            path: parent_path.to_owned(),
+            ..key.clone()
+        };
+        let (root, path, view_flag) = self.locate(&parent);
+        let opened = root
+            .open_subkey_with_flags(&path, KEY_ALL_ACCESS | view_flag)
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))?;
+        opened
+            .delete_subkey_all(name)
+            .map_err(|e| CoreError::from_registry(key.to_string(), e))
     }
 }
 
@@ -380,6 +624,89 @@ mod tests {
         let err = reg.subkeys(&missing).unwrap_err();
         assert_eq!(err.code(), "NOT_FOUND");
         assert_eq!(err.location().as_deref(), Some(r"HKCU\Software\Nope"));
+    }
+
+    #[test]
+    fn snapshot_delete_and_restore_identically() {
+        let area = TestRegistryKey::new();
+        let key = RegKeyPath::new(Hive::CurrentUser, r"Software\Audacity");
+        let k = area.create(&key);
+        k.set_value("", &"default").unwrap();
+        k.set_value("Path", &r"C:\Program Files\Audacity").unwrap();
+        k.set_value("Count", &7u32).unwrap();
+        k.set_raw_value(
+            "Nothing",
+            &RegValue {
+                bytes: vec![9u8, 8].into(),
+                vtype: RegType::REG_NONE,
+            },
+        )
+        .unwrap();
+        area.create(&key.join(r"Prefs\Deep"))
+            .set_value("List", &vec!["a", "b"])
+            .unwrap();
+
+        let reg = area.registry();
+        let snapshot = KeySnapshot::read(&reg, &key).unwrap();
+        assert!(snapshot.size_bytes() > 0);
+        let json = serde_json::to_string(&snapshot).unwrap();
+
+        reg.delete_tree(&key).unwrap();
+        assert!(!reg.key_exists(&key));
+
+        let back: KeySnapshot = serde_json::from_str(&json).unwrap();
+        back.write(&reg, &key).unwrap();
+        assert_eq!(KeySnapshot::read(&reg, &key).unwrap(), snapshot);
+        assert!(snapshot.values.iter().any(|(n, v)| n == "Nothing"
+            && *v
+                == RegData::Raw {
+                    vtype: 0,
+                    bytes: vec![9, 8]
+                }));
+    }
+
+    #[test]
+    fn reg_file_format() {
+        let snapshot = KeySnapshot {
+            values: vec![
+                (String::new(), RegData::String(r#"a"b\c"#.into())),
+                ("N".into(), RegData::Dword(255)),
+                ("B".into(), RegData::Binary(vec![1, 0xab])),
+                ("E".into(), RegData::ExpandString("x".into())),
+            ],
+            subkeys: vec![(
+                "Sub".into(),
+                KeySnapshot {
+                    values: vec![],
+                    subkeys: vec![],
+                },
+            )],
+        };
+        let text = snapshot.to_reg_file(&RegKeyPath::new(Hive::CurrentUser, r"Software\X"));
+        assert!(text.starts_with("Windows Registry Editor Version 5.00\r\n"));
+        assert!(text.contains("[HKEY_CURRENT_USER\\Software\\X]\r\n"));
+        assert!(text.contains(r#"@="a\"b\\c""#));
+        assert!(text.contains("\"N\"=dword:000000ff"));
+        assert!(text.contains("\"B\"=hex:01,ab"));
+        assert!(text.contains("\"E\"=hex(2):78,00,00,00"));
+        assert!(text.contains("[HKEY_CURRENT_USER\\Software\\X\\Sub]"));
+        let bytes = utf16_le_with_bom("A");
+        assert_eq!(bytes, [0xFF, 0xFE, 0x41, 0x00]);
+    }
+
+    #[test]
+    fn hives_and_roots_are_never_deleted() {
+        let area = TestRegistryKey::new();
+        let reg = area.registry();
+        assert_eq!(
+            reg.delete_tree(&RegKeyPath::new(Hive::CurrentUser, "Software"))
+                .unwrap_err()
+                .code(),
+            "PROTECTED"
+        );
+        assert!(reg
+            .create_key(&RegKeyPath::new(Hive::CurrentUser, ""))
+            .is_err());
     }
 
     #[test]
