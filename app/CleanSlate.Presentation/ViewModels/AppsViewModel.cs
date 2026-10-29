@@ -59,6 +59,7 @@ public sealed partial class AppsViewModel : ObservableObject
 
     /// <summary>True while the inventory is being read.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
     private bool _isLoading;
 
     /// <summary>True when the inventory failed.</summary>
@@ -71,6 +72,9 @@ public sealed partial class AppsViewModel : ObservableObject
 
     /// <summary>True when a row is selected (shows the action bar).</summary>
     public bool HasSelection => SelectedApp is not null;
+
+    /// <summary>True when loading succeeded but nothing matches (empty state).</summary>
+    public bool IsEmpty => !IsLoading && !HasError && Apps.Count == 0;
 
     /// <summary>Current sort order.</summary>
     public AppSortOrder SortOrder => Enum.IsDefined(typeof(AppSortOrder), SortIndex) ? (AppSortOrder)SortIndex : AppSortOrder.Name;
@@ -152,6 +156,7 @@ public sealed partial class AppsViewModel : ObservableObject
 
         SelectedApp = selected is not null && Apps.Contains(selected) ? selected : null;
         OnPropertyChanged(nameof(VisibleCount));
+        OnPropertyChanged(nameof(IsEmpty));
     }
 
     /// <summary>Case- and accent-insensitive « contains ».</summary>

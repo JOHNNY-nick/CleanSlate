@@ -42,9 +42,6 @@
   <data name="AppsTitle.Text" xml:space="preserve">
     <value>Applications</value>
   </data>
-  <data name="AppsPlaceholder.Text" xml:space="preserve">
-    <value>La liste des applications installées arrive au jalon J2.</value>
-  </data>
   <data name="OrphansTitle.Text" xml:space="preserve">
     <value>Restes orphelins</value>
   </data>
@@ -62,5 +59,71 @@
   </data>
   <data name="SettingsPlaceholder.Text" xml:space="preserve">
     <value>Les réglages arrivent aux jalons J4 et J6.</value>
+  </data>
+  <data name="AppsCountSuffix.Text" xml:space="preserve">
+    <value>applications installées</value>
+  </data>
+  <data name="AppsSearch.PlaceholderText" xml:space="preserve">
+    <value>Rechercher par nom ou éditeur</value>
+  </data>
+  <data name="AppsSortLabel.Text" xml:space="preserve">
+    <value>Trier par</value>
+  </data>
+  <data name="AppsSortName.Content" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="AppsSortSize.Content" xml:space="preserve">
+    <value>Taille</value>
+  </data>
+  <data name="AppsSortDate.Content" xml:space="preserve">
+    <value>Date d'installation</value>
+  </data>
+  <data name="AppsShowSystem.Content" xml:space="preserve">
+    <value>Afficher les composants système</value>
+  </data>
+  <data name="AppsColName.Text" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="AppsColPublisher.Text" xml:space="preserve">
+    <value>Éditeur</value>
+  </data>
+  <data name="AppsColVersion.Text" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="AppsColSize.Text" xml:space="preserve">
+    <value>Taille</value>
+  </data>
+  <data name="AppsColDate.Text" xml:space="preserve">
+    <value>Installée le</value>
+  </data>
+  <data name="AppsEmpty.Text" xml:space="preserve">
+    <value>Aucune application ne correspond à la recherche.</value>
+  </data>
+  <data name="AppsLoadError.Title" xml:space="preserve">
+    <value>Impossible de lire la liste des applications.</value>
+  </data>
+  <data name="AppsSelectedSuffix.Text" xml:space="preserve">
+    <value>sélectionnée</value>
+  </data>
+  <data name="AppsFolderLabel.Text" xml:space="preserve">
+    <value>Dossier :</value>
+  </data>
+  <data name="AppsInstallerLabel.Text" xml:space="preserve">
+    <value>· Installeur</value>
+  </data>
+  <data name="AppsClassicUninstall.Content" xml:space="preserve">
+    <value>Désinstallation classique</value>
+  </data>
+  <data name="AppsUninstallCompletely.Content" xml:space="preserve">
+    <value>Désinstaller complètement</value>
+  </data>
+  <data name="AppsSearch.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Rechercher une application</value>
+  </data>
+  <data name="AppsSort.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Trier par</value>
+  </data>
+  <data name="AppsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Applications installées</value>
   </data>
 </root>
