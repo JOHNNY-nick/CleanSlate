@@ -16,9 +16,14 @@ public sealed class EngineClient : IDisposable
     /// <summary>Creates an engine; simulation mode unless <paramref name="config"/> says otherwise.</summary>
     /// <exception cref="EngineException">The engine could not be created.</exception>
     public EngineClient(EngineConfig? config = null)
+        : this(JsonSerializer.SerializeToUtf8Bytes(config ?? new EngineConfig(), EngineJsonContext.Default.EngineConfig))
     {
-        byte[] json = JsonSerializer.SerializeToUtf8Bytes(config ?? new EngineConfig(), EngineJsonContext.Default.EngineConfig);
-        _handle = EngineSafeHandle.Create(json);
+    }
+
+    /// <summary>Creates an engine from raw config JSON (tests send malformed input through it).</summary>
+    internal EngineClient(byte[] configJson)
+    {
+        _handle = EngineSafeHandle.Create(configJson);
     }
 
     /// <summary>Returns the engine version, e.g. <c>0.1.0</c>.</summary>
@@ -85,18 +90,27 @@ public sealed class EngineClient : IDisposable
 
         internal static unsafe EngineSafeHandle Create(byte[] configJson)
         {
-            var safeHandle = new EngineSafeHandle();
+            EngineHandle* engine;
+            ByteBuffer* error = null;
             fixed (byte* config = configJson)
             {
-                EngineHandle* engine = NativeMethods.cs_engine_new(config, configJson.Length);
-                if (engine is null)
+                engine = NativeMethods.cs_engine_new(config, configJson.Length, &error);
+            }
+
+            if (engine is null)
+            {
+                if (error is null)
                 {
                     throw new EngineException("ENGINE_CREATE_FAILED", "The CleanSlate engine could not be created.");
                 }
 
-                safeHandle.SetHandle((IntPtr)engine);
+                // Frees the buffer and throws EngineException with the engine's error code.
+                ReadResponse(error, EngineJsonContext.Default.EngineResponseEngineVersion);
+                throw new EngineException("ENGINE_CREATE_FAILED", "The engine reported success without a handle.");
             }
 
+            var safeHandle = new EngineSafeHandle();
+            safeHandle.SetHandle((IntPtr)engine);
             return safeHandle;
         }
 

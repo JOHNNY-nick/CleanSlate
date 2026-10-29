@@ -127,13 +127,22 @@ pub extern "C" fn cs_version() -> *mut ByteBuffer {
 }
 
 /// Creates an engine from an `EngineConfig` JSON (`len == 0` means defaults,
-/// i.e. simulation mode). Returns null on error; release with
-/// [`cs_engine_free`].
+/// i.e. simulation mode); release it with [`cs_engine_free`].
+///
+/// On failure, returns null and stores in `*out_error` the error envelope
+/// `{ "ok": false, "error": … }`, to be released with [`cs_buffer_free`].
+/// On success, `*out_error` is set to null. `out_error` itself may be null
+/// when the caller does not want the error details.
 ///
 /// # Safety
-/// `config` must point to `len` readable bytes (or be null with `len == 0`).
+/// `config` must point to `len` readable bytes (or be null with `len == 0`);
+/// `out_error` must be null or point to writable storage for one pointer.
 #[no_mangle]
-pub unsafe extern "C" fn cs_engine_new(config: *const u8, len: i32) -> *mut EngineHandle {
+pub unsafe extern "C" fn cs_engine_new(
+    config: *const u8,
+    len: i32,
+    out_error: *mut *mut ByteBuffer,
+) -> *mut EngineHandle {
     let created = catch_unwind(|| -> CoreResult<*mut EngineHandle> {
         // SAFETY: forwarded from this function's contract.
         let bytes = unsafe { input_bytes(config, len) }?;
@@ -147,18 +156,29 @@ pub unsafe extern "C" fn cs_engine_new(config: *const u8, len: i32) -> *mut Engi
         };
         Ok(Box::into_raw(Box::new(handle)))
     });
-    match created {
-        Ok(Ok(handle)) => handle,
+    let (handle, error) = match created {
+        Ok(Ok(handle)) => (handle, ptr::null_mut()),
         Ok(Err(err)) => {
             tracing::error!(code = err.code(), %err, "cs_engine_new failed");
-            ptr::null_mut()
+            let bytes = error_envelope(err.code(), &err.to_string(), err.location());
+            (ptr::null_mut(), ByteBuffer::into_raw(bytes))
         }
         Err(payload) => {
             let message = panic_message(payload.as_ref());
             tracing::error!(%message, "panic in cs_engine_new");
-            ptr::null_mut()
+            let bytes = error_envelope("INTERNAL_PANIC", &message, None);
+            (ptr::null_mut(), ByteBuffer::into_raw(bytes))
         }
+    };
+    if out_error.is_null() {
+        // Nobody will free the error buffer: release it here.
+        // SAFETY: `error` is null or was just created by ByteBuffer::into_raw.
+        unsafe { cs_buffer_free(error) };
+    } else {
+        // SAFETY: the caller guarantees `out_error` points to writable storage.
+        unsafe { *out_error = error };
     }
+    handle
 }
 
 /// Destroys an engine created by [`cs_engine_new`]. Null is ignored.
@@ -247,29 +267,58 @@ mod tests {
         assert_eq!(value["error"]["message"], "bad value 42");
     }
 
+    /// Calls cs_engine_new and returns the handle plus the decoded error, if any.
+    fn engine_new(config: *const u8, len: i32) -> (*mut EngineHandle, Option<Value>) {
+        // Sentinel value: checks that success really resets out_error to null.
+        let mut error = ptr::NonNull::<ByteBuffer>::dangling().as_ptr();
+        let engine = unsafe { cs_engine_new(config, len, &mut error) };
+        let error = (!error.is_null()).then(|| take(error));
+        (engine, error)
+    }
+
     #[test]
     fn engine_new_and_free() {
         let config = br#"{"dry_run":true}"#;
-        let engine = unsafe { cs_engine_new(config.as_ptr(), config.len() as i32) };
+        let (engine, error) = engine_new(config.as_ptr(), config.len() as i32);
         assert!(!engine.is_null());
+        assert!(error.is_none());
         assert!(unsafe { &*engine }.engine.config().dry_run);
         unsafe { cs_engine_free(engine) };
     }
 
     #[test]
     fn engine_new_defaults_to_dry_run() {
-        let engine = unsafe { cs_engine_new(ptr::null(), 0) };
+        let (engine, error) = engine_new(ptr::null(), 0);
         assert!(!engine.is_null());
+        assert!(error.is_none());
         assert!(unsafe { &*engine }.engine.config().dry_run);
         unsafe { cs_engine_free(engine) };
     }
 
     #[test]
-    fn engine_new_rejects_bad_input() {
+    fn engine_new_reports_bad_input() {
         let bad = b"{not json";
-        assert!(unsafe { cs_engine_new(bad.as_ptr(), bad.len() as i32) }.is_null());
-        assert!(unsafe { cs_engine_new(bad.as_ptr(), -1) }.is_null());
-        assert!(unsafe { cs_engine_new(ptr::null(), 5) }.is_null());
+        for (ptr, len) in [
+            (bad.as_ptr(), bad.len() as i32),
+            (bad.as_ptr(), -1),
+            (ptr::null(), 5),
+        ] {
+            let (engine, error) = engine_new(ptr, len);
+            assert!(engine.is_null());
+            let error = error.expect("error envelope");
+            assert_eq!(error["ok"], false);
+            assert_eq!(error["error"]["code"], "INVALID_INPUT");
+        }
+    }
+
+    #[test]
+    fn engine_new_accepts_null_out_error() {
+        let bad = b"{not json";
+        let engine = unsafe { cs_engine_new(bad.as_ptr(), bad.len() as i32, ptr::null_mut()) };
+        assert!(engine.is_null());
+        let engine = unsafe { cs_engine_new(ptr::null(), 0, ptr::null_mut()) };
+        assert!(!engine.is_null());
+        unsafe { cs_engine_free(engine) };
     }
 
     #[test]

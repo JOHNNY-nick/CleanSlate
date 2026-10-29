@@ -44,6 +44,16 @@ public sealed class EngineClientTests
     }
 
     [Fact]
+    public void Constructor_InvalidConfig_ThrowsEngineErrorCode()
+    {
+        byte[] malformed = "{not json"u8.ToArray();
+
+        var ex = Assert.Throws<EngineException>(() => new EngineClient(malformed));
+
+        Assert.Equal("INVALID_INPUT", ex.Code);
+    }
+
+    [Fact]
     public void EngineConfig_DefaultsToDryRun()
     {
         Assert.True(new EngineConfig().DryRun);

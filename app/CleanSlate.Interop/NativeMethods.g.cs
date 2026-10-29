@@ -26,14 +26,19 @@ namespace CleanSlate.Interop
 
         /// <summary>
         ///  Creates an engine from an `EngineConfig` JSON (`len == 0` means defaults,
-        ///  i.e. simulation mode). Returns null on error; release with
-        ///  [`cs_engine_free`].
+        ///  i.e. simulation mode); release it with [`cs_engine_free`].
+        ///
+        ///  On failure, returns null and stores in `*out_error` the error envelope
+        ///  `{ "ok": false, "error": … }`, to be released with [`cs_buffer_free`].
+        ///  On success, `*out_error` is set to null. `out_error` itself may be null
+        ///  when the caller does not want the error details.
         ///
         ///  # Safety
-        ///  `config` must point to `len` readable bytes (or be null with `len == 0`).
+        ///  `config` must point to `len` readable bytes (or be null with `len == 0`);
+        ///  `out_error` must be null or point to writable storage for one pointer.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "cs_engine_new", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern EngineHandle* cs_engine_new(byte* config, int len);
+        internal static extern EngineHandle* cs_engine_new(byte* config, int len, ByteBuffer** out_error);
 
         /// <summary>
         ///  Destroys an engine created by [`cs_engine_new`]. Null is ignored.
