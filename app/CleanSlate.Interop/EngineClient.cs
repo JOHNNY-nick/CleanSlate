@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -42,8 +43,70 @@ public sealed class EngineClient : IDisposable
             cancellationToken);
     }
 
+    /// <summary>
+    /// Scans for orphan leftovers, read-only (EF-05 to EF-11). Cancelling the
+    /// token calls <c>cs_cancel</c>: the returned report is then partial and
+    /// flagged <see cref="ScanReport.Cancelled"/> (no exception).
+    /// </summary>
+    public Task<ScanReport> ScanOrphansAsync(
+        ScanOptions? options = null,
+        IProgress<ScanProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(options ?? new ScanOptions(), EngineJsonContext.Default.ScanOptions);
+        return Task.Run(() => WithEngine(engine => ScanOrphans(engine, json, progress, cancellationToken)));
+    }
+
     /// <summary>Releases the native engine.</summary>
     public void Dispose() => _handle.Dispose();
+
+    private static unsafe ScanReport ScanOrphans(IntPtr engine, byte[] json, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
+    {
+        GCHandle context = progress is null ? default : GCHandle.Alloc(progress);
+        ByteBuffer* buffer;
+        try
+        {
+            using CancellationTokenRegistration registration =
+                cancellationToken.Register(() => NativeMethods.cs_cancel((EngineHandle*)engine));
+            fixed (byte* options = json)
+            {
+                delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback = progress is null ? null : &OnProgress;
+                void* ctx = progress is null ? null : (void*)GCHandle.ToIntPtr(context);
+                buffer = NativeMethods.cs_scan_orphans((EngineHandle*)engine, options, json.Length, callback, ctx);
+            }
+        }
+        finally
+        {
+            // The engine never calls the callback after cs_scan_orphans returned.
+            if (context.IsAllocated)
+            {
+                context.Free();
+            }
+        }
+
+        return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseScanReport);
+    }
+
+    /// <summary>Progress callback called by the engine (possibly from a worker thread).</summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void OnProgress(void* ctx, byte* json, int len)
+    {
+        // An exception must never cross into native code.
+        try
+        {
+            if (GCHandle.FromIntPtr((IntPtr)ctx).Target is IProgress<ScanProgress> progress
+                && JsonSerializer.Deserialize(new ReadOnlySpan<byte>(json, len), EngineJsonContext.Default.ScanProgress) is { } value)
+            {
+                progress.Report(value);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Any exception escaping an UnmanagedCallersOnly method kills the process.
+            System.Diagnostics.Debug.WriteLine($"CleanSlate progress dropped: {ex.Message}");
+        }
+    }
 
     private static unsafe List<InstalledApp> ListApps(IntPtr engine) =>
         ReadResponse(
