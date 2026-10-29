@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/cleanslate-logo-horizontal-dark.svg">
+  <img alt="CleanSlate" src="assets/branding/cleanslate-logo-horizontal.svg" width="420">
+</picture>
+
 # CleanSlate
 
 Dernière mise à jour : 29 oct. 2026

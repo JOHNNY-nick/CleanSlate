@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 800));
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "cleanslate.ico"));
         NavView.SelectedItem = NavView.MenuItems[0];
     }
 

@@ -52,6 +52,20 @@ Ces valeurs sont des ressources XAML (`ThemeDictionaries` Light / Dark dans `app
 
 **Formes et espacements** : cartes rayon 8, contrôles rayon 4, boutons 36 px de haut (cible tactile ≥ 44 px pour les boutons icône) ; espacements par pas de 4 et 8 ; marges de page 40 px, 24 px sous 800 px de large. Ressources correspondantes dans `App.xaml` : `CardCornerRadius`, `PageMargin`, `PathFontFamily` et les styles `PageTitleTextBlockStyle`, `SecondaryTextBlockStyle`, `CardBorderStyle`.
 
+### 3.1 Logo
+
+Les fichiers du logo sont dans [`assets/branding/`](../assets/branding/LISEZMOI.md) ; ce dossier ne se modifie pas à la main (les SVG sont la source, les PNG et l'ICO en sont dérivés). Son [LISEZMOI](../assets/branding/LISEZMOI.md) fait foi pour les fichiers et les règles.
+
+| Usage | Fichier |
+| --- | --- |
+| Exécutable (`<ApplicationIcon>`), fenêtre et barre des tâches (`AppWindow.SetIcon`, copié dans `Assets/cleanslate.ico`), installeur Inno Setup (`SetupIconFile`), écran « À propos » | `cleanslate.ico` |
+| README (suit le thème clair / sombre de GitHub) | `cleanslate-logo-horizontal.svg` et `cleanslate-logo-horizontal-dark.svg` |
+| Barre de titre des maquettes (18 px) ; toute taille de 16 à 32 px | `cleanslate-icon-small.svg` (ou `png/cleanslate-icon-32.png` affiché en 16 × 16) |
+| En-tête de la charte graphique, toute taille ≥ 40 px | `cleanslate-icon.svg` |
+| Symbole seul | `cleanslate-glyph-teal.svg` (fond clair), `cleanslate-glyph-white.svg` (fond sombre) |
+
+Règles : ne pas déformer, recolorer ni ajouter d'ombre ; en dessous de 40 px, utiliser la variante `small` (ou l'ICO) ; garder autour du logo un espace libre d'au moins un quart de la hauteur de l'icône.
+
 ## 4. Parcours utilisateur
 
 Deux parcours portent l'essentiel de la valeur ; chacun se termine par une confirmation explicite et une session restaurable.

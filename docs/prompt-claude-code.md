@@ -184,7 +184,9 @@ Jalon J6 — Finition. Plan d'abord.
 - Réévaluer la migration de Windows App SDK 1.8 vers la ligne 2.x (risques,
   changements cassants, compatibilité .NET 8) et me proposer une décision.
 - Installeur Inno Setup (application non packagée, requireAdministrator, section 10.4
-  des spécifications) et README final.
+  des spécifications, SetupIconFile=assets\branding\cleanslate.ico) et README final.
+- Icône de l'application (cleanslate.ico) dans l'écran « À propos » des Réglages
+  (design § 3.1).
 - Revue finale : relis toutes les exigences M du cahier des charges et produis
   un tableau exigence -> fichier(s) -> test(s), en signalant ce qui manque.
 ```
