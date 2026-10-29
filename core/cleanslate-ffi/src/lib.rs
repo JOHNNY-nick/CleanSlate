@@ -16,7 +16,10 @@ use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
-use cleanslate_core::model::{CleanPlan, PurgeRequest, RestoreRequest, ScanOptions, ScanProgress};
+use cleanslate_core::model::{
+    AppLeftoversRequest, CleanPlan, PurgeRequest, RestoreRequest, ScanOptions, ScanProgress,
+    UninstallRequest,
+};
 use cleanslate_core::{CoreError, CoreResult, Engine, EngineConfig};
 use serde::Serialize;
 use serde_json::json;
@@ -357,6 +360,66 @@ pub unsafe extern "C" fn cs_purge_quarantine(
     })
 }
 
+/// Runs the official uninstaller of an application and waits for its whole
+/// process tree (EF-12 to EF-15): `data` is an `UninstallResult`
+/// (`simulated: true` by default). `cs_cancel` stops waiting, never kills
+/// the uninstaller. `callback` is reserved for progress (unused).
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn cs_uninstall(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+    _callback: ProgressCallback,
+    _ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let request: UninstallRequest = unsafe { parse_input(request, len) }?;
+        engine.uninstall(&request)
+    })
+}
+
+/// Leftovers of an application just uninstalled (EF-13): `data` is a
+/// `ScanReport` (empty if the application is still installed). Same
+/// progress callback as [`cs_scan_orphans`].
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` bytes;
+/// `callback` may be null.
+#[no_mangle]
+pub unsafe extern "C" fn cs_scan_app_leftovers(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let request: AppLeftoversRequest = unsafe { parse_input(request, len) }?;
+        let progress = |event: &ScanProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.scan_app_leftovers(&request, &progress)
+    })
+}
+
 /// Asks the running long operation of `engine` to stop (EF-11). Safe to
 /// call from any thread while the operation runs. Null is ignored.
 ///
@@ -626,6 +689,35 @@ mod tests {
 
         let bad = take(unsafe { cs_clean(engine, ptr::null(), 0, None, ptr::null_mut()) });
         assert_eq!(bad["error"]["code"], "INVALID_INPUT");
+        unsafe { cs_engine_free(engine) };
+    }
+
+    #[test]
+    fn uninstall_and_app_leftovers_report_errors_safely() {
+        let engine = fake_engine();
+        let unknown = br#"{"app_id":"nope"}"#;
+        let value = take(unsafe {
+            cs_uninstall(
+                engine,
+                unknown.as_ptr(),
+                unknown.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["error"]["code"], "NOT_FOUND");
+        let value = take(unsafe {
+            cs_scan_app_leftovers(
+                engine,
+                unknown.as_ptr(),
+                unknown.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["error"]["code"], "NOT_FOUND");
+        let value = take(unsafe { cs_uninstall(engine, ptr::null(), 0, None, ptr::null_mut()) });
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
         unsafe { cs_engine_free(engine) };
     }
 

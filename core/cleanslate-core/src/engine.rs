@@ -12,13 +12,18 @@ use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
 use crate::model::{
-    CleanPlan, InstalledApp, Leftover, PurgeRequest, PurgeResult, RestoreRequest, ScanOptions,
-    ScanProgress, ScanReport, Session,
+    AppLeftoversRequest, CleanPlan, InstalledApp, Leftover, PurgeRequest, PurgeResult,
+    RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session, UninstallRequest,
+    UninstallResult,
 };
 use crate::quarantine::{simulate, Quarantine};
 use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
-use crate::scan::{scan_orphans, ScanEnv};
+use crate::scan::{scan_app_leftovers, scan_orphans, ScanEnv};
+use crate::uninstall::{
+    build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
+    ProcessRunner, RestorePoints, SystemRestorePoints, UNINSTALL_TIMEOUT,
+};
 
 fn default_true() -> bool {
     true
@@ -74,6 +79,12 @@ pub struct Engine {
     busy: AtomicBool,
     /// Items of the last scan, by id: `cs_clean` only accepts these.
     last_report: Mutex<HashMap<String, Leftover>>,
+    /// Applications captured before their uninstall (fingerprints, § 6.4).
+    removed_apps: Mutex<HashMap<String, InstalledApp>>,
+    /// Starts uninstallers (refuses on a test engine).
+    runner: Box<dyn ProcessRunner>,
+    /// Creates restore points (unavailable on a test engine).
+    restore_points: Box<dyn RestorePoints>,
     /// History database, opened on first use.
     history: Mutex<Option<History>>,
 }
@@ -105,6 +116,9 @@ impl Engine {
             busy: AtomicBool::new(false),
             last_report: Mutex::new(HashMap::new()),
             history: Mutex::new(None),
+            removed_apps: Mutex::new(HashMap::new()),
+            runner: Box::new(NoProcessRunner),
+            restore_points: Box::new(NoRestorePoints),
         }
     }
 
@@ -118,6 +132,7 @@ impl Engine {
             KnownFolders::from_system(),
         );
         engine.probe_system = true;
+        engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine
     }
 
@@ -258,6 +273,119 @@ impl Engine {
         })
     }
 
+    /// Replaces the process runner and restore points (tests inject fakes).
+    pub fn set_uninstall_backends(
+        &mut self,
+        runner: Box<dyn ProcessRunner>,
+        restore_points: Box<dyn RestorePoints>,
+    ) {
+        self.runner = runner;
+        self.restore_points = restore_points;
+    }
+
+    /// Runs the official uninstaller of an application (EF-12, EF-14,
+    /// EF-15) and waits for its whole process tree. In simulation (the
+    /// default) only reports the command that would run.
+    pub fn uninstall(&self, request: &UninstallRequest) -> CoreResult<UninstallResult> {
+        let _guard = self.begin()?;
+        let app = self
+            .list_apps()?
+            .into_iter()
+            .find(|a| a.id == request.app_id)
+            .ok_or_else(|| CoreError::NotFound {
+                location: request.app_id.clone(),
+            })?;
+        let command = build_command(&app, request.quiet)?;
+        if !program_exists(&command.program) {
+            return Err(CoreError::NoUninstaller {
+                location: command.program.display().to_string(),
+            });
+        }
+        // Fingerprint captured before uninstalling (specs § 7.1, step 1).
+        if let Ok(mut removed) = self.removed_apps.lock() {
+            removed.insert(app.id.clone(), app.clone());
+        }
+        let mut result = UninstallResult {
+            app_id: app.id.clone(),
+            display_name: app.display_name.clone(),
+            command: command.command_line(),
+            simulated: true,
+            restore_point_created: false,
+            restore_point_error: None,
+            exit_code: None,
+            timed_out: false,
+            cancelled: false,
+            still_installed: true,
+        };
+        if self.simulating(request.dry_run) {
+            return Ok(result);
+        }
+        result.simulated = false;
+        let sequence = if request.create_restore_point {
+            match self.restore_points.begin(&format!(
+                "CleanSlate : désinstallation de {}",
+                app.display_name
+            )) {
+                Ok(seq) => {
+                    result.restore_point_created = true;
+                    Some(seq)
+                }
+                Err(err) => {
+                    result.restore_point_error = Some(err);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        tracing::info!(app = %app.display_name, command = %result.command, "running uninstaller");
+        let outcome = self.runner.run(&command, &self.cancel, UNINSTALL_TIMEOUT);
+        if let Some(seq) = sequence {
+            self.restore_points.end(seq, outcome.is_ok());
+        }
+        let outcome = outcome?;
+        result.exit_code = outcome.exit_code;
+        result.timed_out = outcome.timed_out;
+        result.cancelled = outcome.cancelled;
+        result.still_installed = self.list_apps()?.iter().any(|a| a.id == app.id);
+        Ok(result)
+    }
+
+    /// Leftovers of an application just uninstalled (EF-13): empty if it is
+    /// still installed. Its items can then be passed to [`Engine::clean`].
+    pub fn scan_app_leftovers(
+        &self,
+        request: &AppLeftoversRequest,
+        progress: &(dyn Fn(&ScanProgress) + Sync),
+    ) -> CoreResult<ScanReport> {
+        let _guard = self.begin()?;
+        let apps = self.list_apps()?;
+        let captured = self
+            .removed_apps
+            .lock()
+            .map_err(|_| CoreError::InvalidInput("lock poisoned".into()))?
+            .get(&request.app_id)
+            .cloned();
+        let app = captured
+            .or_else(|| apps.iter().find(|a| a.id == request.app_id).cloned())
+            .ok_or_else(|| CoreError::NotFound {
+                location: request.app_id.clone(),
+            })?;
+        let env = ScanEnv {
+            fs: self.fs(),
+            registry: self.registry(),
+            folders: &self.folders,
+            rules: &self.rules,
+            apps: &apps,
+            extra_executables: &[],
+            cancel: &self.cancel,
+            now: Utc::now(),
+        };
+        let report = scan_app_leftovers(&env, &app, progress);
+        self.remember(&report);
+        Ok(report)
+    }
+
     /// Moves the selected items of the last scan to quarantine (EF-17), or
     /// only lists them in simulation mode (ENF-04).
     pub fn clean(&self, plan: &CleanPlan) -> CoreResult<Session> {
@@ -368,7 +496,9 @@ impl Engine {
 mod tests {
     use super::*;
     use crate::fs::FakeFileSystem;
-    use crate::model::{CleanPlan, PurgeRequest, RestoreRequest};
+    use crate::model::{
+        AppLeftoversRequest, CleanPlan, PurgeRequest, RestoreRequest, UninstallRequest,
+    };
     use crate::registry::TestRegistryKey;
     use std::path::Path;
 
@@ -512,6 +642,216 @@ mod tests {
             SessionStatus::Restored
         );
         assert_eq!(std::fs::read(tool.join("settings.ini")).unwrap(), b"[x]");
+    }
+
+    /// Fake uninstaller: records the command and deletes the Uninstall entry
+    /// from the test registry, like a real uninstaller would.
+    struct DeletingRunner {
+        registry: WinRegistry,
+        entry: crate::registry::RegKeyPath,
+        calls: std::sync::Arc<Mutex<Vec<String>>>,
+    }
+
+    impl crate::uninstall::ProcessRunner for DeletingRunner {
+        fn run(
+            &self,
+            command: &crate::uninstall::Command,
+            _: &AtomicBool,
+            _: std::time::Duration,
+        ) -> CoreResult<crate::uninstall::RunOutcome> {
+            self.calls.lock().unwrap().push(command.command_line());
+            self.registry.delete_tree(&self.entry)?;
+            Ok(crate::uninstall::RunOutcome {
+                exit_code: Some(0),
+                ..Default::default()
+            })
+        }
+    }
+
+    struct FakeRestorePoints {
+        fail: bool,
+        log: std::sync::Arc<Mutex<Vec<String>>>,
+    }
+
+    impl crate::uninstall::RestorePoints for FakeRestorePoints {
+        fn begin(&self, description: &str) -> Result<i64, String> {
+            self.log
+                .lock()
+                .unwrap()
+                .push(format!("begin {description}"));
+            if self.fail {
+                Err("protection système désactivée".into())
+            } else {
+                Ok(42)
+            }
+        }
+        fn end(&self, sequence: i64, success: bool) {
+            self.log
+                .lock()
+                .unwrap()
+                .push(format!("end {sequence} {success}"));
+        }
+    }
+
+    #[test]
+    fn uninstall_simulated_then_real_then_leftovers() {
+        use crate::fs::strip_verbatim;
+        use crate::inventory::{stable_id, UNINSTALL_KEY};
+        use crate::model::{Origin, RegistryView, SessionStatus};
+        use crate::registry::{Hive, KeyView, RegKeyPath};
+        use std::sync::Arc;
+
+        let parent =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\uninstall-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let install = base.join(r"Program Files\OldApp");
+        std::fs::create_dir_all(install.join("data")).unwrap();
+        std::fs::write(install.join("unins000.exe"), b"MZ fake").unwrap();
+        std::fs::write(install.join(r"data\cache.bin"), [0u8; 100]).unwrap();
+
+        let area = TestRegistryKey::new();
+        let entry = RegKeyPath::new(Hive::LocalMachine, UNINSTALL_KEY)
+            .with_view(KeyView::Force64)
+            .join("OldApp_is1");
+        let key = area.create(&entry);
+        key.set_value("DisplayName", &"OldApp").unwrap();
+        key.set_value("InstallLocation", &install.to_string_lossy().as_ref())
+            .unwrap();
+        let uninstaller = format!("\"{}\" /SILENT", install.join("unins000.exe").display());
+        key.set_value("UninstallString", &uninstaller.as_str())
+            .unwrap();
+        let app_id = stable_id(RegistryView::Hklm64, "OldApp_is1");
+
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let make = |dry_run: bool, fail_restore: bool| {
+            let config = EngineConfig {
+                dry_run,
+                data_dir: Some(base.join("data-dir")),
+                exclusions: vec![],
+            };
+            let mut engine = Engine::with_folders(
+                config,
+                Box::new(RealFileSystem),
+                Box::new(area.registry()),
+                KnownFolders::under(&base),
+            );
+            engine.set_uninstall_backends(
+                Box::new(DeletingRunner {
+                    registry: area.registry(),
+                    entry: entry.clone(),
+                    calls: Arc::clone(&calls),
+                }),
+                Box::new(FakeRestorePoints {
+                    fail: fail_restore,
+                    log: Arc::clone(&log),
+                }),
+            );
+            engine
+        };
+        let request = |dry_run: bool| UninstallRequest {
+            app_id: app_id.clone(),
+            quiet: false,
+            create_restore_point: true,
+            dry_run,
+        };
+
+        // Simulation: the command is reported, nothing runs.
+        let simulated = make(true, false).uninstall(&request(false)).unwrap();
+        assert!(simulated.simulated && simulated.still_installed);
+        assert!(
+            simulated.command.contains("unins000.exe") && simulated.command.ends_with("/SILENT")
+        );
+        assert!(calls.lock().unwrap().is_empty());
+
+        assert_eq!(
+            make(true, false)
+                .uninstall(&UninstallRequest {
+                    app_id: "nope".into(),
+                    ..request(true)
+                })
+                .unwrap_err()
+                .code(),
+            "NOT_FOUND"
+        );
+
+        // Real (fake process): restore point failure is reported, not blocking.
+        let engine = make(false, true);
+        let result = engine.uninstall(&request(false)).unwrap();
+        assert!(!result.simulated);
+        assert!(!result.still_installed);
+        assert_eq!(result.exit_code, Some(0));
+        assert!(!result.restore_point_created);
+        assert!(result.restore_point_error.is_some());
+        assert_eq!(calls.lock().unwrap().len(), 1);
+        assert_eq!(
+            log.lock().unwrap()[0],
+            "begin CleanSlate : désinstallation de OldApp"
+        );
+
+        // Leftovers: the old install folder, then quarantine with origin App.
+        let report = engine
+            .scan_app_leftovers(
+                &AppLeftoversRequest {
+                    app_id: app_id.clone(),
+                },
+                &|_| {},
+            )
+            .unwrap();
+        let item = report.groups[0]
+            .items
+            .iter()
+            .find(|i| i.location.ends_with("OldApp"))
+            .expect("install folder");
+        let mut plan = CleanPlan::new(
+            vec![item.id.clone()],
+            Origin::App {
+                app_id: app_id.clone(),
+            },
+        );
+        plan.dry_run = false;
+        let session = engine.clean(&plan).unwrap();
+        assert_eq!(
+            session.status,
+            SessionStatus::Completed,
+            "{:?}",
+            session.errors
+        );
+        assert!(!install.exists());
+    }
+
+    #[test]
+    fn missing_uninstaller_program_is_reported() {
+        use crate::inventory::UNINSTALL_KEY;
+        use crate::registry::{Hive, KeyView, RegKeyPath};
+        let area = TestRegistryKey::new();
+        let entry = RegKeyPath::new(Hive::CurrentUser, UNINSTALL_KEY)
+            .with_view(KeyView::Default)
+            .join("Ghost");
+        let key = area.create(&entry);
+        key.set_value("DisplayName", &"Ghost").unwrap();
+        key.set_value(
+            "UninstallString",
+            &r#""C:\definitely\missing\unins000.exe""#,
+        )
+        .unwrap();
+        let engine = Engine::new(
+            EngineConfig::default(),
+            Box::new(FakeFileSystem::new()),
+            Box::new(area.registry()),
+        );
+        let id = engine.list_apps().unwrap()[0].id.clone();
+        let err = engine
+            .uninstall(&UninstallRequest {
+                app_id: id,
+                quiet: false,
+                create_restore_point: false,
+                dry_run: true,
+            })
+            .unwrap_err();
+        assert_eq!(err.code(), "NO_UNINSTALLER");
     }
 
     #[test]

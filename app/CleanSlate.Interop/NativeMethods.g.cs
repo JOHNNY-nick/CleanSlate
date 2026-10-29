@@ -102,6 +102,30 @@ namespace CleanSlate.Interop
         internal static extern ByteBuffer* cs_purge_quarantine(EngineHandle* engine, byte* request, int len);
 
         /// <summary>
+        ///  Runs the official uninstaller of an application and waits for its whole
+        ///  process tree (EF-12 to EF-15): `data` is an `UninstallResult`
+        ///  (`simulated: true` by default). `cs_cancel` stops waiting, never kills
+        ///  the uninstaller. `callback` is reserved for progress (unused).
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` bytes.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_uninstall", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_uninstall(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> _callback, void* _ctx);
+
+        /// <summary>
+        ///  Leftovers of an application just uninstalled (EF-13): `data` is a
+        ///  `ScanReport` (empty if the application is still installed). Same
+        ///  progress callback as [`cs_scan_orphans`].
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` bytes;
+        ///  `callback` may be null.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_scan_app_leftovers", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_scan_app_leftovers(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
+
+        /// <summary>
         ///  Asks the running long operation of `engine` to stop (EF-11). Safe to
         ///  call from any thread while the operation runs. Null is ignored.
         ///
