@@ -33,8 +33,40 @@ public sealed class EngineClient : IDisposable
         return Task.Run(() => GetVersion().Version, cancellationToken);
     }
 
+    /// <summary>Lists installed applications, hidden ones included (EF-01, EF-02).</summary>
+    public Task<IReadOnlyList<InstalledApp>> ListAppsAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        return Task.Run<IReadOnlyList<InstalledApp>>(
+            () => WithEngine(engine => ListApps(engine)),
+            cancellationToken);
+    }
+
     /// <summary>Releases the native engine.</summary>
     public void Dispose() => _handle.Dispose();
+
+    private static unsafe List<InstalledApp> ListApps(IntPtr engine) =>
+        ReadResponse(
+            NativeMethods.cs_list_apps((EngineHandle*)engine),
+            EngineJsonContext.Default.EngineResponseListInstalledApp);
+
+    /// <summary>Runs <paramref name="call"/> while the native handle cannot be freed.</summary>
+    private T WithEngine<T>(Func<IntPtr, T> call)
+    {
+        bool added = false;
+        try
+        {
+            _handle.DangerousAddRef(ref added);
+            return call(_handle.DangerousGetHandle());
+        }
+        finally
+        {
+            if (added)
+            {
+                _handle.DangerousRelease();
+            }
+        }
+    }
 
     internal static unsafe EngineVersion GetVersion() =>
         ReadResponse(NativeMethods.cs_version(), EngineJsonContext.Default.EngineResponseEngineVersion);
