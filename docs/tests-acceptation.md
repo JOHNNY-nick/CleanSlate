@@ -61,7 +61,29 @@ Get-FileHash "$r\settings.ini"   # noter l'empreinte
 
 ## 3. Désinstallation complète (J5)
 
-Voir la section ajoutée en J5.
+Dans la Sandbox (connexion réseau activée par `CleanSlate.wsb`), installer trois applications réelles, les lancer une fois pour qu'elles créent leurs données, puis les fermer :
+
+```powershell
+winget install --id 7zip.7zip -e --source winget --accept-package-agreements --accept-source-agreements
+winget install --id VideoLAN.VLC -e --source winget --accept-package-agreements --accept-source-agreements
+winget install --id Notepad++.Notepad++ -e --source winget --accept-package-agreements --accept-source-agreements
+```
+
+(Si `winget` n'est pas disponible dans la Sandbox, télécharger les installeurs depuis les sites officiels.) Lancer 7-Zip File Manager, VLC et Notepad++ une fois chacun, puis les fermer.
+
+| # | Étape | Résultat attendu |
+| --- | --- | --- |
+| 1 | Mode simulation **activé** : Applications → sélectionner VLC → Désinstaller complètement → Lancer | Étape 4 : « Simulation : la commande ci-dessous aurait été lancée » ; VLC toujours installé |
+| 2 | Réglages : désactiver la simulation | — |
+| 3 | Applications → VLC → Désinstaller complètement (clic 2) → Lancer la désinstallation (clic 3) | Point de restauration tenté (protection système souvent désactivée en Sandbox : message non bloquant) ; le désinstalleur de VLC s'ouvre ; « En attente du désinstalleur… » jusqu'à sa fin |
+| 4 | Terminer le désinstalleur | Étape 3 : restes trouvés (`%APPDATA%\vlc`, éventuellement `Program Files\VideoLAN`, `HKCU\Software\VideoLAN`…), confiance « Élevée » précochée |
+| 5 | Mettre les restes en quarantaine (clic 4) → Confirmer (clic 5) | Étape 4 : restes mis en quarantaine ; **5 clics** depuis la page Applications (ENF-07) ; session visible dans l'Historique, origine « Désinstallation complète » |
+| 6 | 7-Zip : cocher « Désinstallation silencieuse » si proposé → Lancer | Aucune fenêtre du désinstalleur (EF-14) ; restes proposés |
+| 7 | Notepad++ : Lancer, puis **annuler** dans la fenêtre du désinstalleur | Étape 4 : « Le désinstalleur a été annulé ou a échoué : l'application est toujours installée » ; aucun reste proposé |
+| 8 | Notepad++ : « Désinstallation classique » | Le désinstalleur officiel seul ; pas d'étape des restes ; l'application disparaît de la liste |
+| 9 | Restes orphelins → Analyser | Les restes de Notepad++ laissés par la désinstallation classique sont proposés |
+| 10 | Historique → restaurer la session VLC | Dossiers et clés de VLC revenus à l'identique |
+| 11 | Désinstalleur qui ne rend pas la main : vérifier que « Ne plus attendre » arrête l'attente sans fermer la fenêtre du désinstalleur | Le désinstalleur reste ouvert ; l'assistant passe à l'étape 4 |
 
 ## 4. Scénario d'acceptation des 5 applications (cahier § 6.3)
 

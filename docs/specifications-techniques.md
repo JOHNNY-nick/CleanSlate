@@ -150,10 +150,10 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_restore(engine, req, len)` | `RestoreRequest { session_id, item_ids?, dry_run }` | `Session` (`errors` = éléments non restaurés) | J4 ✔ |
 | `cs_list_sessions(engine)` | — | `Session[]` (sessions interrompues reprises au passage) | J4 ✔ |
 | `cs_purge_quarantine(engine, req, len)` | `PurgeRequest { older_than_days, dry_run }` | `PurgeResult { freed_bytes, simulated }` | J4 ✔ |
-| `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest` | `UninstallResult` | J5 |
-| `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `{ "app_id": … }` | `ScanReport` | J5 |
+| `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest { app_id, quiet, create_restore_point, dry_run }` | `UninstallResult` (commande, point de restauration, code de sortie, `still_installed`, `simulated`) ; `cs_cancel` arrête l'attente sans tuer le désinstalleur | J5 ✔ |
+| `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `AppLeftoversRequest { app_id }` | `ScanReport` (vide si l'application est toujours installée) | J5 ✔ |
 
-Les types `ScanOptions`, `UninstallRequest`, `UninstallResult` et `RestoreResult` seront définis dans `model.rs` au jalon qui les introduit.
+Toutes les requêtes portent `dry_run`, vrai par défaut : une action réelle exige `EngineConfig.dry_run = false` **et** `dry_run = false` dans la requête (D27).
 
 ### 4.2 Conventions
 
@@ -222,6 +222,15 @@ pub struct CleanPlan { pub item_ids: Vec<String>, pub dry_run: bool, pub origin:
 pub struct RestoreRequest { pub session_id: Uuid, pub item_ids: Option<Vec<String>>, pub dry_run: bool } // dry_run absent = true
 pub struct PurgeRequest { pub older_than_days: u32, pub dry_run: bool }                           // dry_run absent = true
 pub struct PurgeResult { pub freed_bytes: u64, pub simulated: bool }
+
+// Désinstallation (J5).
+pub struct UninstallRequest { pub app_id: String, pub quiet: bool, pub create_restore_point: bool, pub dry_run: bool } // false, true, true par défaut
+pub struct UninstallResult {
+    pub app_id: String, pub display_name: String, pub command: String, pub simulated: bool,
+    pub restore_point_created: bool, pub restore_point_error: Option<String>,
+    pub exit_code: Option<u32>, pub timed_out: bool, pub cancelled: bool, pub still_installed: bool,
+}
+pub struct AppLeftoversRequest { pub app_id: String }
 
 pub struct Session {
     pub id: Uuid, pub created_at: DateTime<Utc>, pub origin: Origin,
@@ -320,8 +329,8 @@ Rien n'est jamais supprimé directement : chaque élément passe par la quaranta
 
 1. Capturer l'empreinte de l'application (6.4).
 2. Créer un point de restauration (`SRSetRestorePointW`) si la protection système est active ; un échec est signalé mais n'empêche pas de continuer après confirmation.
-3. Construire la commande : `msiexec.exe /x {ProductCode}` pour un MSI, sinon `UninstallString` découpée proprement (exécutable entre guillemets + arguments, jamais passée à `cmd /c`). Mode silencieux : `QuietUninstallString` ou `/qn` pour MSI.
-4. Lancer le processus dans un **Job Object** et attendre que tous les processus du job soient terminés (certains désinstalleurs se copient dans `%TEMP%` et rendent la main immédiatement). Délai maximal : 30 min.
+3. Construire la commande : `msiexec.exe /x {ProductCode}` pour un MSI (D16), sinon `UninstallString` découpée proprement (exécutable entre guillemets + arguments, jamais passée à `cmd /c`). Mode silencieux : `QuietUninstallString` ou `/qn` pour MSI. Les noms nus (`MsiExec.exe`, `rundll32`) sont résolus dans `System32`, jamais par le `PATH` ; un chemin non guillemeté ambigu prend le premier candidat qui existe ; `MsiExec /I{GUID}` devient `/X{GUID}` ; `cmd`, PowerShell et les hôtes de scripts sont refusés (`UNSAFE_UNINSTALLER`, D34) ; programme absent → `NO_UNINSTALLER`.
+4. Lancer le processus (créé suspendu, puis placé dans un **Job Object**) et attendre que tous les processus du job soient terminés (certains désinstalleurs se copient dans `%TEMP%` et rendent la main immédiatement). Délai maximal : 30 min. Ni le délai ni l'annulation ne tuent le désinstalleur (D35).
 5. Vérifier que l'entrée Uninstall a disparu. Si elle est toujours là : l'utilisateur a peut-être annulé → proposer de la retirer avec les restes (confiance Moyenne).
 6. Lancer `cs_scan_app_leftovers` et afficher le résultat.
 

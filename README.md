@@ -25,9 +25,9 @@ qui répond à deux besoins :
 Par sécurité, rien n'est effacé directement : tout passe par une quarantaine
 restaurable pendant 30 jours, et le mode simulation est actif par défaut.
 
-> **État : jalon J4 (quarantaine).** Applications, restes orphelins, mise en quarantaine
-> restaurable et historique fonctionnent ; le mode simulation est actif par défaut.
-> La désinstallation complète arrive en J5.
+> **État : jalon J5 (désinstallation complète).** Toutes les fonctions sont en place :
+> applications, désinstallation complète, restes orphelins, quarantaine restaurable,
+> historique. Le mode simulation est actif par défaut. Finitions en J6.
 
 - Moteur : Rust (`core/`), exposé en `cleanslate.dll` par une API C en JSON.
 - Interface : C# 12 / .NET 8 / WinUI 3 non packagée (`app/`), patron MVVM.
