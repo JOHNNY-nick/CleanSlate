@@ -41,6 +41,15 @@ namespace CleanSlate.Interop
         internal static extern EngineHandle* cs_engine_new(byte* config, int len, ByteBuffer** out_error);
 
         /// <summary>
+        ///  Lists installed applications (EF-01): `data` is an `InstalledApp[]`.
+        ///
+        ///  # Safety
+        ///  `engine` must be null or a live handle from [`cs_engine_new`].
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_list_apps", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_list_apps(EngineHandle* engine);
+
+        /// <summary>
         ///  Destroys an engine created by [`cs_engine_new`]. Null is ignored.
         ///
         ///  # Safety

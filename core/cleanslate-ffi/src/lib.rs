@@ -181,6 +181,30 @@ pub unsafe extern "C" fn cs_engine_new(
     handle
 }
 
+/// Borrows the engine behind a handle.
+///
+/// # Safety
+/// `engine` must be null or come from [`cs_engine_new`] and still be alive.
+unsafe fn engine_ref<'a>(engine: *const EngineHandle) -> CoreResult<&'a Engine> {
+    // SAFETY: null is checked by as_ref; otherwise the caller guarantees validity.
+    unsafe { engine.as_ref() }
+        .map(|handle| &handle.engine)
+        .ok_or_else(|| CoreError::InvalidInput("null engine handle".into()))
+}
+
+/// Lists installed applications (EF-01): `data` is an `InstalledApp[]`.
+///
+/// # Safety
+/// `engine` must be null or a live handle from [`cs_engine_new`].
+#[no_mangle]
+pub unsafe extern "C" fn cs_list_apps(engine: *const EngineHandle) -> *mut ByteBuffer {
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        engine.list_apps()
+    })
+}
+
 /// Destroys an engine created by [`cs_engine_new`]. Null is ignored.
 ///
 /// # Safety
@@ -319,6 +343,13 @@ mod tests {
         let engine = unsafe { cs_engine_new(ptr::null(), 0, ptr::null_mut()) };
         assert!(!engine.is_null());
         unsafe { cs_engine_free(engine) };
+    }
+
+    #[test]
+    fn list_apps_rejects_null_engine() {
+        let value = take(unsafe { cs_list_apps(ptr::null()) });
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
     }
 
     #[test]
