@@ -288,6 +288,58 @@ impl CleanPlan {
     }
 }
 
+fn default_false() -> bool {
+    false
+}
+
+/// Request of `cs_uninstall` (EF-12 to EF-15).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UninstallRequest {
+    /// [`InstalledApp::id`] of the application.
+    pub app_id: String,
+    /// Silent mode (`QuietUninstallString`, `/qn` for MSI) when available (EF-14).
+    #[serde(default = "default_false")]
+    pub quiet: bool,
+    /// Create a system restore point first (EF-15), on by default.
+    #[serde(default = "default_true")]
+    pub create_restore_point: bool,
+    /// Simulation (safety rule 5): `true` when absent.
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+}
+
+/// Result of `cs_uninstall`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UninstallResult {
+    /// Application id.
+    pub app_id: String,
+    /// Application name.
+    pub display_name: String,
+    /// Command line run (or that would be run).
+    pub command: String,
+    /// Nothing was run.
+    pub simulated: bool,
+    /// A restore point was created.
+    pub restore_point_created: bool,
+    /// Why the restore point failed, if it did (never blocking).
+    pub restore_point_error: Option<String>,
+    /// Exit code of the uninstaller.
+    pub exit_code: Option<u32>,
+    /// The 30-minute limit was reached; the uninstaller may still run.
+    pub timed_out: bool,
+    /// The wait was cancelled by the user.
+    pub cancelled: bool,
+    /// The Uninstall entry is still present (uninstaller cancelled or failed).
+    pub still_installed: bool,
+}
+
+/// Request of `cs_scan_app_leftovers` (EF-13).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppLeftoversRequest {
+    /// [`InstalledApp::id`] of the (uninstalled) application.
+    pub app_id: String,
+}
+
 /// Request of `cs_restore` (EF-18).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RestoreRequest {

@@ -17,6 +17,7 @@ pub mod registry;
 pub mod safety;
 pub mod scan;
 pub mod system;
+pub mod uninstall;
 
 pub use engine::{Engine, EngineConfig};
 pub use error::{CoreError, CoreResult};

@@ -70,6 +70,20 @@ pub enum CoreError {
         files: u64,
     },
 
+    /// The application has no usable uninstaller (design § 5).
+    #[error("uninstaller not found: {location}")]
+    NoUninstaller {
+        /// Application or command concerned.
+        location: String,
+    },
+
+    /// The uninstaller would go through a shell (safety rule 8): refused.
+    #[error("uninstaller refused (shell or script host): {location}")]
+    UnsafeUninstaller {
+        /// Command concerned.
+        location: String,
+    },
+
     /// Another long operation is already running on this engine.
     #[error("the engine is busy with another operation")]
     Busy,
@@ -90,6 +104,8 @@ impl CoreError {
             CoreError::InvalidInput(_) => "INVALID_INPUT",
             CoreError::Protected { .. } => "PROTECTED",
             CoreError::ConfirmationRequired { .. } => "CONFIRMATION_REQUIRED",
+            CoreError::NoUninstaller { .. } => "NO_UNINSTALLER",
+            CoreError::UnsafeUninstaller { .. } => "UNSAFE_UNINSTALLER",
             CoreError::Busy => "BUSY",
             CoreError::Cancelled => "CANCELLED",
         }
@@ -100,7 +116,9 @@ impl CoreError {
         match self {
             CoreError::NotFound { location }
             | CoreError::AccessDenied { location }
-            | CoreError::Protected { location } => Some(location.clone()),
+            | CoreError::Protected { location }
+            | CoreError::NoUninstaller { location }
+            | CoreError::UnsafeUninstaller { location } => Some(location.clone()),
             CoreError::Io { path, .. } => Some(path.display().to_string()),
             CoreError::Registry { key, .. } => Some(key.clone()),
             CoreError::InvalidInput(_)
