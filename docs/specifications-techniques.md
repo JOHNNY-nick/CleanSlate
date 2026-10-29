@@ -143,7 +143,7 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_engine_new(config, len, out_error)` | `EngineConfig` (longueur 0 : valeurs par défaut, donc simulation) ; `out_error: *mut *mut ByteBuffer` | pointeur opaque `*mut EngineHandle`. En cas d'échec : null, et `*out_error` reçoit l'enveloppe `{ ok: false, error }` (à libérer par `cs_buffer_free`) ; en cas de succès, `*out_error` vaut null. `out_error` peut être null si l'appelant ne veut pas le détail | J1 ✔ |
 | `cs_engine_free(engine)` | poignée (null ignoré) | — | J1 ✔ |
 | `cs_buffer_free(buf)` | `*mut ByteBuffer` (null ignoré) | libère toute réponse renvoyée par Rust | J1 ✔ |
-| `cs_list_apps(engine)` | — | `InstalledApp[]` | J2 |
+| `cs_list_apps(engine)` | — | `InstalledApp[]` (entrées masquées comprises) | J2 ✔ |
 | `cs_scan_orphans(engine, opts, len, cb, ctx)` | `ScanOptions` | `ScanReport` | J3 |
 | `cs_cancel(engine)` | — | annule l'opération en cours (drapeau atomique) | J3 |
 | `cs_clean(engine, plan, len, cb, ctx)` | `CleanPlan` | `Session` | J4 |

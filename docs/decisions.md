@@ -21,3 +21,5 @@ Chaque décision de fond prise pendant le développement, avec sa raison. « Por
 | D13 | 29 oct. 2026 | J2 | Format des dates | « 12/03/2025 » ; « 22 oct. 2026 » | Format du design partout | Cohérence | Porteur |
 | D14 | 29 oct. 2026 | J2 | Bouton « Désinstallation classique » | Retirer ; garder | Visible désactivé jusqu'à J5, puis désinstalleur officiel seul | Maquette | Porteur |
 | D15 | 29 oct. 2026 | J2 | `ILocalizationService` | Garder ; retirer | Retiré : `.resw` dans l'App, formats fr-FR dans Presentation | Simplicité | Porteur |
+| D16 | 29 oct. 2026 | J2 | Quand une entrée est-elle MSI ? | Sous-clé GUID seule ; GUID + msiexec, ou `WindowsInstaller = 1` | GUID + msiexec, ou `WindowsInstaller = 1` | Ne jamais lancer `msiexec /x` sur un installeur EXE (J5) | Claude |
+| D17 | 29 oct. 2026 | J2 | Captures d'écran publiées | Capture de la machine réelle ; captures sans données personnelles | Aucune capture montrant les logiciels réellement installés ; seulement des pages sans données personnelles ou des données de test | Le dépôt est public | Claude |
