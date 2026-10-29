@@ -23,12 +23,31 @@ public sealed class OrphansViewModelTests
         DurationMs: 7_600,
         Cancelled: cancelled);
 
+    internal static ISettingsService Settings(bool simulation = true)
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.SimulationMode.Returns(simulation);
+        settings.QuarantineDays.Returns(30);
+        return settings;
+    }
+
+    internal static IDialogService Dialogs(bool confirm = true, string? word = null)
+    {
+        var dialogs = Substitute.For<IDialogService>();
+        dialogs.ConfirmCleanAsync(Arg.Any<CleanSummary>()).Returns(new CleanDecision(confirm, word));
+        dialogs.ConfirmPurgeAsync(Arg.Any<int>()).Returns(confirm);
+        return dialogs;
+    }
+
+    private static OrphansViewModel Create(IEngineService engine, IDialogService? dialogs = null, ISettingsService? settings = null) =>
+        new(engine, dialogs ?? Dialogs(), settings ?? Settings());
+
     private static async Task<OrphansViewModel> ScannedAsync(ScanReport report)
     {
         var engine = Substitute.For<IEngineService>();
         engine.ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(report);
-        var vm = new OrphansViewModel(engine);
+        var vm = Create(engine);
         await vm.ScanCommand.ExecuteAsync(null);
         return vm;
     }
@@ -88,7 +107,7 @@ public sealed class OrphansViewModelTests
         var vm = await ScannedAsync(Report());
 
         Assert.True(vm.SimulateCommand.CanExecute(null));
-        Assert.False(vm.QuarantineCommand.CanExecute(null));
+        Assert.True(vm.QuarantineCommand.CanExecute(null)); // enabled since J4, always behind the confirmation dialog
         vm.SimulateCommand.Execute(null);
 
         Assert.True(vm.ShowSimulation);
@@ -125,7 +144,7 @@ public sealed class OrphansViewModelTests
         var engine = Substitute.For<IEngineService>();
         engine.ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new EngineException("BUSY", "busy"));
-        var vm = new OrphansViewModel(engine);
+        var vm = Create(engine);
 
         await vm.ScanCommand.ExecuteAsync(null);
 
@@ -140,7 +159,7 @@ public sealed class OrphansViewModelTests
         var engine = Substitute.For<IEngineService>();
         engine.ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(Report());
-        var vm = new OrphansViewModel(engine);
+        var vm = Create(engine);
 
         await vm.ScanCommand.ExecuteAsync(null);
 

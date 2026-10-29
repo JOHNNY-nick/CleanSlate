@@ -213,6 +213,33 @@
                     Background="{ThemeResource DangerBrush}"
                     Command="{x:Bind ViewModel.QuarantineCommand}"
                     Foreground="White" />
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.ShowCleanResult, Mode=OneWay}">
+                    <InfoBar IsClosable="False" IsOpen="True" Severity="Success">
+                        <InfoBar.Content>
+                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
+                                <Run Text="{x:Bind ViewModel.CleanedCount, Mode=OneWay}" />
+                                <Run x:Uid="OrphansCleanedMiddle" />
+                                <Run Text="{x:Bind ViewModel.CleanedSizeText, Mode=OneWay}" /><Run x:Uid="OrphansCleanedSuffix" />
+                            </TextBlock>
+                        </InfoBar.Content>
+                    </InfoBar>
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasPendingReboot, Mode=OneWay}" Severity="Warning">
+                        <InfoBar.Content>
+                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
+                                <Run Text="{x:Bind ViewModel.PendingRebootCount, Mode=OneWay}" />
+                                <Run x:Uid="OrphansPendingReboot" />
+                            </TextBlock>
+                        </InfoBar.Content>
+                    </InfoBar>
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasCleanFailures, Mode=OneWay}" Severity="Warning">
+                        <InfoBar.Content>
+                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
+                                <Run Text="{x:Bind ViewModel.CleanFailureCount, Mode=OneWay}" />
+                                <Run x:Uid="OrphansCleanFailures" />
+                            </TextBlock>
+                        </InfoBar.Content>
+                    </InfoBar>
+                </StackPanel>
                 <InfoBar Grid.Row="1" Grid.ColumnSpan="3" IsClosable="False" IsOpen="{x:Bind ViewModel.ShowSimulation, Mode=OneWay}" Severity="Success">
                     <InfoBar.Content>
                         <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">

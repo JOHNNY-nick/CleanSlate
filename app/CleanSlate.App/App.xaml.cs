@@ -21,11 +21,14 @@ public partial class App : Application
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
+                services.AddSingleton<ISettingsService, SettingsService>();
                 services.AddSingleton<IEngineService, EngineService>();
                 services.AddSingleton<MainWindow>();
+                services.AddSingleton<IDialogService, DialogService>();
                 services.AddTransient<HomeViewModel>();
                 services.AddTransient<AppsViewModel>();
-                services.AddTransient<OrphansViewModel>();
+                // Singleton: scan results survive navigation between pages.
+                services.AddSingleton<OrphansViewModel>();
                 services.AddTransient<HistoryViewModel>();
                 services.AddTransient<SettingsViewModel>();
             })
@@ -50,5 +53,26 @@ public partial class App : Application
         _window = GetService<MainWindow>();
         _window.Closed += (_, _) => _host.Dispose();
         _window.Activate();
+        _ = PurgeOldSessionsAsync();
+    }
+
+    /// <summary>Automatic purge at startup (EF-19); does nothing in simulation mode.</summary>
+    private static async Task PurgeOldSessionsAsync()
+    {
+        var settings = GetService<ISettingsService>();
+        if (settings.SimulationMode)
+        {
+            return;
+        }
+
+        try
+        {
+            var request = new Interop.PurgeRequest((uint)settings.QuarantineDays, DryRun: false);
+            await GetService<IEngineService>().PurgeAsync(request, CancellationToken.None);
+        }
+        catch (Interop.EngineException)
+        {
+            // A failed purge is retried at the next start; nothing to show.
+        }
     }
 }

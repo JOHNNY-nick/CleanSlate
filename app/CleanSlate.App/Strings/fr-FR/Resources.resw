@@ -48,14 +48,8 @@
   <data name="HistoryTitle.Text" xml:space="preserve">
     <value>Historique</value>
   </data>
-  <data name="HistoryPlaceholder.Text" xml:space="preserve">
-    <value>Aucune session pour l'instant.</value>
-  </data>
   <data name="SettingsTitle.Text" xml:space="preserve">
     <value>Réglages</value>
-  </data>
-  <data name="SettingsPlaceholder.Text" xml:space="preserve">
-    <value>Les réglages arrivent aux jalons J4 et J6.</value>
   </data>
   <data name="AppsCountSuffix.Text" xml:space="preserve">
     <value>applications installées</value>
@@ -224,5 +218,140 @@
   </data>
   <data name="Confidence_Low" xml:space="preserve">
     <value>Faible</value>
+  </data>
+  <data name="HistorySubtitle.Text" xml:space="preserve">
+    <value>Chaque session reste restaurable jusqu'à sa date de purge, en totalité ou élément par élément.</value>
+  </data>
+  <data name="HistoryPurge.Content" xml:space="preserve">
+    <value>Purger les sessions anciennes</value>
+  </data>
+  <data name="HistoryError.Title" xml:space="preserve">
+    <value>L'historique est indisponible.</value>
+  </data>
+  <data name="HistorySimulated.Text" xml:space="preserve">
+    <value>Mode simulation : rien n'a été modifié.</value>
+  </data>
+  <data name="HistoryPurgedPrefix.Text" xml:space="preserve">
+    <value>Espace libéré définitivement :</value>
+  </data>
+  <data name="HistoryRestoredSuffix.Text" xml:space="preserve">
+    <value>élément(s) restauré(s) ·</value>
+  </data>
+  <data name="HistoryRestoreFailuresSuffix.Text" xml:space="preserve">
+    <value>non restauré(s) (un élément existe déjà à leur emplacement, ou erreur).</value>
+  </data>
+  <data name="HistoryList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Sessions de nettoyage</value>
+  </data>
+  <data name="HistoryItems.Text" xml:space="preserve">
+    <value>élément(s)</value>
+  </data>
+  <data name="HistoryPurgeOn.Text" xml:space="preserve">
+    <value>purge le</value>
+  </data>
+  <data name="HistoryRestore.Content" xml:space="preserve">
+    <value>Restaurer (la sélection, sinon tout)</value>
+  </data>
+  <data name="HistoryEmpty.Text" xml:space="preserve">
+    <value>Aucune session pour l'instant.</value>
+  </data>
+  <data name="Origin_orphans" xml:space="preserve">
+    <value>Restes orphelins</value>
+  </data>
+  <data name="Origin_app" xml:space="preserve">
+    <value>Désinstallation complète</value>
+  </data>
+  <data name="SessionStatus_Completed" xml:space="preserve">
+    <value>Terminée</value>
+  </data>
+  <data name="SessionStatus_Partial" xml:space="preserve">
+    <value>Partielle</value>
+  </data>
+  <data name="SessionStatus_Restored" xml:space="preserve">
+    <value>Restaurée</value>
+  </data>
+  <data name="SessionStatus_Purged" xml:space="preserve">
+    <value>Purgée</value>
+  </data>
+  <data name="ItemStatus_Quarantined" xml:space="preserve">
+    <value>En quarantaine</value>
+  </data>
+  <data name="ItemStatus_Restored" xml:space="preserve">
+    <value>Restauré</value>
+  </data>
+  <data name="ItemStatus_Purged" xml:space="preserve">
+    <value>Purgé</value>
+  </data>
+  <data name="ItemStatus_PendingReboot" xml:space="preserve">
+    <value>Au prochain redémarrage</value>
+  </data>
+  <data name="ItemStatus_Failed" xml:space="preserve">
+    <value>Non déplacé</value>
+  </data>
+  <data name="SettingsSimulation.Header" xml:space="preserve">
+    <value>Mode simulation</value>
+  </data>
+  <data name="SettingsSimulation.OnContent" xml:space="preserve">
+    <value>Activé : rien n'est déplacé</value>
+  </data>
+  <data name="SettingsSimulation.OffContent" xml:space="preserve">
+    <value>Désactivé : la mise en quarantaine est réelle</value>
+  </data>
+  <data name="SettingsSimulationHelp.Text" xml:space="preserve">
+    <value>Activé par défaut. Tant qu'il est actif, CleanSlate montre ce qu'il ferait sans rien déplacer. Après un changement, relancez l'analyse.</value>
+  </data>
+  <data name="SettingsQuarantineDays.Header" xml:space="preserve">
+    <value>Durée de conservation en quarantaine (jours)</value>
+  </data>
+  <data name="SettingsQuarantineHelp.Text" xml:space="preserve">
+    <value>Au-delà, les sessions sont supprimées définitivement au démarrage de CleanSlate ou depuis l'Historique.</value>
+  </data>
+  <data name="OrphansCleanedMiddle.Text" xml:space="preserve">
+    <value>élément(s) mis en quarantaine (</value>
+  </data>
+  <data name="OrphansCleanedSuffix.Text" xml:space="preserve">
+    <value>). Ils restent restaurables depuis l'Historique.</value>
+  </data>
+  <data name="OrphansPendingReboot.Text" xml:space="preserve">
+    <value>fichier(s) utilisé(s) par un programme seront déplacés au prochain redémarrage.</value>
+  </data>
+  <data name="OrphansCleanFailures.Text" xml:space="preserve">
+    <value>élément(s) laissé(s) en place (protégé, utilisé ou inaccessible).</value>
+  </data>
+  <data name="ConfirmTitle" xml:space="preserve">
+    <value>Mettre en quarantaine ?</value>
+  </data>
+  <data name="ConfirmIntro" xml:space="preserve">
+    <value>Les éléments suivants seront déplacés dans la quarantaine :</value>
+  </data>
+  <data name="ConfirmTotal" xml:space="preserve">
+    <value>Total :</value>
+  </data>
+  <data name="ConfirmReminder" xml:space="preserve">
+    <value>Ils restent restaurables pendant {0} jours depuis l'Historique.</value>
+  </data>
+  <data name="ConfirmSimulation" xml:space="preserve">
+    <value>Mode simulation : rien ne sera déplacé.</value>
+  </data>
+  <data name="ConfirmPrimary" xml:space="preserve">
+    <value>Mettre en quarantaine</value>
+  </data>
+  <data name="ConfirmPrimarySimulation" xml:space="preserve">
+    <value>Simuler</value>
+  </data>
+  <data name="ConfirmCancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="ConfirmWordPrompt" xml:space="preserve">
+    <value>Plus de 20 Go ou de 50 000 fichiers : tapez QUARANTAINE pour confirmer.</value>
+  </data>
+  <data name="PurgeTitle" xml:space="preserve">
+    <value>Purger les sessions anciennes ?</value>
+  </data>
+  <data name="PurgeMessage" xml:space="preserve">
+    <value>Les sessions de plus de {0} jours seront supprimées définitivement : elles ne pourront plus être restaurées.</value>
+  </data>
+  <data name="PurgePrimary" xml:space="preserve">
+    <value>Purger définitivement</value>
   </data>
 </root>

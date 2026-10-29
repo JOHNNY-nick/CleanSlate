@@ -14,12 +14,47 @@ namespace CleanSlate.Presentation.ViewModels;
 public sealed partial class OrphansViewModel : ObservableObject
 {
     private readonly IEngineService _engine;
+    private readonly IDialogService _dialogs;
+    private readonly ISettingsService _settings;
 
     /// <summary>Creates the ViewModel.</summary>
-    public OrphansViewModel(IEngineService engine)
+    public OrphansViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings)
     {
         _engine = engine;
+        _dialogs = dialogs;
+        _settings = settings;
     }
+
+    /// <summary>Result of the last quarantine is shown.</summary>
+    [ObservableProperty]
+    private bool _showCleanResult;
+
+    /// <summary>Items moved to quarantine by the last session.</summary>
+    [ObservableProperty]
+    private int _cleanedCount;
+
+    /// <summary>Size moved to quarantine by the last session.</summary>
+    [ObservableProperty]
+    private string _cleanedSizeText = string.Empty;
+
+    /// <summary>Locked items that will be moved at the next reboot.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingReboot))]
+    private int _pendingRebootCount;
+
+    /// <summary>Items that could not be quarantined (protected, in use…).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCleanFailures))]
+    private int _cleanFailureCount;
+
+    /// <summary>Some locked items are scheduled for the next reboot.</summary>
+    public bool HasPendingReboot => PendingRebootCount > 0;
+
+    /// <summary>Some items were left in place.</summary>
+    public bool HasCleanFailures => CleanFailureCount > 0;
+
+    /// <summary>Simulation mode of the settings (banner and button label).</summary>
+    public bool IsSimulationMode => _settings.SimulationMode;
 
     /// <summary>Groups of the last scan, largest first.</summary>
     public ObservableCollection<LeftoverGroupViewModel> Groups { get; } = [];
@@ -84,7 +119,7 @@ public sealed partial class OrphansViewModel : ObservableObject
 
     /// <summary>Number of checked items.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SimulateCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SimulateCommand), nameof(QuarantineCommand))]
     private int _selectedCount;
 
     /// <summary>Size of the checked items.</summary>
@@ -148,15 +183,91 @@ public sealed partial class OrphansViewModel : ObservableObject
         ShowSimulation = true;
     }
 
-    /// <summary>Real quarantine: enabled in J4.</summary>
-    [RelayCommand(CanExecute = nameof(CanQuarantine))]
-    private void Quarantine()
+    /// <summary>
+    /// Moves the checked items to quarantine after the mandatory confirmation
+    /// (EF-16, EF-17); in simulation mode, only reports what would be done.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task QuarantineAsync(CancellationToken cancellationToken)
     {
+        List<LeftoverItemViewModel> selected = Groups.SelectMany(g => g.Items).Where(i => i.IsChecked).ToList();
+        var summary = new CleanSummary(
+            selected.Count,
+            SelectedSizeText,
+            selected.GroupBy(i => i.Kind).Select(g => new KeyValuePair<LeftoverKind, int>(g.Key, g.Count())).ToList(),
+            _settings.QuarantineDays,
+            _settings.SimulationMode);
+        CleanDecision decision = await _dialogs.ConfirmCleanAsync(summary);
+        if (!decision.Confirmed)
+        {
+            return;
+        }
+
+        var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.Orphans, DryRun: _settings.SimulationMode);
+        try
+        {
+            Session session;
+            try
+            {
+                session = await _engine.CleanAsync(plan, cancellationToken);
+            }
+            catch (EngineException ex) when (ex.Code == "CONFIRMATION_REQUIRED")
+            {
+                CleanDecision again = await _dialogs.ConfirmCleanAsync(summary with { RequiresWord = true });
+                if (!again.Confirmed)
+                {
+                    return;
+                }
+
+                session = await _engine.CleanAsync(plan with { Confirmation = again.Word }, cancellationToken);
+            }
+
+            ShowCleanOutcome(session);
+        }
+        catch (EngineException ex)
+        {
+            HasError = true;
+            ErrorDetails = ex.Message;
+        }
     }
 
     private bool HasSelection() => SelectedCount > 0;
 
-    private bool CanQuarantine() => false;
+    private void ShowCleanOutcome(Session session)
+    {
+        if (session.Simulated)
+        {
+            Simulate();
+            return;
+        }
+
+        var moved = session.Items
+            .Where(i => i.Status is QuarantineStatus.Quarantined or QuarantineStatus.PendingReboot)
+            .Select(i => i.Id)
+            .ToHashSet();
+        CleanedCount = session.Items.Count(i => i.Status == QuarantineStatus.Quarantined);
+        CleanedSizeText = Formats.Size(session.FreedBytes);
+        PendingRebootCount = session.Items.Count(i => i.Status == QuarantineStatus.PendingReboot);
+        CleanFailureCount = session.Items.Count(i => i.Status == QuarantineStatus.Failed);
+        foreach (LeftoverGroupViewModel group in Groups.ToList())
+        {
+            foreach (LeftoverItemViewModel item in group.Items.Where(i => moved.Contains(i.Leftover.Id)).ToList())
+            {
+                item.PropertyChanged -= OnItemChanged;
+                group.Items.Remove(item);
+            }
+
+            if (group.Items.Count == 0)
+            {
+                Groups.Remove(group);
+            }
+        }
+
+        ShowCleanResult = true;
+        UpdateSelection();
+        OnPropertyChanged(nameof(GroupCount));
+        OnPropertyChanged(nameof(ShowEmpty));
+    }
 
     private void OnProgress(ScanProgress value)
     {

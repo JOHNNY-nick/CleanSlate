@@ -4,8 +4,28 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <StackPanel Margin="{StaticResource PageMargin}" Spacing="8">
-        <TextBlock x:Uid="SettingsTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
-        <TextBlock x:Uid="SettingsPlaceholder" Style="{StaticResource SecondaryTextBlockStyle}" />
-    </StackPanel>
+    <ScrollViewer>
+        <StackPanel Margin="{StaticResource PageMargin}" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock x:Uid="SettingsTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="8">
+                    <ToggleSwitch x:Uid="SettingsSimulation" IsOn="{x:Bind ViewModel.SimulationMode, Mode=TwoWay}" />
+                    <TextBlock x:Uid="SettingsSimulationHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="8">
+                    <NumberBox
+                        x:Uid="SettingsQuarantineDays"
+                        Maximum="365"
+                        Minimum="1"
+                        SpinButtonPlacementMode="Inline"
+                        Value="{x:Bind ViewModel.QuarantineDays, Mode=TwoWay}" />
+                    <TextBlock x:Uid="SettingsQuarantineHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

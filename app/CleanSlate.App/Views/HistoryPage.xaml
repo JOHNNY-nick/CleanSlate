@@ -2,10 +2,124 @@
 <Page
     x:Class="CleanSlate.App.Views.HistoryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:CleanSlate.App.Converters"
+    xmlns:vm="using:CleanSlate.Presentation.ViewModels"
+    Loaded="OnLoaded">
 
-    <StackPanel Margin="{StaticResource PageMargin}" Spacing="8">
-        <TextBlock x:Uid="HistoryTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
-        <TextBlock x:Uid="HistoryPlaceholder" Style="{StaticResource SecondaryTextBlockStyle}" />
-    </StackPanel>
+    <Page.Resources>
+        <conv:ResourceStringConverter x:Key="ResourceString" />
+    </Page.Resources>
+
+    <Grid Margin="{StaticResource PageMargin}" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="2">
+                <TextBlock x:Uid="HistoryTitle" Style="{StaticResource TitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}" />
+                <TextBlock x:Uid="HistorySubtitle" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button x:Uid="HistoryPurge" Grid.Column="1" VerticalAlignment="Top" Command="{x:Bind ViewModel.PurgeCommand}" />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="8">
+            <InfoBar x:Uid="HistoryError" IsClosable="False" IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}" Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}" Severity="Error" />
+            <InfoBar IsClosable="True" IsOpen="{x:Bind ViewModel.ShowMessage, Mode=TwoWay}" Severity="Success">
+                <InfoBar.Content>
+                    <StackPanel Margin="0,0,0,12" Spacing="4">
+                        <TextBlock Visibility="{x:Bind ViewModel.LastWasSimulated, Mode=OneWay}" x:Uid="HistorySimulated" FontWeight="SemiBold" />
+                        <TextBlock Visibility="{x:Bind ViewModel.LastWasPurge, Mode=OneWay}">
+                            <Run x:Uid="HistoryPurgedPrefix" />
+                            <Run Text="{x:Bind ViewModel.PurgedText, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Visibility="{x:Bind ViewModel.ShowRestoreMessage, Mode=OneWay}">
+                            <Run Text="{x:Bind ViewModel.RestoredCount, Mode=OneWay}" />
+                            <Run x:Uid="HistoryRestoredSuffix" />
+                            <Run Text="{x:Bind ViewModel.RestoreFailures, Mode=OneWay}" />
+                            <Run x:Uid="HistoryRestoreFailuresSuffix" />
+                        </TextBlock>
+                    </StackPanel>
+                </InfoBar.Content>
+            </InfoBar>
+        </StackPanel>
+
+        <Grid Grid.Row="2">
+            <ListView ItemsSource="{x:Bind ViewModel.Sessions}" SelectionMode="None" x:Uid="HistoryList">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0,4" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SessionViewModel">
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander.Header>
+                                <Grid Padding="0,8" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}">
+                                            <Run Text="{x:Bind DateText}" />
+                                            <Run Text="·" />
+                                            <Run Text="{x:Bind Session.Origin.Kind, Converter={StaticResource ResourceString}, ConverterParameter=Origin}" />
+                                        </TextBlock>
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                                            <Run Text="{x:Bind ItemCount}" />
+                                            <Run x:Uid="HistoryItems" />
+                                            <Run Text="·" />
+                                            <Run Text="{x:Bind FreedText}" />
+                                            <Run Text="·" />
+                                            <Run x:Uid="HistoryPurgeOn" />
+                                            <Run Text="{x:Bind PurgeDateText}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Foreground="{ThemeResource TextSecondaryBrush}"
+                                        Text="{x:Bind Status, Converter={StaticResource ResourceString}, ConverterParameter=SessionStatus}" />
+                                </Grid>
+                            </Expander.Header>
+                            <StackPanel Spacing="8">
+                                <ItemsRepeater ItemsSource="{x:Bind Items}">
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SessionItemViewModel">
+                                            <Grid Padding="0,4" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox MinWidth="0" AutomationProperties.Name="{x:Bind Location}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" IsEnabled="{x:Bind IsRestorable}" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind Kind, Converter={StaticResource ResourceString}, ConverterParameter=Kind}" />
+                                                    <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Text="{x:Bind Location}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind SizeText}" />
+                                                <TextBlock Grid.Column="3" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind Status, Converter={StaticResource ResourceString}, ConverterParameter=ItemStatus}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                                <Button x:Uid="HistoryRestore" Click="OnRestoreClick" IsEnabled="{x:Bind CanRestore}" Tag="{x:Bind}" />
+                            </StackPanel>
+                        </Expander>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <TextBlock x:Uid="HistoryEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource SecondaryTextBlockStyle}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
+        </Grid>
+    </Grid>
 </Page>

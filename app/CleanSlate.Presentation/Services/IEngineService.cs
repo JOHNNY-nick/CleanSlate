@@ -19,4 +19,16 @@ public interface IEngineService
     /// returns a partial report flagged <see cref="ScanReport.Cancelled"/>.
     /// </summary>
     Task<ScanReport> ScanOrphansAsync(ScanOptions options, IProgress<ScanProgress>? progress, CancellationToken cancellationToken);
+
+    /// <summary>Quarantines items of the last scan (EF-17); simulated if the plan or the engine says so.</summary>
+    Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken);
+
+    /// <summary>Restores a session entirely or partly (EF-18).</summary>
+    Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Sessions of the history, most recent first (EF-20).</summary>
+    Task<IReadOnlyList<Session>> ListSessionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Deletes for good the old sessions (EF-19).</summary>
+    Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken);
 }
