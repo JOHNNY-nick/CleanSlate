@@ -21,3 +21,4 @@ coverage/
 # OS / editors
 Thumbs.db
 .DS_Store
+.reference/

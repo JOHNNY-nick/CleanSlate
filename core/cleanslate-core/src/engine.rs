@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::CoreResult;
 use crate::fs::{FileSystem, RealFileSystem};
+use crate::model::InstalledApp;
 use crate::registry::{Registry, WinRegistry};
 
 fn default_true() -> bool {
@@ -80,6 +82,11 @@ impl Engine {
     /// Injected registry.
     pub fn registry(&self) -> &dyn Registry {
         self.registry.as_ref()
+    }
+
+    /// Lists installed applications, read-only (EF-01, EF-02).
+    pub fn list_apps(&self) -> CoreResult<Vec<InstalledApp>> {
+        crate::inventory::list_apps(self.registry())
     }
 }
 

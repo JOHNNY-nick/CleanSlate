@@ -29,8 +29,32 @@ pub enum RegistryView {
 pub enum AppKind {
     /// Classic Win32 application, can be uninstalled by CleanSlate.
     Win32,
-    /// Microsoft Store application, listed read-only (EF-04).
+    /// Microsoft Store application, listed read-only (EF-04, v1.1).
     Store,
+}
+
+/// Why an application is hidden by default in the list (EF-02).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HiddenReason {
+    /// `SystemComponent = 1`.
+    SystemComponent,
+    /// Update, hotfix or service pack of another product.
+    Update,
+}
+
+/// Technology of the installer, deduced from the Uninstall entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InstallerKind {
+    /// Windows Installer (MSI).
+    Msi,
+    /// Inno Setup (sub-key ending with `_is1`).
+    InnoSetup,
+    /// Nullsoft Scriptable Install System.
+    Nsis,
+    /// Anything else.
+    Unknown,
 }
 
 /// An application listed in one of the Uninstall registry keys (EF-01).
@@ -62,6 +86,10 @@ pub struct InstalledApp {
     pub registry_view: RegistryView,
     /// Win32 or Store.
     pub kind: AppKind,
+    /// Set when the entry is hidden by default (EF-02); `None` means visible.
+    pub hidden_reason: Option<HiddenReason>,
+    /// Installer technology.
+    pub installer: InstallerKind,
 }
 
 /// Kind of leftover item.
@@ -219,12 +247,26 @@ pub enum SessionStatus {
     Purged,
 }
 
-/// An item stored in quarantine.
-///
-/// Provisional: the full manifest entry (SHA-256, ACL…) is defined in J4.
+/// State of one quarantined item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuarantineStatus {
+    /// Stored in quarantine, restorable.
+    Quarantined,
+    /// Put back at its original location.
+    Restored,
+    /// Deleted for good by the purge.
+    Purged,
+    /// Locked file: will be moved at the next reboot.
+    PendingReboot,
+    /// Could not be quarantined; see [`QuarantinedItem::error`].
+    Failed,
+}
+
+/// An item stored in quarantine (also one entry of `manifest.json`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuarantinedItem {
-    /// Identifier, unique within the session.
+    /// Identifier, unique within the session (= [`Leftover::id`]).
     pub id: String,
     /// Kind of item.
     pub kind: LeftoverKind,
@@ -234,8 +276,19 @@ pub struct QuarantinedItem {
     pub quarantine_path: PathBuf,
     /// Size, in bytes.
     pub size_bytes: u64,
-    /// `true` once the item has been restored.
-    pub restored: bool,
+    /// File: its SHA-256. Folder: SHA-256 of the sorted list of
+    /// (relative path, SHA-256) of its files. Hex, lower case.
+    pub sha256: Option<String>,
+    /// Original security descriptor, SDDL format.
+    pub original_acl: Option<String>,
+    /// When the item was moved to quarantine.
+    pub quarantined_at: DateTime<Utc>,
+    /// When the item was restored, if it was.
+    pub restored_at: Option<DateTime<Utc>>,
+    /// Current state.
+    pub status: QuarantineStatus,
+    /// Set when `status` is [`QuarantineStatus::Failed`].
+    pub error: Option<ItemError>,
 }
 
 /// A cleaning session, kept in the history (EF-20).
@@ -290,6 +343,8 @@ mod tests {
             product_code: None,
             registry_view: RegistryView::Hklm64,
             kind: AppKind::Win32,
+            hidden_reason: Some(HiddenReason::SystemComponent),
+            installer: InstallerKind::InnoSetup,
         }
     }
 
@@ -313,6 +368,8 @@ mod tests {
         assert!(json.contains(r#""registry_view":"hklm64""#));
         assert!(json.contains(r#""kind":"win32""#));
         assert!(json.contains(r#""install_date":"2026-10-22""#));
+        assert!(json.contains(r#""hidden_reason":"system_component""#));
+        assert!(json.contains(r#""installer":"inno_setup""#));
     }
 
     #[test]
@@ -406,7 +463,12 @@ mod tests {
                 original_location: r"HKCU\Software\Audacity".into(),
                 quarantine_path: PathBuf::from(r"C:\q\l1.reg"),
                 size_bytes: 512,
-                restored: false,
+                sha256: Some("ab".repeat(32)),
+                original_acl: Some("O:BAG:SYD:(A;;KA;;;SY)".into()),
+                quarantined_at: Utc.with_ymd_and_hms(2026, 10, 22, 14, 5, 1).unwrap(),
+                restored_at: None,
+                status: QuarantineStatus::PendingReboot,
+                error: None,
             }],
             freed_bytes: 512,
             errors: vec![],
@@ -414,6 +476,7 @@ mod tests {
         };
         let json = round_trip(&session);
         assert!(json.contains(r#""created_at":"2026-10-22T14:05:00Z""#));
+        assert!(json.contains(r#""status":"pending_reboot""#));
     }
 
     #[test]
