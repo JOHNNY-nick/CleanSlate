@@ -8,6 +8,7 @@ pub mod engine;
 pub mod error;
 pub mod fs;
 pub mod inventory;
+pub mod matcher;
 pub mod model;
 pub mod registry;
 pub mod safety;
