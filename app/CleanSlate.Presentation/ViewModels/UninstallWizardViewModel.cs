@@ -55,8 +55,19 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
 
     /// <summary>Error of the last step (uninstaller not found…).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasError))]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(IsUninstallerMissing), nameof(ShowGenericError))]
+    [NotifyCanExecuteChangedFor(nameof(SearchLeftoversAnywayCommand))]
     private string _errorCode = string.Empty;
+
+    /// <summary>Leftovers searched without running the uninstaller, which is missing (D45).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUninstalledBanner), nameof(ShowCommandLine), nameof(ShowCleanedLine), nameof(ShowCleanSimulatedLine))]
+    private bool _withoutUninstaller;
+
+    /// <summary>The leftover search found nothing (step 4).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowCleanedLine), nameof(ShowCleanSimulatedLine))]
+    private bool _noLeftoverFound;
 
     /// <summary>Details of the error.</summary>
     [ObservableProperty]
@@ -72,6 +83,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
 
     /// <summary>The quarantine of the leftovers was only simulated.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowCleanedLine), nameof(ShowCleanSimulatedLine))]
     private bool _cleanSimulated;
 
     /// <summary>Number of checked leftovers.</summary>
@@ -114,7 +126,23 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     public bool WasSimulated => Result is { Simulated: true };
 
     /// <summary>Leftovers were really handled (summary line of step 4).</summary>
-    public bool ShowCleanedLine => Result is { Simulated: false, StillInstalled: false };
+    public bool ShowCleanedLine => !NoLeftoverFound
+        && (WithoutUninstaller ? !CleanSimulated : Result is { Simulated: false, StillInstalled: false });
+
+    /// <summary>Leftovers found without uninstaller, quarantine only simulated (step 4).</summary>
+    public bool ShowCleanSimulatedLine => WithoutUninstaller && !NoLeftoverFound && CleanSimulated;
+
+    /// <summary>The uninstaller program is missing (design § 5): leftovers can be searched anyway.</summary>
+    public bool IsUninstallerMissing => ErrorCode == "NO_UNINSTALLER";
+
+    /// <summary>Any other error.</summary>
+    public bool ShowGenericError => HasError && !IsUninstallerMissing;
+
+    /// <summary>Step 3 banner « L'application a été désinstallée. ».</summary>
+    public bool ShowUninstalledBanner => !WithoutUninstaller;
+
+    /// <summary>The uninstaller command is shown in the summary.</summary>
+    public bool ShowCommandLine => !WithoutUninstaller;
 
     /// <summary>Starts the wizard for an application.</summary>
     public void Start(InstalledApp app, bool complete)
@@ -129,6 +157,8 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         ErrorDetails = string.Empty;
         CleanedCount = 0;
         CleanSimulated = false;
+        WithoutUninstaller = false;
+        NoLeftoverFound = false;
         ClearGroups();
         OnPropertyChanged(nameof(CanQuiet));
         OnPropertyChanged(nameof(IsSimulationMode));
@@ -162,13 +192,44 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
             ScanReport report = await _engine.ScanAppLeftoversAsync(new AppLeftoversRequest(App.App.Id), null, CancellationToken.None);
             ShowLeftovers(report);
             // No leftover: step 3 is skipped (design § 4.2).
-            Step = Groups.Count == 0 ? 4 : 3;
+            NoLeftoverFound = Groups.Count == 0;
+            Step = NoLeftoverFound ? 4 : 3;
         }
         catch (EngineException ex)
         {
             ErrorCode = ex.Code;
             ErrorDetails = ex.Message;
             Step = 1;
+        }
+    }
+
+    /// <summary>
+    /// The uninstaller is missing: looks for the leftovers anyway (design § 5). The engine
+    /// caps them at Medium, so none is prechecked (D45); the Windows entry stays.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(IsUninstallerMissing))]
+    private async Task SearchLeftoversAnywayAsync()
+    {
+        if (App is null)
+        {
+            return;
+        }
+
+        ErrorCode = string.Empty;
+        ErrorDetails = string.Empty;
+        try
+        {
+            var request = new AppLeftoversRequest(App.App.Id, UninstallerMissing: true);
+            ScanReport report = await _engine.ScanAppLeftoversAsync(request, null, CancellationToken.None);
+            WithoutUninstaller = true;
+            ShowLeftovers(report);
+            NoLeftoverFound = Groups.Count == 0;
+            Step = NoLeftoverFound ? 4 : 3;
+        }
+        catch (EngineException ex)
+        {
+            ErrorCode = ex.Code;
+            ErrorDetails = ex.Message;
         }
     }
 

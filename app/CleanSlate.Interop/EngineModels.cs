@@ -298,8 +298,12 @@ public sealed record UninstallResult(
     bool Cancelled,
     bool StillInstalled);
 
-/// <summary>Request of <c>cs_scan_app_leftovers</c>.</summary>
-public sealed record AppLeftoversRequest(string AppId);
+/// <summary>
+/// Request of <c>cs_scan_app_leftovers</c>. <see cref="UninstallerMissing"/>: the application
+/// is still listed but its uninstaller is missing; leftovers are searched anyway, at most
+/// Medium (design § 5, D45).
+/// </summary>
+public sealed record AppLeftoversRequest(string AppId, bool UninstallerMissing = false);
 
 /// <summary>System.Text.Json source generation, snake_case like the Rust side.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

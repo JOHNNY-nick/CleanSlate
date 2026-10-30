@@ -46,6 +46,7 @@ public sealed partial class MainWindow : Window
     public void ShowPage(string tag)
     {
         NavigationViewItem? item = NavView.MenuItems
+            .Concat(NavView.FooterMenuItems)
             .OfType<NavigationViewItem>()
             .FirstOrDefault(i => i.Tag as string == tag);
         if (item is not null)

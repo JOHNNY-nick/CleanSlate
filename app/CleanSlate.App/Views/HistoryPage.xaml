@@ -119,7 +119,10 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
-            <TextBlock x:Uid="HistoryEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource SecondaryTextBlockStyle}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+                <TextBlock x:Uid="HistoryEmpty" HorizontalAlignment="Center" Style="{StaticResource SecondaryTextBlockStyle}" />
+                <Button x:Uid="HistoryAnalyze" HorizontalAlignment="Center" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
         </Grid>
     </Grid>
 </Page>

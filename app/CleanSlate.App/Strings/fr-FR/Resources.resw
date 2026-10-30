@@ -495,4 +495,43 @@
   <data name="HomeNoSession.Text" xml:space="preserve">
     <value>Aucune session pour l'instant.</value>
   </data>
+  <data name="OrphansRescan.Content" xml:space="preserve">
+    <value>Relancer</value>
+  </data>
+  <data name="OrphansErrorDetails.Content" xml:space="preserve">
+    <value>Détails</value>
+  </data>
+  <data name="OrphansErrorList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Éléments ignorés</value>
+  </data>
+  <data name="OrphansGoHome.Content" xml:space="preserve">
+    <value>Retour à l'accueil</value>
+  </data>
+  <data name="OrphansSeeFiles.Content" xml:space="preserve">
+    <value>Voir les fichiers</value>
+  </data>
+  <data name="OrphansDisableSimulation.Content" xml:space="preserve">
+    <value>Désactiver la simulation</value>
+  </data>
+  <data name="HistoryAnalyze.Content" xml:space="preserve">
+    <value>Analyser les restes</value>
+  </data>
+  <data name="WizardNoUninstaller.Title" xml:space="preserve">
+    <value>Le programme de désinstallation de cette application est introuvable.</value>
+  </data>
+  <data name="WizardNoUninstaller.Message" xml:space="preserve">
+    <value>CleanSlate peut rechercher ses restes quand même ; aucun ne sera coché d'avance.</value>
+  </data>
+  <data name="WizardSearchAnyway.Content" xml:space="preserve">
+    <value>Rechercher ses restes quand même</value>
+  </data>
+  <data name="WizardLeftoversUnchecked.Title" xml:space="preserve">
+    <value>Désinstalleur introuvable : aucun reste n'est coché d'avance. Vérifiez chaque élément avant de le cocher.</value>
+  </data>
+  <data name="WizardEntryKept.Text" xml:space="preserve">
+    <value>Le désinstalleur étant introuvable, l'application reste affichée dans la liste de Windows.</value>
+  </data>
+  <data name="WizardNoLeftover.Text" xml:space="preserve">
+    <value>Aucun reste trouvé.</value>
+  </data>
 </root>

@@ -86,13 +86,15 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly IEngineService _engine;
     private readonly IDialogService _dialogs;
     private readonly ISettingsService _settings;
+    private readonly INavigationService _navigation;
 
     /// <summary>Creates the ViewModel.</summary>
-    public HistoryViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings)
+    public HistoryViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings, INavigationService navigation)
     {
         _engine = engine;
         _dialogs = dialogs;
         _settings = settings;
+        _navigation = navigation;
     }
 
     /// <summary>Sessions, most recent first.</summary>
@@ -100,6 +102,10 @@ public sealed partial class HistoryViewModel : ObservableObject
 
     /// <summary>No session yet (design § 5: « Aucune session pour l'instant. »).</summary>
     public bool IsEmpty => !IsLoading && Sessions.Count == 0;
+
+    /// <summary>Empty History: opens the Orphans page and starts a scan (design § 5).</summary>
+    [RelayCommand]
+    private void AnalyzeLeftovers() => _navigation.OpenOrphans(startScan: true);
 
     /// <summary>True while loading.</summary>
     [ObservableProperty]

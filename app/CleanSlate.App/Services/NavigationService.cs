@@ -22,6 +22,12 @@ public sealed class NavigationService : INavigationService
     public void OpenHistory() => Window.ShowPage("History");
 
     /// <inheritdoc/>
+    public void OpenHome() => Window.ShowPage("Home");
+
+    /// <inheritdoc/>
+    public void OpenSettings() => Window.ShowPage("Settings");
+
+    /// <inheritdoc/>
     public void OpenOrphans(bool startScan)
     {
         Window.ShowPage("Orphans");

@@ -16,13 +16,15 @@ public sealed partial class OrphansViewModel : ObservableObject
     private readonly IEngineService _engine;
     private readonly IDialogService _dialogs;
     private readonly ISettingsService _settings;
+    private readonly INavigationService _navigation;
 
     /// <summary>Creates the ViewModel.</summary>
-    public OrphansViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings)
+    public OrphansViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings, INavigationService navigation)
     {
         _engine = engine;
         _dialogs = dialogs;
         _settings = settings;
+        _navigation = navigation;
     }
 
     /// <summary>Result of the last quarantine is shown.</summary>
@@ -110,6 +112,13 @@ public sealed partial class OrphansViewModel : ObservableObject
 
     /// <summary>Some items could not be read; they were ignored (ENF-09).</summary>
     public bool HasItemErrors => ErrorCount > 0;
+
+    /// <summary>Paths (or messages) of the items that could not be read, shown by « Détails ».</summary>
+    public ObservableCollection<string> ItemErrors { get; } = [];
+
+    /// <summary>The list of ignored items is shown (design § 5, « Détails »).</summary>
+    [ObservableProperty]
+    private bool _showItemErrors;
 
     /// <summary>True when the engine failed.</summary>
     [ObservableProperty]
@@ -239,6 +248,22 @@ public sealed partial class OrphansViewModel : ObservableObject
 
     private bool HasSelection() => SelectedCount > 0;
 
+    /// <summary>Nothing to clean: back to Home (design § 5).</summary>
+    [RelayCommand]
+    private void GoHome() => _navigation.OpenHome();
+
+    /// <summary>Locked items: their session is in History (design § 5, « Voir les fichiers »).</summary>
+    [RelayCommand]
+    private void OpenHistory() => _navigation.OpenHistory();
+
+    /// <summary>Simulation result: the switch is in Settings (design § 5).</summary>
+    [RelayCommand]
+    private void OpenSettings() => _navigation.OpenSettings();
+
+    /// <summary>Shows or hides the ignored items (design § 5, « Détails »).</summary>
+    [RelayCommand]
+    private void ToggleItemErrors() => ShowItemErrors = !ShowItemErrors;
+
     private void ShowCleanOutcome(Session session)
     {
         if (session.Simulated)
@@ -312,6 +337,13 @@ public sealed partial class OrphansViewModel : ObservableObject
         HasScanned = true;
         WasCancelled = report.Cancelled;
         ErrorCount = report.Errors.Count;
+        ItemErrors.Clear();
+        foreach (ItemError error in report.Errors)
+        {
+            ItemErrors.Add(error.Path is null ? error.Message : $"{error.Path} : {error.Message}");
+        }
+
+        ShowItemErrors = false;
         ScanDateText = Formats.Date(DateOnly.FromDateTime(DateTime.Now));
         DurationSeconds = (long)Math.Round(report.DurationMs / 1000.0);
         TotalText = Formats.Size(report.Groups.Aggregate(0UL, (sum, g) => sum + g.TotalBytes));

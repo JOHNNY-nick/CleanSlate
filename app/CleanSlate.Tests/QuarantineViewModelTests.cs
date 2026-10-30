@@ -26,7 +26,7 @@ public sealed class QuarantineViewModelTests
         var engine = Substitute.For<IEngineService>();
         engine.ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(Report());
-        var vm = new OrphansViewModel(engine, dialogs, settings);
+        var vm = new OrphansViewModel(engine, dialogs, settings, Substitute.For<INavigationService>());
         await vm.ScanCommand.ExecuteAsync(null);
         return (vm, engine);
     }
@@ -99,7 +99,7 @@ public sealed class QuarantineViewModelTests
         engine.RestoreAsync(Arg.Any<RestoreRequest>(), Arg.Any<CancellationToken>())
             .Returns(session with { Items = [Moved(High, QuarantineStatus.Restored), Moved(Key, QuarantineStatus.Quarantined)] });
         engine.PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>()).Returns(new PurgeResult(2048, false));
-        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: false));
+        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: false), Substitute.For<INavigationService>());
 
         await vm.LoadCommand.ExecuteAsync(null);
         Assert.False(vm.IsEmpty);
@@ -125,13 +125,28 @@ public sealed class QuarantineViewModelTests
         Session session = SessionOf(false, Moved(High, QuarantineStatus.Quarantined));
         engine.ListSessionsAsync(Arg.Any<CancellationToken>()).Returns([session]);
         engine.RestoreAsync(Arg.Any<RestoreRequest>(), Arg.Any<CancellationToken>()).Returns(session with { Simulated = true });
-        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: true));
+        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: true), Substitute.For<INavigationService>());
         await vm.LoadCommand.ExecuteAsync(null);
 
         await vm.RestoreCommand.ExecuteAsync(vm.Sessions[0]);
 
         await engine.Received(1).RestoreAsync(Arg.Is<RestoreRequest>(r => r.DryRun && r.ItemIds == null), Arg.Any<CancellationToken>());
         Assert.True(vm.LastWasSimulated);
+    }
+
+    [Fact]
+    public async Task EmptyHistory_OffersToAnalyzeLeftovers()
+    {
+        var engine = Substitute.For<IEngineService>();
+        engine.ListSessionsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<Session>());
+        var navigation = Substitute.For<INavigationService>();
+        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(), navigation);
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsEmpty);
+        vm.AnalyzeLeftoversCommand.Execute(null);
+
+        navigation.Received(1).OpenOrphans(true);
     }
 
     [Fact]

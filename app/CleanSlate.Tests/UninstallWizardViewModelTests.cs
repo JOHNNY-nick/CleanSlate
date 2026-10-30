@@ -127,5 +127,77 @@ public sealed class UninstallWizardViewModelTests
         Assert.True(vm.IsStep1);
         Assert.Equal("NO_UNINSTALLER", vm.ErrorCode);
         Assert.True(vm.HasError);
+        Assert.True(vm.IsUninstallerMissing);
+        Assert.False(vm.ShowGenericError);
+        Assert.True(vm.SearchLeftoversAnywayCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task MissingUninstaller_SearchesLeftoversAnyway_NothingPrechecked()
+    {
+        var (vm, engine, _) = Create();
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<UninstallResult>>(_ => throw new EngineException("NO_UNINSTALLER", "missing"));
+        // The engine caps these leftovers at Medium (D45).
+        Leftover medium = Folder with { Confidence = Confidence.Medium };
+        engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanReport([new LeftoverGroup("GIMP 2.10.38", "The GIMP Team", [medium], 5_000)], [], 10, false));
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(new Session(
+            Guid.NewGuid(), DateTimeOffset.Now, Origin.ForApp("g1"), [], 0, [], SessionStatus.Completed, true));
+        vm.Start(Gimp, complete: true);
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        await vm.SearchLeftoversAnywayCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsStep3);
+        Assert.False(vm.HasError);
+        Assert.True(vm.WithoutUninstaller);
+        Assert.False(vm.ShowUninstalledBanner);
+        Assert.Equal(0, vm.SelectedCount);
+        await engine.Received(1).ScanAppLeftoversAsync(
+            Arg.Is<AppLeftoversRequest>(r => r.AppId == "g1" && r.UninstallerMissing),
+            Arg.Any<IProgress<ScanProgress>?>(),
+            Arg.Any<CancellationToken>());
+
+        vm.Groups[0].Items[0].IsChecked = true;
+        await vm.QuarantineCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsStep4);
+        Assert.False(vm.ShowCommandLine);
+        Assert.True(vm.ShowCleanSimulatedLine);
+        Assert.False(vm.ShowCleanedLine);
+    }
+
+    [Fact]
+    public async Task MissingUninstaller_NoLeftover_GoesToTheSummary()
+    {
+        var (vm, engine, _) = Create();
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<UninstallResult>>(_ => throw new EngineException("NO_UNINSTALLER", "missing"));
+        engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanReport([], [], 10, false));
+        vm.Start(Gimp, complete: true);
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        await vm.SearchLeftoversAnywayCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsStep4);
+        Assert.True(vm.NoLeftoverFound);
+        Assert.False(vm.ShowCleanedLine);
+    }
+
+    [Fact]
+    public async Task OtherErrors_CannotSearchAnyway()
+    {
+        var (vm, engine, _) = Create();
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<UninstallResult>>(_ => throw new EngineException("UNSAFE_UNINSTALLER", "shell"));
+        vm.Start(Gimp, complete: true);
+
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(vm.ShowGenericError);
+        Assert.False(vm.IsUninstallerMissing);
+        Assert.False(vm.SearchLeftoversAnywayCommand.CanExecute(null));
     }
 }

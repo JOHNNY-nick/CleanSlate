@@ -15,6 +15,12 @@ public interface INavigationService
     /// <summary>Opens the History page.</summary>
     void OpenHistory();
 
+    /// <summary>Opens the Home page.</summary>
+    void OpenHome();
+
+    /// <summary>Opens the Settings page (simulation switch, design § 5).</summary>
+    void OpenSettings();
+
     /// <summary>Opens the Orphans page, and starts a scan if asked.</summary>
     void OpenOrphans(bool startScan);
 }

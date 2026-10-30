@@ -40,8 +40,8 @@ public sealed class OrphansViewModelTests
         return dialogs;
     }
 
-    private static OrphansViewModel Create(IEngineService engine, IDialogService? dialogs = null, ISettingsService? settings = null) =>
-        new(engine, dialogs ?? Dialogs(), settings ?? Settings());
+    private static OrphansViewModel Create(IEngineService engine, IDialogService? dialogs = null, ISettingsService? settings = null, INavigationService? navigation = null) =>
+        new(engine, dialogs ?? Dialogs(), settings ?? Settings(), navigation ?? Substitute.For<INavigationService>());
 
     private static async Task<OrphansViewModel> ScannedAsync(ScanReport report)
     {
@@ -168,5 +168,35 @@ public sealed class OrphansViewModelTests
             Arg.Is<ScanOptions>(o => o.DryRun),
             Arg.Any<IProgress<ScanProgress>?>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StateActions_NavigateAndListIgnoredItems()
+    {
+        var engine = Substitute.For<IEngineService>();
+        engine.ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(Report(cancelled: true, errors: 2));
+        var navigation = Substitute.For<INavigationService>();
+        var vm = Create(engine, navigation: navigation);
+        await vm.ScanCommand.ExecuteAsync(null);
+
+        // « Détails »: the ignored items, hidden until asked.
+        Assert.Equal([@"C:\0 : denied", @"C:\1 : denied"], vm.ItemErrors);
+        Assert.False(vm.ShowItemErrors);
+        vm.ToggleItemErrorsCommand.Execute(null);
+        Assert.True(vm.ShowItemErrors);
+
+        // « Retour à l'accueil », « Voir les fichiers », « Désactiver la simulation ».
+        vm.GoHomeCommand.Execute(null);
+        vm.OpenHistoryCommand.Execute(null);
+        vm.OpenSettingsCommand.Execute(null);
+        navigation.Received(1).OpenHome();
+        navigation.Received(1).OpenHistory();
+        navigation.Received(1).OpenSettings();
+
+        // « Relancer »: a new scan, details closed again.
+        await vm.ScanCommand.ExecuteAsync(null);
+        await engine.Received(2).ScanOrphansAsync(Arg.Any<ScanOptions>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>());
+        Assert.False(vm.ShowItemErrors);
     }
 }
