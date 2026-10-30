@@ -1,16 +1,14 @@
 {
   "permissions": {
     "deny": [
-      "Bash(*cleanslate-cli* sandbox*)",
-      "Bash(*cleanslate-cli* quarantine*)",
-      "Bash(*cleanslate-cli* restore*)",
-      "Bash(*cleanslate-cli* uninstall*)",
-      "Bash(*cleanslate-cli-sandbox*)",
-      "PowerShell(*cleanslate-cli* sandbox*)",
-      "PowerShell(*cleanslate-cli* quarantine*)",
-      "PowerShell(*cleanslate-cli* restore*)",
-      "PowerShell(*cleanslate-cli* uninstall*)",
-      "PowerShell(*cleanslate-cli-sandbox*)"
+      "Bash(*cleanslate-cli.exe sandbox*)",
+      "Bash(*cleanslate-cli.exe\" sandbox*)",
+      "Bash(*cleanslate-cli-sandbox.exe *)",
+      "Bash(*-p cleanslate-cli -- sandbox*)",
+      "PowerShell(*cleanslate-cli.exe sandbox*)",
+      "PowerShell(*cleanslate-cli.exe\" sandbox*)",
+      "PowerShell(*cleanslate-cli-sandbox.exe *)",
+      "PowerShell(*-p cleanslate-cli -- sandbox*)"
     ]
   },
   "hooks": {
