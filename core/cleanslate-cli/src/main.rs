@@ -1,6 +1,10 @@
 //! Debug command-line front-end for the CleanSlate engine.
 //!
-//! Every command is read-only: nothing is ever moved or deleted from here.
+//! Every command is read-only: nothing is ever moved or deleted from here,
+//! except the `sandbox` commands, which refuse to run outside Windows
+//! Sandbox (D50).
+
+mod sandbox;
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -17,6 +21,9 @@ Commands:
                             --all also shows system components and updates
   scan --dry-run [--json]   Look for orphan leftovers (read-only simulation,
                             EF-05 to EF-11); --dry-run is mandatory
+  sandbox quarantine <text> | restore <session-id> | uninstall <name>
+                            Acceptance tests: real actions, refused outside
+                            Windows Sandbox (WDAGUtilityAccount)
   help                      Print this help";
 
 fn main() -> ExitCode {
@@ -45,6 +52,15 @@ fn main() -> ExitCode {
                 return ExitCode::from(2);
             }
             scan(flag("--json"))
+        }
+        Some("sandbox") => {
+            let rest: Vec<String> = args
+                .iter()
+                .skip_while(|a| a.as_str() != "sandbox")
+                .skip(1)
+                .cloned()
+                .collect();
+            sandbox::run(&rest)
         }
         Some("help") | None => {
             println!("{USAGE}");

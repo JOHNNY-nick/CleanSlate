@@ -18,7 +18,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Apps', 'Installer')]
+    [ValidateSet('Apps', 'Installer', 'Complements')]
     [string] $Scenario = 'Apps',
     # Applications of the scenario (tests-acceptation.md § 4.1); the last one is kept installed.
     [string[]] $Packages = @('VideoLAN.VLC', '7zip.7zip', 'Notepad++.Notepad++', 'Audacity.Audacity', 'GIMP.GIMP.3', 'Mozilla.Firefox'),
@@ -56,9 +56,15 @@ if ($Scenario -eq 'Apps') {
         if ($LASTEXITCODE -ne 0) { throw "winget download $id failed ($LASTEXITCODE)" }
     }
 }
-elseif (-not (Get-ChildItem $setup -Filter 'CleanSlate-*-setup.exe' -ErrorAction SilentlyContinue)) {
+elseif ($Scenario -eq 'Installer' -and -not (Get-ChildItem $setup -Filter 'CleanSlate-*-setup.exe' -ErrorAction SilentlyContinue)) {
     throw "No installer in $setup : run scripts/package.ps1 first."
 }
+
+# Complements (§ 6): makeappx and signtool of the Windows SDK build and sign the test
+# MSIX inside the Sandbox; their folder is shared read-only, nothing is signed here.
+$sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1 | ForEach-Object DirectoryName
+if ($Scenario -eq 'Complements' -and -not $sdk) { throw 'makeappx.exe not found: install the Windows SDK.' }
 
 function Mapped([string] $host_, [string] $inside, [bool] $readOnly) {
     "    <MappedFolder><HostFolder>$host_</HostFolder><SandboxFolder>$inside</SandboxFolder><ReadOnly>$($readOnly.ToString().ToLower())</ReadOnly></MappedFolder>"
@@ -69,9 +75,12 @@ $folders = @(
     (Mapped $tools 'C:\CleanSlate\tools' $true),
     (Mapped $results 'C:\CleanSlate\results' $false)
 )
-if ($Scenario -eq 'Apps') { $folders += Mapped $installers 'C:\CleanSlate\installers' $true }
-else { $folders += Mapped $setup 'C:\CleanSlate\setup' $true }
-$script = if ($Scenario -eq 'Apps') { 'inside-apps.ps1' } else { 'inside-installer.ps1' }
+switch ($Scenario) {
+    'Apps' { $folders += Mapped $installers 'C:\CleanSlate\installers' $true }
+    'Installer' { $folders += Mapped $setup 'C:\CleanSlate\setup' $true }
+    'Complements' { $folders += Mapped $sdk 'C:\CleanSlate\sdk' $true }
+}
+$script = @{ Apps = 'inside-apps.ps1'; Installer = 'inside-installer.ps1'; Complements = 'inside-complements.ps1' }[$Scenario]
 $wsb = Join-Path $out "CleanSlate-$Scenario.wsb"
 @"
 <Configuration>

@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 cleanslate-core.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [lints]
