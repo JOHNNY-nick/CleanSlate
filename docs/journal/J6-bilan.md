@@ -19,7 +19,9 @@ Corrections en cours de jalon :
 - **Blocage au démarrage** : `MainWindow` → `HomePage` → `HomeViewModel` → `NavigationService` → `MainWindow` formait un cycle d'injection ; le conteneur attendait indéfiniment. `NavigationService` et `DialogService` résolvent maintenant la fenêtre au moment de l'utiliser.
 - **Publication** : `dotnet publish` oubliait les `.xbf` et `CleanSlate.App.pri` d'une application WinUI non packagée ; l'application plantait dans `Microsoft.UI.Xaml.dll` (0xC000027B). La cible `PublishXamlResources` les copie (D41).
 
-Chiffres : 165 tests du moteur + 14 FFI, 62 tests C# ; couverture du moteur **92,8 %** ; `cargo fmt` et `cargo clippy -D warnings` propres ; build Release réussi ; installeur `artifacts\installer\CleanSlate-0.1.0-setup.exe` (58,8 Mo). La zone de test `HKCU\Software\CleanSlateTest` est vide après les tests.
+Complément du 30 oct. : actions de tous les états du design § 5 (« Retour à l'accueil », « Relancer », « Voir les fichiers », « Détails », « Désactiver la simulation », « Analyser les restes ») et « Désinstalleur introuvable » → « Rechercher ses restes quand même », avec restes plafonnés à « Moyenne » par le moteur (D45). Voir la [revue finale](revue-finale.md).
+
+Chiffres : 166 tests du moteur + 14 FFI, 67 tests C# ; couverture du moteur **92,9 %** ; `cargo fmt` et `cargo clippy -D warnings` propres ; build Release réussi ; installeur `artifacts\installer\CleanSlate-0.1.0-setup.exe` (58,8 Mo). La zone de test `HKCU\Software\CleanSlateTest` est vide après les tests.
 
 **Aucune opération destructive sur la machine du porteur** : toutes les vérifications de l'application ont été faites en mode simulation, et l'installeur n'a pas été exécuté ici (il installe dans `Program Files`) ; procédure dans Windows Sandbox.
 

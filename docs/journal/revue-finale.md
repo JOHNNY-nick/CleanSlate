@@ -4,7 +4,7 @@ Dernière mise à jour : 30 oct. 2026
 
 Chaque exigence du [cahier des charges](../cahier-des-charges.md) avec les fichiers qui la réalisent et les tests qui la vérifient. Les tests Rust sont dans le même fichier que le code (`core/cleanslate-core/src/`), les tests C# dans `app/CleanSlate.Tests/`. « Sandbox » renvoie aux procédures manuelles de [tests-acceptation.md](../tests-acceptation.md).
 
-État au 30 oct. 2026 : 165 tests du moteur, 14 tests FFI, 62 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **92,8 %** (ENF-12 : ≥ 80 %) ; build Release et installeur produits.
+État au 30 oct. 2026 : 166 tests du moteur, 14 tests FFI, 67 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **92,9 %** des lignes (ENF-12 : ≥ 80 %) ; build Release et installeur produits.
 
 Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ reporté.
 
@@ -24,7 +24,7 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | EF-10 Confiance, seuls les « Élevée » précochés | M | ✅ | `matcher.rs`, `OrphansViewModel.cs` | `old_unrelated_folder_is_high`, `recent_or_generic_or_portable_is_lower`, `items_under_an_installed_publisher_are_at_most_medium` (D23), `personal_folders_are_never_high` ; `Scan_PrechecksOnlyHighConfidence` |
 | EF-11 Progression et annulation | M | ✅ | `scan.rs` (`Reporter`), `cs_cancel`, `EngineService.cs` | `reporter_throttles_to_250_ms`, `cancelled_scan_returns_partial_flagged_report`, `scan_orphans_with_progress` ; `CancelledScan_KeepsPartialResults` |
 | EF-12 Désinstalleur officiel, attente de fin | M | ✅ | `uninstall.rs`, `engine.rs::uninstall`, `UninstallWizardViewModel.cs` | `split_real_uninstall_strings`, `shells_and_empty_strings_are_refused`, `job_runner_waits_for_a_real_process`, `uninstall_simulated_then_real_then_leftovers` ; Sandbox § 3 |
-| EF-13 Restes de l'application après désinstallation | M | ✅ | `scan.rs::scan_app_leftovers` | `leftovers_of_a_just_uninstalled_app` ; `CancelledUninstaller_SkipsLeftovers`, `NoLeftover_SkipsStepThree` |
+| EF-13 Restes de l'application après désinstallation | M | ✅ | `scan.rs::scan_app_leftovers` | `leftovers_of_a_just_uninstalled_app`, `missing_uninstaller_leftovers_are_searched_but_never_high` (D45) ; `CancelledUninstaller_SkipsLeftovers`, `NoLeftover_SkipsStepThree`, `MissingUninstaller_SearchesLeftoversAnyway_NothingPrechecked` |
 | EF-14 Mode silencieux | S | ✅ | `uninstall.rs::build_command` | `build_command_for_msi_quiet_and_missing` ; `ClassicUninstall_StopsAfterTheUninstaller_AndQuietIsSent` |
 | EF-15 Point de restauration | S | ✅ | `uninstall.rs::SystemRestorePoints` | `uninstall_simulated_then_real_then_leftovers` (échec simulé, non bloquant) ; vrai point de restauration : Sandbox § 3 seulement |
 | EF-16 Récapitulatif et confirmation explicite | M | ✅ | `DialogService.cs`, `OrphansViewModel.cs` | `Quarantine_AlwaysAsksForConfirmation_AndStopsWhenCancelled`, `Quarantine_AboveCeiling_AsksForTheWord`, `ceiling_requires_the_confirmation_word` |
@@ -48,7 +48,21 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | ENF-09 Une erreur n'arrête pas la session | ✅ | `scan.rs` (`Errors`), `quarantine.rs` | `protected_and_linked_items_are_refused_and_left_in_place` (session « Partielle ») |
 | ENF-10 Journal local, rotation quotidienne, 7 fichiers | ✅ | `logging.rs`, `engine.rs::with_system` | `daily_files_in_the_given_folder` |
 | ENF-11 Aucun envoi sur Internet | ✅ | `core/Cargo.toml`, `*.csproj` | Revue des dépendances : aucune crate ni paquet réseau ; aucune télémétrie |
-| ENF-12 Couverture ≥ 80 %, clippy, MVVM | ✅ | `.github/workflows/ci.yml` | `cargo llvm-cov` : 92,8 % ; clippy `-D warnings` ; ViewModels dans `CleanSlate.Presentation`, vues sans logique métier |
+| ENF-12 Couverture ≥ 80 %, clippy, MVVM | ✅ | `.github/workflows/ci.yml` | `cargo llvm-cov` : 92,9 % ; clippy `-D warnings` ; ViewModels dans `CleanSlate.Presentation`, vues sans logique métier |
+
+## États de l'interface (design § 5)
+
+| Situation | Action | Fichiers | Tests |
+| --- | --- | --- | --- |
+| Aucun reste trouvé | « Retour à l'accueil » | `OrphansPage.xaml`, `OrphansViewModel.cs` (`GoHome`) | `StateActions_NavigateAndListIgnoredItems` |
+| Analyse annulée | « Relancer » | `OrphansPage.xaml` (`ScanCommand`) | `StateActions_NavigateAndListIgnoredItems`, `CancelledScan_KeepsPartialResults` |
+| Fichier verrouillé | « Voir les fichiers » (Historique) | `OrphansViewModel.cs` (`OpenHistory`) | `StateActions_NavigateAndListIgnoredItems` |
+| Accès refusé | « Détails » : liste des éléments ignorés | `OrphansViewModel.cs` (`ItemErrors`, `ToggleItemErrors`) | `StateActions_NavigateAndListIgnoredItems` |
+| Mode simulation | « Désactiver la simulation » (Réglages) | `OrphansViewModel.cs` (`OpenSettings`), `NavigationService.cs`, `MainWindow.xaml.cs` (`FooterMenuItems`) | `StateActions_NavigateAndListIgnoredItems` |
+| Historique vide | « Analyser les restes » | `HistoryViewModel.cs` (`AnalyzeLeftovers`), `HistoryPage.xaml` | `EmptyHistory_OffersToAnalyzeLeftovers` |
+| Lancé sans droits admin | « Redémarrer en administrateur » | `HomeViewModel.cs`, `App.xaml.cs` | `NotElevated_ShowsTheElevationWarning` |
+| Désinstalleur introuvable | « Rechercher ses restes quand même » (D45) | `UninstallWizardViewModel.cs` (`SearchLeftoversAnyway`), `engine.rs::scan_app_leftovers` | `MissingUninstaller_*`, `OtherErrors_CannotSearchAnyway`, `missing_uninstaller_leftovers_are_searched_but_never_high` |
+| Confirmation renforcée | mot « QUARANTAINE » | `DialogService.cs` | `Quarantine_AboveCeiling_AsksForTheWord` |
 
 ## Points ouverts
 

@@ -151,7 +151,7 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_list_sessions(engine)` | — | `Session[]` (sessions interrompues reprises au passage) | J4 ✔ |
 | `cs_purge_quarantine(engine, req, len)` | `PurgeRequest { older_than_days, dry_run }` | `PurgeResult { freed_bytes, simulated }` | J4 ✔ |
 | `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest { app_id, quiet, create_restore_point, dry_run }` | `UninstallResult` (commande, point de restauration, code de sortie, `still_installed`, `simulated`) ; `cs_cancel` arrête l'attente sans tuer le désinstalleur | J5 ✔ |
-| `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `AppLeftoversRequest { app_id }` | `ScanReport` (vide si l'application est toujours installée) | J5 ✔ |
+| `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `AppLeftoversRequest { app_id, uninstaller_missing }` | `ScanReport` (vide si l'application est toujours installée ; avec `uninstaller_missing`, restes cherchés quand même et plafonnés à « Moyenne », refusé si le désinstalleur existe, D45) | J5 ✔ |
 
 Toutes les requêtes portent `dry_run`, vrai par défaut : une action réelle exige `EngineConfig.dry_run = false` **et** `dry_run = false` dans la requête (D27).
 
@@ -230,7 +230,7 @@ pub struct UninstallResult {
     pub restore_point_created: bool, pub restore_point_error: Option<String>,
     pub exit_code: Option<u32>, pub timed_out: bool, pub cancelled: bool, pub still_installed: bool,
 }
-pub struct AppLeftoversRequest { pub app_id: String }
+pub struct AppLeftoversRequest { pub app_id: String, #[serde(default)] pub uninstaller_missing: bool }
 
 pub struct Session {
     pub id: Uuid, pub created_at: DateTime<Utc>, pub origin: Origin,
