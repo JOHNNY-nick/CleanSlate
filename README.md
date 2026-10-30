@@ -126,7 +126,13 @@ Les tests n'écrivent que dans des dossiers temporaires et sous
 `HKCU\Software\CleanSlateTest\<uuid>`, supprimée à la fin de chaque test.
 Les essais réels (quarantaine, désinstallation, scénario des 5 applications,
 installeur) se font uniquement dans Windows Sandbox :
-[docs/tests-acceptation.md](docs/tests-acceptation.md).
+[docs/tests-acceptation.md](docs/tests-acceptation.md). Le scénario des
+5 applications se lance seul et écrit son rapport dans `artifacts\sandbox\results` :
+
+```powershell
+pwsh scripts/sandbox/prepare.ps1 -Launch                      # scénario des 5 applications
+pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch  # installeur
+```
 
 ## Lancer
 
@@ -196,7 +202,7 @@ docs/                     cahier des charges, spécifications, design, maquettes
 | [`docs/prompt-claude-code.md`](docs/prompt-claude-code.md) | Mode d'emploi avec Claude Code et prompts des jalons J1 à J6 |
 | [`docs/decisions.md`](docs/decisions.md) | Décisions prises en cours de projet (D01 à D44) |
 | [`docs/journal/`](docs/journal/) | Plan et bilan de chaque jalon, revue finale |
-| [`docs/tests-acceptation.md`](docs/tests-acceptation.md) | Procédures manuelles dans Windows Sandbox |
+| [`docs/tests-acceptation.md`](docs/tests-acceptation.md) | Procédures dans Windows Sandbox (automatiques avec `scripts/sandbox/`) |
 | [`CLAUDE.md`](CLAUDE.md) | Consignes permanentes pour Claude Code (règles de sécurité, conventions) |
 
 ## Licence
