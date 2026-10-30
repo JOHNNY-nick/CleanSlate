@@ -13,7 +13,9 @@
     6. R = reference entries still present; scan with cleanslate-cli (read-only);
     7. writes rapport.md and rapport.html: T / R and the prechecked (High) items that are wrong.
     Every step is timestamped, with an inventory of the system before and after it and a
-    diff file. Criterion 4 (identical restore) stays manual, in the app copied to the Desktop.
+    diff file. Criterion 4 (D58): each real leftover found is quarantined by CleanSlate (sandbox
+    CLI), restored and compared with its state before; the same steps in the interface stay
+    optional (tests-acceptation.md § 4.2).
     Refuses to run outside the Sandbox prepared by prepare.ps1 (common.ps1, Assert-Sandbox).
 #>
 $ErrorActionPreference = 'Continue'
@@ -28,13 +30,14 @@ $prepared = Get-Content "$Repo\artifacts\sandbox\run\prepare.json" -Raw -Encodin
 
 # Applications of the scenario: name in the Uninstall keys, main program, data names (§ 4.1.3).
 $apps = @(
-    @{ Name = 'VLC'; Pattern = 'VLC'; Main = 'VideoLAN\VLC\vlc.exe'; Wait = 25 },
-    @{ Name = '7-Zip'; Pattern = '7-Zip'; Main = '7-Zip\7zFM.exe'; Wait = 15 },
-    @{ Name = 'Notepad++'; Pattern = 'Notepad\+\+'; Main = 'Notepad++\notepad++.exe'; Wait = 15 },
-    @{ Name = 'Audacity'; Pattern = 'Audacity'; Main = 'Audacity*\Audacity.exe'; Wait = 30 },
-    @{ Name = 'GIMP'; Pattern = 'GIMP'; Main = 'GIMP*\bin\gimp-[0-9]*.exe'; Wait = 90 }
+    @{ Name = 'VLC'; Pattern = 'VLC'; Folder = 'VideoLAN'; Exe = 'vlc.exe'; Wait = 25 },
+    @{ Name = '7-Zip'; Pattern = '7-Zip'; Folder = '7-Zip'; Exe = '7zFM.exe'; Wait = 15 },
+    @{ Name = 'Notepad++'; Pattern = 'Notepad\+\+'; Folder = 'Notepad++'; Exe = 'notepad++.exe'; Wait = 15 },
+    # Audacity 4 keeps its program in bin\ (step 12 of 30 Oct. 2026, D58).
+    @{ Name = 'Audacity'; Pattern = 'Audacity'; Folder = 'Audacity*'; Exe = 'Audacity.exe'; Wait = 30 },
+    @{ Name = 'GIMP'; Pattern = 'GIMP'; Folder = 'GIMP*'; Exe = 'gimp-[0-9]*.exe'; Wait = 90 }
 )
-$witness = @{ Name = 'Firefox'; Main = 'Mozilla Firefox\firefox.exe'; Wait = 25 }
+$witness = @{ Name = 'Firefox'; Folder = 'Mozilla Firefox'; Exe = 'firefox.exe'; Wait = 25 }
 $dataNames = 'vlc', 'VideoLAN', '7-Zip', 'Notepad++', 'Audacity', 'GIMP'
 
 # Start-Process refuses an empty argument list.
@@ -96,19 +99,21 @@ foreach ($i in $script:installers) {
 
 # 4. One start each, so that the applications write their data, then a normal close.
 $programRoots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs"
+$startMenus = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+$launchSteps = @()
 foreach ($a in $apps + $witness) {
     Invoke-Step "Premier lancement de $($a.Name)" {
-        $exe = $programRoots | ForEach-Object { Get-ChildItem (Join-Path $_ $a.Main) -ErrorAction SilentlyContinue } |
-            Where-Object Name -NotMatch 'console' | Select-Object -First 1
+        $exe = Find-MainProgram $programRoots $a.Folder $a.Exe $a.Name $startMenus
         if (-not $exe) { throw "$($a.Name) : programme introuvable" }
-        Write-Host "$($exe.FullName) ($($a.Wait) s)"
-        Start-Process $exe.FullName | Out-Null
+        Write-Host "$exe ($($a.Wait) s)"
+        Start-Process $exe | Out-Null
         Start-Sleep -Seconds $a.Wait
-        $name = [IO.Path]::GetFileNameWithoutExtension($exe.Name)
+        $name = [IO.Path]::GetFileNameWithoutExtension($exe)
         Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null }
         Start-Sleep -Seconds 5
         Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force
     }
+    $launchSteps += $Run.Steps[-1]
 }
 
 # 5. Reference: top-level folders and keys of each application (§ 4.1.3).
@@ -203,18 +208,66 @@ $wrong = @($high | Where-Object {
     })
 
 $ratio = if ($remaining.Count) { [math]::Round(100.0 * $found.Count / $remaining.Count, 1) } else { 100 }
+# An application never started wrote no data: the measure is incomplete, not « atteint ».
+$notStarted = @($launchSteps | Where-Object Failure | ForEach-Object { $_.Name -replace '^Premier lancement de ', '' })
+$criterion2 = if ($notStarted.Count) { 'script' } elseif ($ratio -ge 90) { 'ok' } else { 'ko' }
+$measure2 = "T / R = $($found.Count) / $($remaining.Count) ($ratio %)" + $(if ($notStarted.Count) { " ; mesure incomplète : $($notStarted -join ', ') jamais lancé(s)" } else { '' })
+
+# Criterion 4 (D58): each real leftover found is quarantined by CleanSlate (sandbox CLI, on
+# the item it proposed), checked gone, restored, and compared with its state before: files
+# by path, size, date and SHA-256; keys by their .reg export, values sorted.
+$restoreChecks = @()
+foreach ($r in $found) {
+    $nr = Normalize $r
+    $item = $items | Where-Object { $ni = Normalize $_.location; $nr -eq $ni -or $nr.StartsWith("$ni\") } | Select-Object -First 1
+    $location = [string]$item.location
+    $isKey = $location -match '^HK'
+    $state = if ($isKey) { { RegState $location } } else { { FileState $location } }
+    $ctx = @{ Before = (& $state); Session = $null; Gone = $false; After = $null }
+    Invoke-Step "Critère 4 : mise en quarantaine de $location" {
+        $ctx.Session = Invoke-CleanSlateCli $SandboxCli @('sandbox', 'quarantine', $location)
+        Start-Sleep -Seconds 1
+        $ctx.Gone = if ($isKey) { -not (Test-Path "Registry::$location") } else { -not (Test-Path -LiteralPath $location) }
+        Write-Host "retiré : $($ctx.Gone)"
+    }
+    $qStep = $Run.Steps[-1]; $rStep = $null
+    if ($ctx.Session) {
+        Invoke-Step "Critère 4 : restauration de $location" {
+            $restored = Invoke-CleanSlateCli $SandboxCli @('sandbox', 'restore', $ctx.Session.id)
+            if ($restored -and $restored.errors.Count) { Write-Warning ($restored.errors | ConvertTo-Json -Compress) }
+            Start-Sleep -Seconds 1
+            $ctx.After = & $state
+        }
+        $rStep = $Run.Steps[-1]
+    }
+    $same = [bool]($ctx.Session -and $ctx.Gone -and ($ctx.Before -eq $ctx.After))
+    if ($ctx.Session -and -not $same) {
+        $slug = ($location -replace '\W+', '_')
+        Set-Content "$out\critere4-$slug-avant.txt" $ctx.Before -Encoding utf8
+        Set-Content "$out\critere4-$slug-apres.txt" $ctx.After -Encoding utf8
+    }
+    $failure = if ($qStep.Failure) { $qStep } elseif ($rStep -and $rStep.Failure) { $rStep } else { $null }
+    $restoreChecks += [pscustomobject]@{ Location = $location; Same = $same; Gone = $ctx.Gone; Session = $ctx.Session.id; Status = (Status $same $failure) }
+}
+$criterion4 = if (-not $restoreChecks.Count) { 'script' }
+elseif ($restoreChecks | Where-Object Status -EQ 'script') { 'script' }
+elseif ($restoreChecks | Where-Object Status -EQ 'ko') { 'ko' }
+else { 'ok' }
+$measure4 = if ($restoreChecks.Count) { "$(@($restoreChecks | Where-Object Same).Count) / $($restoreChecks.Count) reste(s) mis en quarantaine puis restauré(s) à l'identique" } else { 'aucun reste retrouvé à restaurer' }
 $meta += "Analyse : $([math]::Round($report.duration_ms / 1000, 1)) s · $($items.Count) éléments proposés, dont $($high.Count) précochés"
 Write-Report 'Scénario des 5 applications — résultats' $meta @(
     [pscustomobject]@{ Name = 'Installeurs conformes au manifeste'; Measure = "$($script:installers.Count) SHA-256 vérifiés avant installation"; Status = 'ok' },
-    [pscustomobject]@{ Name = '≥ 90 % des restes retrouvés (critère 2)'; Measure = "T / R = $($found.Count) / $($remaining.Count) ($ratio %)"; Status = $(if ($ratio -ge 90) { 'ok' } else { 'ko' }) },
+    [pscustomobject]@{ Name = '≥ 90 % des restes retrouvés (critère 2)'; Measure = $measure2; Status = $criterion2 },
     [pscustomobject]@{ Name = "Zéro élément d'une application installée ou du système précoché (critère 3)"; Measure = "$($wrong.Count) précoché(s) fautif(s)"; Status = $(if ($wrong.Count -eq 0) { 'ok' } else { 'ko' }) },
     [pscustomobject]@{ Name = 'Analyse sous 60 s (ENF-05)'; Measure = "$([math]::Round($report.duration_ms / 1000, 1)) s"; Status = $(if ($report.duration_ms -lt 60000) { 'ok' } else { 'ko' }) },
-    [pscustomobject]@{ Name = 'Session restaurable à l''identique (critère 4)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau)'; Status = 'manuel' }
+    [pscustomobject]@{ Name = 'Session restaurable à l''identique (critère 4)'; Measure = $measure4; Status = $criterion4 },
+    [pscustomobject]@{ Name = 'Critère 4 dans l''interface (facultatif)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau), mode simulation désactivé'; Status = 'manuel' }
 ) ([ordered]@{
         'Restes réels manqués'                = $missed
         'Éléments précochés fautifs'          = @($wrong | ForEach-Object { "$($_.location) ($($_.guessed_app))" })
         'Tous les éléments précochés (à relire)' = @($high | ForEach-Object { "$($_.location) — $($_.reasons -join ' ; ')" })
         'Restes réels (R)'                    = $remaining
+        'Critère 4 : quarantaine puis restauration' = @($restoreChecks | ForEach-Object { "$($_.Location) — retiré : $(if ($_.Gone) { 'oui' } else { 'non' }) ; identique : $(if ($_.Same) { 'oui' } else { 'non' }) ; session $($_.Session)" })
         'Installeurs vérifiés'                = $verified
     })
 

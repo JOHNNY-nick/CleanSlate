@@ -144,11 +144,11 @@ But : vérifier les trois critères mesurables du cahier § 6.3 sur un jeu de 5 
 
 | Critère (cahier § 6.3) | Mesure | Résultat |
 | --- | --- | --- |
-| Exigences M satisfaites | `docs/journal/revue-finale.md` | |
-| ≥ 90 % des restes retrouvés | T / R = … / … | |
-| Zéro élément d'une application installée ou du système précoché | Nombre d'éléments précochés fautifs : … | |
-| Session restaurable à l'identique | Empreintes et `.reg` identiques : oui / non | |
-| Tests automatisés et `clippy` sans alerte | `cargo test`, `cargo clippy -D warnings`, `dotnet test` | |
+| Exigences M satisfaites | `docs/journal/revue-finale.md` | voir la revue finale |
+| ≥ 90 % des restes retrouvés | T / R = 4 / 4 (100 %) le 30 oct. 2026 (run `apps-20261030-182833`) | **à remesurer** : Audacity n'a pas été lancé (échec du script, corrigé en D58), ses données manquent à R |
+| Zéro élément d'une application installée ou du système précoché | 0 précoché fautif ; 0 précoché au total (41 proposés : 20 Moyenne, 21 Faible) | atteint ; voir § 7 sur l'absence de précochés dans un Sandbox |
+| Session restaurable à l'identique | non mesuré le 30 oct. 2026 (étape manuelle non faite) ; automatique depuis D58 | **à mesurer** au prochain run Apps |
+| Tests automatisés et `clippy` sans alerte | `cargo test` 231, `dotnet test` 86, `cargo clippy -D warnings` avec et sans `--all-features` ; tests des scripts sous PowerShell 5.1 et 7 | atteint |
 
 Noter dans la colonne « Résultat » les éléments manqués ou précochés à tort, avec leur chemin : ce sont les cas à ajouter aux tests du `matcher`.
 
@@ -177,3 +177,37 @@ Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
 | 5 | Reste de paquet du Store (D48) | `%LOCALAPPDATA%\Packages\CleanSlateTest.Leftover_abcdefghjk123` et sa clé `AppContainer\Storage` | fichiers (SHA-256, dates) et export `.reg` |
 
 Le script installe ensuite VLC et GIMP depuis les installeurs vérifiés. À faire à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».
+
+## 7. Mesures réelles dans Windows Sandbox (30 oct. 2026)
+
+Rapports complets : `artifacts\sandbox\results\<scénario>-<date>\rapport.html` (non versionnés).
+
+### 7.1 Compléments v1.0 (run `complements-20261030-181426`, commit `d4787db`)
+
+| Vérification | Mesure | Résultat |
+| --- | --- | --- |
+| Raccourci mort du menu Démarrer + dossier (D20) | 2 éléments mis en quarantaine, état identique après restauration | atteint |
+| Tâche planifiée orpheline (D47) | 1 élément, XML complet identique | atteint |
+| Service orphelin (D47) | 1 élément, `sc qc` / `qdescription` / `qfailure` et `.reg` identiques | atteint |
+| Paquet MSIX : listé (badge Store), désinstallé avec progression (EF-04, EF-21) | 3 relevés, dernier 100 % | atteint |
+| Reste de paquet du Store (D48) | dossier `Packages\<famille>` et clé `AppContainer\Storage`, identiques | atteint |
+| VLC (MSI) désinstallé par CleanSlate, progression (EF-21) | 63 événements en 5,1 s ; 20 pourcentages (13 distincts) jusqu'à 100 % ; 59 actions de Windows Installer ; ligne « uninstall finished » au journal | atteint |
+| GIMP (Inno Setup) désinstallé par CleanSlate, progression (EF-21) | 16 événements en 3,2 s ; processus `unins000.exe`, `_unins.tmp` ; aucun pourcentage ; ligne au journal | atteint |
+| Vérifications à la main dans l'interface (déroulé de l'étape 4, filtre « Store ») | — | à faire à la main |
+
+### 7.2 Scénario des 5 applications (run `apps-20261030-182833`, commit `8d26cd1`)
+
+| Critère (cahier § 6.3) | Mesure | Résultat |
+| --- | --- | --- |
+| Installeurs conformes au manifeste | 6 SHA-256 vérifiés avant installation | atteint |
+| ≥ 90 % des restes retrouvés (critère 2) | T / R = 4 / 4 (100 %) : `AppData\Local\GIMP`, `AppData\Roaming\GIMP`, `AppData\Roaming\Notepad++`, `HKCU\Software\7-Zip` | mesure incomplète : Audacity 4 jamais lancé (« programme introuvable », étape 12) |
+| Zéro précoché fautif (critère 3) | 0 / 0 précoché | atteint |
+| Analyse sous 60 s (ENF-05) | 1,6 s, 41 éléments proposés | atteint |
+| Session restaurable à l'identique (critère 4) | non mesurée (étape manuelle) | non mesuré |
+
+Constats :
+
+- **Audacity 4** installe son programme dans `Program Files\Audacity 4\bin\` ; l'ancien motif `Audacity*\Audacity.exe` ne le trouvait pas. Corrigé (D58) : `Find-MainProgram` cherche sur deux niveaux, puis par le raccourci du menu Démarrer (jamais celui de désinstallation) ; le test `scripts/tests/sandbox-programs.tests.ps1` reproduisait le cas. Le critère 2 est désormais en « échec du script » quand une application n'a pas pu être lancée, au lieu de « atteint ».
+- **Aucun élément précoché** : dans un Sandbox neuf, toutes les données ont quelques minutes ; le signal « Modifié il y a moins de 7 jours » et l'absence d'exécutable laissent les restes en Moyenne ou Faible. C'est le comportement prévu (prudence, EF-10) : le critère 3 est atteint, mais il ne dit rien des précochés sur des données anciennes, qu'un Sandbox ne peut pas reproduire.
+- **Critère 4** : désormais automatique (D58) : chaque reste réel retrouvé est mis en quarantaine par CleanSlate, restauré, puis comparé (fichiers : chemin, taille, date, SHA-256 ; clés : export `.reg`, valeurs triées). La vérification dans l'interface (§ 4.2, étapes 4 à 7) reste possible.
+- Le diff de l'étape d'analyse (lecture seule) montre une seule ligne retirée, `Program Files\Windows Defender Advanced Threat Protection\en-US` : mise à jour de Windows Defender pendant l'analyse, sans rapport avec CleanSlate.

@@ -43,58 +43,6 @@ if (-not (Test-Path $sandboxCli)) {
     exit 1
 }
 
-# Runs a CleanSlate CLI with separate arguments (Invoke-Program: each argument arrives whole,
-# spaces included) and returns its JSON output. stderr is appended to cli-progression.txt.
-# The function is not called "Cli": that name is a built-in alias of Clear-Item, and an alias
-# wins over a function (failure of 30 Oct. 2026: the CLI was never called).
-# Exit codes of "sandbox" (sandbox.rs): 0 done; 1 CleanSlate error and 4 nothing matched are
-# results of CleanSlate (returns $null); 2 usage and 3 guard refused are failures of the test
-# script (throws, so that the step is reported as « échec du script »).
-function Invoke-CleanSlateCli([string] $program, [string[]] $arguments) {
-    $stdout = "$out\cli-out.json"; $stderr = "$out\cli-err.txt"
-    Write-Host "$([IO.Path]::GetFileName($program)) $(Join-CommandLine $arguments)"
-    $code = Invoke-Program $program $arguments $stdout $stderr
-    $errors = @(Get-Content $stderr -Encoding utf8 -ErrorAction SilentlyContinue)
-    $errors | Add-Content "$out\cli-progression.txt" -Encoding utf8
-    $errors | Where-Object { $_ -notlike '{*' } | ForEach-Object { Write-Host "stderr : $_" }
-    Write-Host "code de sortie $code"
-    switch ($code) {
-        0 { return Get-Content $stdout -Raw -Encoding utf8 | ConvertFrom-Json }
-        { $_ -in 2, 3 } { throw "cleanslate-cli a refusé la commande (code $code) : $($errors -join ' ')" }
-        default { return $null }
-    }
-}
-
-# Status of a check: 'script' when the step of the test script failed, else ok / ko.
-function Status([bool] $ok, $step) {
-    if ($step -and $step.Failure) { return 'script' }
-    if ($ok) { 'ok' } else { 'ko' }
-}
-# State of files: relative path, size, modification time and SHA-256.
-function FileState([string] $path) {
-    if (-not (Test-Path -LiteralPath $path)) { return '<absent>' }
-    $item = Get-Item -LiteralPath $path -Force
-    $files = if ($item.PSIsContainer) { Get-ChildItem -LiteralPath $path -Recurse -Force } else { @($item) }
-    ($files | Sort-Object FullName | ForEach-Object {
-            $rel = $_.FullName.Substring($item.FullName.Length)
-            if ($_.PSIsContainer) { "D $rel" } else { "F $rel $($_.Length) $($_.LastWriteTimeUtc.Ticks) $((Get-FileHash -LiteralPath $_.FullName).Hash)" }
-        }) -join "`n"
-}
-
-# State of a registry key: its .reg export, values sorted within each key.
-function RegState([string] $key) {
-    $file = "$out\state.reg"
-    & reg.exe export $key $file /y 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) { return '<absent>' }
-    $sections = @(); $current = $null
-    foreach ($line in Get-Content $file) {
-        if ($line -match '^\[.*\]$') { if ($current) { $sections += $current }; $current = @{ Head = $line; Values = @() } }
-        elseif ($current -and $line.Trim()) { $current.Values += $line }
-    }
-    if ($current) { $sections += $current }
-    ($sections | ForEach-Object { $_.Head; $_.Values | Sort-Object }) -join "`n"
-}
-
 # Round trip through the quarantine of everything matching $match, in two steps.
 function RoundTrip([string] $case, [string] $match, [scriptblock] $state, [scriptblock] $isGone, [string] $note) {
     $ctx = @{ Before = (& $state); Session = $null; Gone = $false; After = $null }

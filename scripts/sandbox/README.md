@@ -71,9 +71,9 @@ pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch
 pwsh scripts/sandbox/prepare.ps1 -Scenario Apps -Launch
 ```
 
-- **Durée** : téléchargement des 6 installeurs la première fois (environ 600 Mo), puis 20 à 30 min dans le Sandbox (une étape inventoriée par installation, premier lancement et désinstallation), plus la restauration à la main.
-- **Déroulé automatique** : vérification des 6 SHA-256 ; installation silencieuse de VLC, 7-Zip, Notepad++, Audacity, GIMP et Firefox (témoin, gardé) ; premier lancement de chacun ; relevé de référence ; désinstallation classique des 5 ; analyse `scan --dry-run` ; rapport.
-- **À vérifier** : dans `rapport.html` : T / R ≥ 90 %, zéro précoché fautif, analyse sous 60 s ; relire la liste des précochés ; le diff de l'étape d'analyse ne montre que les journaux de CleanSlate (`%LOCALAPPDATA%\CleanSlate\logs`). Puis le critère 4 à la main (tests-acceptation.md § 4.2, étapes 4 à 7).
+- **Durée** : téléchargement des 6 installeurs la première fois (environ 600 Mo), puis 20 à 30 min dans le Sandbox (une étape inventoriée par installation, premier lancement, désinstallation, puis quarantaine et restauration de chaque reste retrouvé).
+- **Déroulé automatique** : vérification des 6 SHA-256 ; installation silencieuse de VLC, 7-Zip, Notepad++, Audacity, GIMP et Firefox (témoin, gardé) ; premier lancement de chacun (programme trouvé dans son dossier, jusqu'à deux niveaux, sinon par son raccourci du menu Démarrer : D58) ; relevé de référence ; désinstallation classique des 5 ; analyse `scan --dry-run` ; **critère 4 automatique** : chaque reste réel retrouvé est mis en quarantaine par `cleanslate-cli-sandbox`, restauré et comparé à son état d'avant ; rapport.
+- **À vérifier** : dans `rapport.html` : T / R ≥ 90 %, zéro précoché fautif, analyse sous 60 s ; relire la liste des précochés ; le diff de l'étape d'analyse ne montre que les journaux de CleanSlate (`%LOCALAPPDATA%\CleanSlate\logs`). Le critère 4 est mesuré automatiquement ; le refaire dans l'interface (tests-acceptation.md § 4.2, étapes 4 à 7) est facultatif. Si une application n'a pas pu être lancée, le critère 2 est en « échec du script » : la mesure est incomplète.
 
 ### 3. Installer (§ 5)
 

@@ -16,6 +16,7 @@
 $Repo = 'C:\CleanSlate\repo'
 $Results = 'C:\CleanSlate\results'
 $Tools = "$Repo\artifacts\sandbox\tools"
+$SandboxCli = "$Tools\cleanslate-cli-sandbox.exe"
 $TokenFile = "$Repo\artifacts\sandbox\run\token.txt"
 
 # State of the current run, filled by Start-Run and Invoke-Step.
@@ -267,6 +268,88 @@ function Split-Command([string] $line) {
     $i = $line.ToLower().IndexOf('.exe')
     if ($i -lt 0) { return @($line, '') }
     return @($line.Substring(0, $i + 4), $line.Substring($i + 4).Trim())
+}
+
+# Runs a CleanSlate CLI with separate arguments (Invoke-Program: each argument arrives whole,
+# spaces included) and returns its JSON output. stderr is appended to cli-progression.txt.
+# The function is not called "Cli": that name is a built-in alias of Clear-Item, and an alias
+# wins over a function (failure of 30 Oct. 2026: the CLI was never called).
+# Exit codes of "sandbox" (sandbox.rs): 0 done; 1 CleanSlate error and 4 nothing matched are
+# results of CleanSlate (returns $null); 2 usage and 3 guard refused are failures of the test
+# script (throws, so that the step is reported as « échec du script »).
+function Invoke-CleanSlateCli([string] $program, [string[]] $arguments) {
+    $stdout = "$($Run.Out)\cli-out.json"; $stderr = "$($Run.Out)\cli-err.txt"
+    Write-Host "$([IO.Path]::GetFileName($program)) $(Join-CommandLine $arguments)"
+    $code = Invoke-Program $program $arguments $stdout $stderr
+    $errors = @(Get-Content $stderr -Encoding utf8 -ErrorAction SilentlyContinue)
+    $errors | Add-Content "$($Run.Out)\cli-progression.txt" -Encoding utf8
+    $errors | Where-Object { $_ -notlike '{*' } | ForEach-Object { Write-Host "stderr : $_" }
+    Write-Host "code de sortie $code"
+    switch ($code) {
+        0 { return Get-Content $stdout -Raw -Encoding utf8 | ConvertFrom-Json }
+        { $_ -in 2, 3 } { throw "cleanslate-cli a refusé la commande (code $code) : $($errors -join ' ')" }
+        default { return $null }
+    }
+}
+
+# Status of a check: 'script' when the step of the test script failed, else ok / ko.
+function Status([bool] $ok, $step) {
+    if ($step -and $step.Failure) { return 'script' }
+    if ($ok) { 'ok' } else { 'ko' }
+}
+
+# State of files: relative path, size, modification time and SHA-256.
+function FileState([string] $path) {
+    if (-not (Test-Path -LiteralPath $path)) { return '<absent>' }
+    $item = Get-Item -LiteralPath $path -Force
+    $files = if ($item.PSIsContainer) { Get-ChildItem -LiteralPath $path -Recurse -Force } else { @($item) }
+    ($files | Sort-Object FullName | ForEach-Object {
+            $rel = $_.FullName.Substring($item.FullName.Length)
+            if ($_.PSIsContainer) { "D $rel" } else { "F $rel $($_.Length) $($_.LastWriteTimeUtc.Ticks) $((Get-FileHash -LiteralPath $_.FullName).Hash)" }
+        }) -join "`n"
+}
+
+# State of a registry key: its .reg export, values sorted within each key.
+function RegState([string] $key) {
+    $file = "$($Run.Out)\state.reg"
+    & reg.exe export $key $file /y 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return '<absent>' }
+    $sections = @(); $current = $null
+    foreach ($line in Get-Content $file) {
+        if ($line -match '^\[.*\]$') { if ($current) { $sections += $current }; $current = @{ Head = $line; Values = @() } }
+        elseif ($current -and $line.Trim()) { $current.Values += $line }
+    }
+    if ($current) { $sections += $current }
+    ($sections | ForEach-Object { $_.Head; $_.Values | Sort-Object }) -join "`n"
+}
+
+# Main program of an application, to start it once (Apps scenario, D58). First the folders
+# matching $folderPattern under $roots, searched two levels deep (Audacity 4 keeps it in
+# bin\, which the old pattern « Audacity*\Audacity.exe » missed); else a Start menu shortcut
+# whose name contains $shortcutName, never an uninstall one. Console variants are skipped;
+# the shallowest match wins. -like rather than -Filter, which does not know [0-9].
+# Returns the full path, or $null.
+function Find-MainProgram([string[]] $roots, [string] $folderPattern, [string] $exePattern, [string] $shortcutName, [string[]] $startMenus) {
+    foreach ($root in $roots) {
+        if (-not $root -or -not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($folder in Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Where-Object Name -Like $folderPattern) {
+            $exe = Get-ChildItem -LiteralPath $folder.FullName -Recurse -Depth 2 -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like $exePattern -and $_.Name -notmatch 'console' } |
+                Sort-Object { $_.FullName.Length } | Select-Object -First 1
+            if ($exe) { return $exe.FullName }
+        }
+    }
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($menu in $startMenus) {
+        if (-not $menu -or -not (Test-Path -LiteralPath $menu)) { continue }
+        $links = Get-ChildItem -LiteralPath $menu -Recurse -File -Filter '*.lnk' -ErrorAction SilentlyContinue |
+            Where-Object { $_.BaseName -like "*$shortcutName*" -and $_.BaseName -notmatch 'uninstall|désinstall' }
+        foreach ($link in $links) {
+            $target = $shell.CreateShortcut($link.FullName).TargetPath
+            if ($target -and $target -like '*.exe' -and (Test-Path -LiteralPath $target -PathType Leaf)) { return $target }
+        }
+    }
+    $null
 }
 
 # One argument quoted by the rules of CommandLineToArgvW and the MSVC runtime (Rust's

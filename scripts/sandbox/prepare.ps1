@@ -7,9 +7,9 @@
     it only writes under artifacts\sandbox (and core\target\sandbox-tests):
     1. checks the Release build (app and cleanslate-cli.exe) and copies the CLI to
        artifacts\sandbox\tools (read-only scan in the Sandbox);
-    2. Complements only: builds cleanslate-cli with the sandbox-tests feature
+    2. Complements and Apps (criterion 4, D58): builds cleanslate-cli with the sandbox-tests feature
        (core\target\sandbox-tests) and copies it as tools\cleanslate-cli-sandbox.exe;
-       for the other scenarios that file is removed, so it is never shared needlessly;
+       for the Installer scenario that file is removed, so it is never shared needlessly;
     3. downloads the installers listed in manifeste.json from their official URL
        (artifacts\sandbox\installers\<id>\) unless already there, and stops if one
        SHA-256 differs from the manifest; Installer: records the SHA-256 of the setup;
@@ -67,9 +67,9 @@ switch ($LASTEXITCODE) {
 }
 Copy-Item $cli $toolsDir -Force
 
-# 2. Test commands, for the Complements scenario only (D53).
+# 2. Test commands, for the Complements and Apps scenarios only (D53, D58).
 $sandboxCli = Join-Path $toolsDir 'cleanslate-cli-sandbox.exe'
-if ($Scenario -eq 'Complements') {
+if ($Scenario -in 'Complements', 'Apps') {
     Step 'cleanslate-cli with the sandbox-tests feature (core\target\sandbox-tests)'
     Push-Location $root   # the static C runtime comes from .cargo\config.toml at the root (D51)
     try {
@@ -129,7 +129,7 @@ $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
 $commit = (git -C $root rev-parse --short HEAD 2>$null)
 $dirty = @(git -C $root status --porcelain 2>$null | ForEach-Object { $_.Substring(3) })
 $shared = [ordered]@{}
-foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if ($Scenario -eq 'Complements') { $sandboxCli }) + @(if ($setup) { $setup.FullName })) {
+foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if ($Scenario -in 'Complements', 'Apps') { $sandboxCli }) + @(if ($setup) { $setup.FullName })) {
     $shared[$f.Substring($root.Length + 1)] = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash
 }
 [ordered]@{
