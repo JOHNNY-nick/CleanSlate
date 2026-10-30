@@ -18,7 +18,7 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | EF-04 Applications Microsoft Store | C | ⏭️ | — | Reportée en v1.1 (cahier § 6.5) |
 | EF-05 Scan des dossiers sans nom saisi | M | ✅ | `scan.rs` (`ScanRoots`), `OrphansViewModel.cs` | `fixture_finds_leftovers_and_never_installed_apps` ; Sandbox § 4 |
 | EF-06 Scan du registre | M | ✅ | `scan.rs`, `registry.rs` | `fixture_finds_leftovers_and_never_installed_apps` (ruche de test), `registry_value_sizes` |
-| EF-07 Raccourcis morts, tâches, services | S | ⚠️ | `scan.rs` (`.lnk` des Bureaux) | `shortcut_parsing`. **Partiel (D20)** : raccourcis du menu Démarrer non proposés (liste noire `Microsoft`), tâches planifiées et services non détectés. Exception `.lnk` **à valider** par le porteur |
+| EF-07 Raccourcis morts, tâches, services | S | ⚠️ | `scan.rs` (`.lnk` des Bureaux) | `shortcut_parsing`. **Partiel (D20, validé par le porteur)** : raccourcis du menu Démarrer non proposés (liste noire `Microsoft` inchangée), tâches planifiées et services non détectés |
 | EF-08 Orphelin = ne correspond à aucune application installée | M | ✅ | `matcher.rs` | `attach_by_install_location_both_ways`, `attach_by_uninstaller_folder_and_executables`, `attach_by_similar_name_or_publisher`, `present_programs_attach_their_data` (D22) |
 | EF-09 Regroupement par application déduite | M | ✅ | `matcher.rs` (`group`), `OrphansPage.xaml` | `grouping_by_normalized_name_largest_first` |
 | EF-10 Confiance, seuls les « Élevée » précochés | M | ✅ | `matcher.rs`, `OrphansViewModel.cs` | `old_unrelated_folder_is_high`, `recent_or_generic_or_portable_is_lower`, `items_under_an_installed_publisher_are_at_most_medium` (D23), `personal_folders_are_never_high` ; `Scan_PrechecksOnlyHighConfidence` |
@@ -66,11 +66,11 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 
 ## Points ouverts
 
-1. **EF-07 partiel** (D20) : décider si les `.lnk` morts du menu Démarrer peuvent être proposés malgré la liste noire `Microsoft` (exception limitée et testée), et si les tâches et services entrent en v1.1.
-2. **ACL d'origine** (D31) : enregistrée mais pas réappliquée après une copie entre deux volumes. **À valider**.
+1. **EF-07 partiel** (D20, validé par le porteur le 30 oct. 2026) : liste noire inchangée, les `.lnk` morts du menu Démarrer ne sont pas proposés ; tâches planifiées et services à étudier en v1.1.
+2. **ACL d'origine** (D31, validé par le porteur le 30 oct. 2026) : enregistrée dans le manifeste, pas réappliquée après une copie entre deux volumes.
 3. **Signal « nom d'une application désinstallée par CleanSlate »** (+30, specs § 6.3) : reporté (D38).
 4. **Progression de `cs_uninstall`** : rappel réservé ; barre indéterminée dans l'assistant.
 5. **ENF-08** : passer Accessibility Insights et le Narrateur sur les 5 écrans.
-6. **Critères du cahier § 6.3** (90 % des restes, zéro faux précochage, restauration à l'identique) : à mesurer dans Windows Sandbox ([tests-acceptation.md § 4](../tests-acceptation.md)). Ils ne peuvent pas être mesurés sur la machine de développement sans opération destructive.
+6. **Critères du cahier § 6.3** (90 % des restes, zéro faux précochage, restauration à l'identique) : à mesurer dans Windows Sandbox ([tests-acceptation.md § 4](../tests-acceptation.md)). Ils ne peuvent pas être mesurés sur la machine de développement sans opération destructive. Les critères 2 et 3 sont mesurés automatiquement par `scripts/sandbox/` (D46) dès que Windows Sandbox est activé ; le critère 4 reste à la main.
 7. **Signature de code** : l'installeur n'est pas signé ; SmartScreen avertira à l'installation.
 8. **Windows App SDK 2.x** : migration étudiée en v1.1 (D42).

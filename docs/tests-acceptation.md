@@ -1,8 +1,26 @@
 # Tests d'acceptation — CleanSlate
 
-Dernière mise à jour : 29 oct. 2026
+Dernière mise à jour : 30 oct. 2026
 
 Les opérations destructives (mise en quarantaine, désinstallation) ne se testent **jamais** sur un PC principal : uniquement dans Windows Sandbox (jetable : tout disparaît à la fermeture) ou dans une machine virtuelle.
+
+## 0. Lancement automatique (D46)
+
+Une fois Windows Sandbox activé (§ 1, étape 2) et CleanSlate compilé en Release :
+
+```powershell
+pwsh scripts/sandbox/prepare.ps1 -Launch                      # § 4 : scénario des 5 applications
+pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch  # § 5 : installeur (après scripts/package.ps1)
+```
+
+- `prepare.ps1` télécharge les installeurs avec `winget download` dans `artifacts\sandbox\installers` (rien n'est installé sur le PC), copie `cleanslate-cli.exe` et écrit `artifacts\sandbox\CleanSlate-<Scénario>.wsb`. Tout est partagé en lecture seule, sauf `artifacts\sandbox\results` ; le réseau du Sandbox est coupé.
+- Dans le Sandbox, `inside-apps.ps1` démarre seul :
+  1. il installe les 5 applications et Firefox (témoin) en silencieux ;
+  2. il lance chacune une fois, fait le relevé de référence (§ 4.1.3), puis les désinstalle avec leur propre désinstalleur ;
+  3. il analyse avec `cleanslate-cli scan --dry-run` ;
+  4. il écrit `results\<date>\rapport.md` : T / R (critère 2), éléments précochés fautifs (critère 3), restes manqués.
+- Le critère 4 (restauration à l'identique, § 4.2 étapes 4 à 7) se fait ensuite à la main avec la copie de CleanSlate posée sur le Bureau du Sandbox.
+- Les deux scripts `inside-*.ps1` refusent de tourner hors du Sandbox (compte `WDAGUtilityAccount`).
 
 ## 1. Préparer Windows Sandbox
 
