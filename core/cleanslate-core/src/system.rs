@@ -285,7 +285,7 @@ pub fn process_executables() -> Vec<String> {
 }
 
 /// Full image path of one process, if it can be queried.
-fn process_path(pid: u32) -> Option<String> {
+pub(crate) fn process_path(pid: u32) -> Option<String> {
     if pid == 0 {
         return None;
     }

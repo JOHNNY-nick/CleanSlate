@@ -546,4 +546,40 @@
   <data name="AppsStoreBadge.Text" xml:space="preserve">
     <value>Store</value>
   </data>
+  <data name="Format_Percent" xml:space="preserve">
+    <value>{0:0} %</value>
+  </data>
+  <data name="Format_Elapsed" xml:space="preserve">
+    <value>Temps écoulé : {0}</value>
+  </data>
+  <data name="WizardStepsTitle.Text" xml:space="preserve">
+    <value>Étapes</value>
+  </data>
+  <data name="WizardStepsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Étapes de la désinstallation</value>
+  </data>
+  <data name="WizardProcessesTitle.Text" xml:space="preserve">
+    <value>Processus du désinstalleur encore actifs</value>
+  </data>
+  <data name="WizardProcessesList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Processus du désinstalleur</value>
+  </data>
+  <data name="UninstallStep_RestorePoint" xml:space="preserve">
+    <value>Création du point de restauration</value>
+  </data>
+  <data name="UninstallStep_Launching" xml:space="preserve">
+    <value>Lancement du désinstalleur</value>
+  </data>
+  <data name="UninstallStep_Waiting" xml:space="preserve">
+    <value>Attente du désinstalleur</value>
+  </data>
+  <data name="UninstallStep_Verifying" xml:space="preserve">
+    <value>Vérification de la désinstallation</value>
+  </data>
+  <data name="UninstallStep_Done" xml:space="preserve">
+    <value>Désinstallation terminée</value>
+  </data>
+  <data name="UninstallStep_Leftovers" xml:space="preserve">
+    <value>Recherche des restes</value>
+  </data>
 </root>

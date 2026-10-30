@@ -18,7 +18,7 @@ use std::ptr;
 
 use cleanslate_core::model::{
     AppLeftoversRequest, CleanPlan, PurgeRequest, RestoreRequest, ScanOptions, ScanProgress,
-    UninstallRequest,
+    UninstallProgress, UninstallRequest,
 };
 use cleanslate_core::{CoreError, CoreResult, Engine, EngineConfig};
 use serde::Serialize;
@@ -362,25 +362,41 @@ pub unsafe extern "C" fn cs_purge_quarantine(
 
 /// Runs the official uninstaller of an application and waits for its whole
 /// process tree (EF-12 to EF-15): `data` is an `UninstallResult`
-/// (`simulated: true` by default). `cs_cancel` stops waiting, never kills
-/// the uninstaller. `callback` is reserved for progress (unused).
+/// (`simulated: true` by default). `cs_cancel` stops waiting for an `.exe`
+/// uninstaller (never kills it) and asks Windows Installer to roll back an
+/// MSI uninstall. `callback` receives `ctx` and a UTF-8 JSON
+/// `UninstallProgress` at each step and at most every 250 ms (EF-21); it
+/// may be null.
 ///
 /// # Safety
-/// `engine` must be a live handle; `request` must point to `len` bytes.
+/// `engine` must be a live handle; `request` must point to `len` bytes;
+/// `callback`, if not null, must stay valid for the whole call.
 #[no_mangle]
 pub unsafe extern "C" fn cs_uninstall(
     engine: *const EngineHandle,
     request: *const u8,
     len: i32,
-    _callback: ProgressCallback,
-    _ctx: *mut c_void,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
 ) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
     respond(|| {
         // SAFETY: forwarded from this function's contract.
         let engine = unsafe { engine_ref(engine) }?;
         // SAFETY: forwarded from this function's contract.
         let request: UninstallRequest = unsafe { parse_input(request, len) }?;
-        engine.uninstall(&request)
+        let progress = |event: &UninstallProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.uninstall_with_progress(&request, &progress)
     })
 }
 

@@ -12,6 +12,7 @@ pub mod inventory;
 pub mod logging;
 pub mod matcher;
 pub mod model;
+pub mod msi;
 pub mod native;
 pub mod quarantine;
 pub mod registry;

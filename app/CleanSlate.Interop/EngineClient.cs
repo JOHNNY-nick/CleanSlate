@@ -81,11 +81,14 @@ public sealed class EngineClient : IDisposable
     /// Runs the official uninstaller and waits for its whole process tree
     /// (EF-12 to EF-15). Cancelling only stops waiting (<c>cs_cancel</c>).
     /// </summary>
-    public Task<UninstallResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken = default)
+    public Task<UninstallResult> UninstallAsync(
+        UninstallRequest request,
+        IProgress<UninstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.UninstallRequest);
-        return Task.Run(() => WithEngine(engine => Uninstall(engine, json, cancellationToken)));
+        return Task.Run(() => WithEngine(engine => Uninstall(engine, json, progress, cancellationToken)));
     }
 
     /// <summary>Leftovers of an application just uninstalled (EF-13).</summary>
@@ -102,18 +105,50 @@ public sealed class EngineClient : IDisposable
     /// <summary>Releases the native engine.</summary>
     public void Dispose() => _handle.Dispose();
 
-    private static unsafe UninstallResult Uninstall(IntPtr engine, byte[] json, CancellationToken cancellationToken)
+    private static unsafe UninstallResult Uninstall(IntPtr engine, byte[] json, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken)
     {
+        GCHandle context = progress is null ? default : GCHandle.Alloc(progress);
         ByteBuffer* buffer;
-        using (cancellationToken.Register(() => NativeMethods.cs_cancel((EngineHandle*)engine)))
+        try
         {
+            using CancellationTokenRegistration registration =
+                cancellationToken.Register(() => NativeMethods.cs_cancel((EngineHandle*)engine));
             fixed (byte* input = json)
             {
-                buffer = NativeMethods.cs_uninstall((EngineHandle*)engine, input, json.Length, null, null);
+                delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback = progress is null ? null : &OnUninstallProgress;
+                void* ctx = progress is null ? null : (void*)GCHandle.ToIntPtr(context);
+                buffer = NativeMethods.cs_uninstall((EngineHandle*)engine, input, json.Length, callback, ctx);
+            }
+        }
+        finally
+        {
+            // The engine never calls the callback after cs_uninstall returned.
+            if (context.IsAllocated)
+            {
+                context.Free();
             }
         }
 
         return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseUninstallResult);
+    }
+
+    /// <summary>Uninstall progress callback (EF-21), called on the engine's thread.</summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void OnUninstallProgress(void* ctx, byte* json, int len)
+    {
+        // An exception must never cross into native code.
+        try
+        {
+            if (GCHandle.FromIntPtr((IntPtr)ctx).Target is IProgress<UninstallProgress> progress
+                && JsonSerializer.Deserialize(new ReadOnlySpan<byte>(json, len), EngineJsonContext.Default.UninstallProgress) is { } value)
+            {
+                progress.Report(value);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CleanSlate uninstall progress dropped: {ex.Message}");
+        }
     }
 
     private Task<T> CallWithInput<T>(

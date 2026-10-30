@@ -7,6 +7,11 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CleanSlate.Presentation.ViewModels;
 
+/// <summary>One step of an uninstall with the time it began (step 2, EF-21).</summary>
+/// <param name="Key">Step name, turned into text by the view (<c>UninstallStep_{Key}</c>).</param>
+/// <param name="TimeText">Time it began, e.g. « 14:02:37 ».</param>
+public sealed record UninstallStepItem(string Key, string TimeText);
+
 /// <summary>
 /// Uninstall wizard (design § 4.2): 1 confirmation, 2 official uninstaller,
 /// 3 leftovers, 4 summary. The classic mode stops after the uninstaller.
@@ -95,6 +100,42 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedSizeText = Formats.Size(0);
 
+    /// <summary>Steps of the running uninstall, with their time (step 2, EF-21).</summary>
+    public ObservableCollection<UninstallStepItem> Steps { get; } = [];
+
+    /// <summary>Processes still running in the Job Object, e.g. « unins000.exe (PID 4242) ».</summary>
+    public ObservableCollection<string> Processes { get; } = [];
+
+    /// <summary>Real percentage (MSI, Store), 0 to 100.</summary>
+    [ObservableProperty]
+    private double _progressPercent;
+
+    /// <summary>No real percentage: the bar is indeterminate (never an invented value).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsProgressKnown))]
+    private bool _isProgressIndeterminate = true;
+
+    /// <summary>A real percentage is shown.</summary>
+    public bool IsProgressKnown => !IsProgressIndeterminate;
+
+    /// <summary>Action in progress (Windows Installer), or empty.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAction))]
+    private string _actionText = string.Empty;
+
+    /// <summary>An action is shown.</summary>
+    public bool HasAction => ActionText.Length > 0;
+
+    /// <summary>Elapsed time, e.g. « 01:12 ».</summary>
+    [ObservableProperty]
+    private string _elapsedText = "00:00";
+
+    /// <summary>Some processes are listed.</summary>
+    [ObservableProperty]
+    private bool _hasProcesses;
+
+    private UninstallStep? _lastStep;
+
     /// <summary>Leftovers found after the uninstaller (step 3).</summary>
     public ObservableCollection<LeftoverGroupViewModel> Groups { get; } = [];
 
@@ -179,11 +220,12 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         }
 
         ErrorCode = string.Empty;
+        ResetProgress();
         Step = 2;
         try
         {
-            var request = new UninstallRequest(App.App.Id, Quiet && CanQuiet, CreateRestorePoint, DryRun: _settings.SimulationMode);
-            Result = await _engine.UninstallAsync(request, cancellationToken);
+            var request = new UninstallRequest(App.App.Id, Quiet && CanQuiet, CreateRestorePoint && IsWin32, DryRun: _settings.SimulationMode);
+            Result = await _engine.UninstallAsync(request, new UiProgress<UninstallProgress>(OnUninstallProgress), cancellationToken);
             OnPropertyChanged(nameof(StillInstalled));
             OnPropertyChanged(nameof(WasSimulated));
             OnPropertyChanged(nameof(ShowCleanedLine));
@@ -193,6 +235,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
                 return;
             }
 
+            AddStep("Leftovers");
             ScanReport report = await _engine.ScanAppLeftoversAsync(new AppLeftoversRequest(App.App.Id), null, CancellationToken.None);
             ShowLeftovers(report);
             // No leftover: step 3 is skipped (design § 4.2).
@@ -205,6 +248,48 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
             ErrorDetails = ex.Message;
             Step = 1;
         }
+    }
+
+    /// <summary>
+    /// One progress event (EF-21): a new step is added with its time; the percentage and the
+    /// action are shown only when Windows gives them; the Job Object processes otherwise.
+    /// </summary>
+    public void OnUninstallProgress(UninstallProgress progress)
+    {
+        if (_lastStep != progress.Step)
+        {
+            _lastStep = progress.Step;
+            AddStep(progress.Step.ToString());
+        }
+
+        ElapsedText = TimeSpan.FromMilliseconds(progress.ElapsedMs).ToString(@"mm\:ss");
+        IsProgressIndeterminate = progress.Percent is null;
+        ProgressPercent = progress.Percent ?? 0;
+        ActionText = progress.Action ?? string.Empty;
+        if (progress.Step == UninstallStep.Waiting)
+        {
+            Processes.Clear();
+            foreach (JobProcess process in progress.Processes)
+            {
+                Processes.Add($"{process.Name} (PID {process.Pid})");
+            }
+
+            HasProcesses = Processes.Count > 0;
+        }
+    }
+
+    private void AddStep(string key) => Steps.Add(new UninstallStepItem(key, DateTime.Now.ToString("HH:mm:ss")));
+
+    private void ResetProgress()
+    {
+        Steps.Clear();
+        Processes.Clear();
+        HasProcesses = false;
+        _lastStep = null;
+        ProgressPercent = 0;
+        IsProgressIndeterminate = true;
+        ActionText = string.Empty;
+        ElapsedText = "00:00";
     }
 
     /// <summary>

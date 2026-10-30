@@ -104,14 +104,18 @@ namespace CleanSlate.Interop
         /// <summary>
         ///  Runs the official uninstaller of an application and waits for its whole
         ///  process tree (EF-12 to EF-15): `data` is an `UninstallResult`
-        ///  (`simulated: true` by default). `cs_cancel` stops waiting, never kills
-        ///  the uninstaller. `callback` is reserved for progress (unused).
+        ///  (`simulated: true` by default). `cs_cancel` stops waiting for an `.exe`
+        ///  uninstaller (never kills it) and asks Windows Installer to roll back an
+        ///  MSI uninstall. `callback` receives `ctx` and a UTF-8 JSON
+        ///  `UninstallProgress` at each step and at most every 250 ms (EF-21); it
+        ///  may be null.
         ///
         ///  # Safety
-        ///  `engine` must be a live handle; `request` must point to `len` bytes.
+        ///  `engine` must be a live handle; `request` must point to `len` bytes;
+        ///  `callback`, if not null, must stay valid for the whole call.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "cs_uninstall", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern ByteBuffer* cs_uninstall(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> _callback, void* _ctx);
+        internal static extern ByteBuffer* cs_uninstall(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
 
         /// <summary>
         ///  Leftovers of an application just uninstalled (EF-13): `data` is a

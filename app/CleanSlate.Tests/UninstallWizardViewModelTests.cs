@@ -32,7 +32,7 @@ public sealed class UninstallWizardViewModelTests
     {
         // Clicks 1 and 2 (select the row, « Désinstaller complètement ») open the wizard.
         var (vm, engine, dialogs) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>()).Returns(Result());
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result());
         engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanReport([new LeftoverGroup("GIMP 2.10.38", "The GIMP Team", [Folder], 5_000)], [], 10, false));
         engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(new Session(
@@ -51,7 +51,7 @@ public sealed class UninstallWizardViewModelTests
 
         Assert.True(vm.IsStep4);
         Assert.Equal(1, vm.CleanedCount);
-        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.AppId == "g1" && r.CreateRestorePoint && !r.DryRun && !r.Quiet), Arg.Any<CancellationToken>());
+        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.AppId == "g1" && r.CreateRestorePoint && !r.DryRun && !r.Quiet), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
         await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => p.Origin.Kind == "app" && p.Origin.AppId == "g1" && !p.DryRun), Arg.Any<CancellationToken>());
         await dialogs.Received(1).ConfirmCleanAsync(Arg.Any<CleanSummary>());
     }
@@ -60,7 +60,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task CancelledUninstaller_SkipsLeftovers()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>()).Returns(Result(stillInstalled: true));
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(stillInstalled: true));
         vm.Start(Gimp, complete: true);
 
         await vm.LaunchCommand.ExecuteAsync(null);
@@ -74,7 +74,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task NoLeftover_SkipsStepThree()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>()).Returns(Result());
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result());
         engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanReport([], [], 1, false));
         vm.Start(Gimp, complete: true);
@@ -88,7 +88,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task ClassicUninstall_StopsAfterTheUninstaller_AndQuietIsSent()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>()).Returns(Result());
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result());
         vm.Start(Gimp, complete: false);
         vm.Quiet = true;
         vm.CreateRestorePoint = false;
@@ -96,7 +96,7 @@ public sealed class UninstallWizardViewModelTests
         await vm.LaunchCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsStep4);
-        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.Quiet && !r.CreateRestorePoint), Arg.Any<CancellationToken>());
+        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.Quiet && !r.CreateRestorePoint), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
         await engine.DidNotReceive().ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>());
     }
 
@@ -104,21 +104,21 @@ public sealed class UninstallWizardViewModelTests
     public async Task Simulation_OnlyReportsTheCommand()
     {
         var (vm, engine, _) = Create(simulation: true);
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
         vm.Start(Gimp, complete: true);
 
         await vm.LaunchCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsStep4);
         Assert.False(vm.StillInstalled);
-        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.DryRun), Arg.Any<CancellationToken>());
+        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.DryRun), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task MissingUninstaller_ShowsTheErrorOnStepOne()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
             .Returns<Task<UninstallResult>>(_ => throw new EngineException("NO_UNINSTALLER", "missing"));
         vm.Start(Gimp, complete: true);
 
@@ -136,7 +136,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task MissingUninstaller_SearchesLeftoversAnyway_NothingPrechecked()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
             .Returns<Task<UninstallResult>>(_ => throw new EngineException("NO_UNINSTALLER", "missing"));
         // The engine caps these leftovers at Medium (D45).
         Leftover medium = Folder with { Confidence = Confidence.Medium };
@@ -172,7 +172,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task MissingUninstaller_NoLeftover_GoesToTheSummary()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
             .Returns<Task<UninstallResult>>(_ => throw new EngineException("NO_UNINSTALLER", "missing"));
         engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanReport([], [], 10, false));
@@ -190,7 +190,7 @@ public sealed class UninstallWizardViewModelTests
     public async Task OtherErrors_CannotSearchAnyway()
     {
         var (vm, engine, _) = Create();
-        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<CancellationToken>())
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
             .Returns<Task<UninstallResult>>(_ => throw new EngineException("UNSAFE_UNINSTALLER", "shell"));
         vm.Start(Gimp, complete: true);
 
@@ -199,5 +199,48 @@ public sealed class UninstallWizardViewModelTests
         Assert.True(vm.ShowGenericError);
         Assert.False(vm.IsUninstallerMissing);
         Assert.False(vm.SearchLeftoversAnywayCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Progress_ShowsTimedSteps_RealPercentOrJobProcesses()
+    {
+        var (vm, engine, _) = Create();
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var progress = call.Arg<IProgress<UninstallProgress>?>()!;
+                progress.Report(new UninstallProgress(UninstallStep.RestorePoint, 10, null, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Launching, 900, null, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 1_200, null, null, [new JobProcess(4242, "unins000.exe")]));
+                // .exe uninstaller: never a percentage, the Job Object instead.
+                Assert.True(vm.IsProgressIndeterminate);
+                Assert.Equal(["unins000.exe (PID 4242)"], vm.Processes);
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 72_000, 40, "Suppression des fichiers", []));
+                Assert.False(vm.IsProgressIndeterminate);
+                Assert.Equal(40, vm.ProgressPercent);
+                Assert.Equal("Suppression des fichiers", vm.ActionText);
+                Assert.Equal("01:12", vm.ElapsedText);
+                progress.Report(new UninstallProgress(UninstallStep.Verifying, 73_000, null, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Done, 73_100, null, null, []));
+                return Task.FromResult(Result(stillInstalled: true));
+            });
+        vm.Start(Gimp, complete: true);
+
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            ["RestorePoint", "Launching", "Waiting", "Verifying", "Done"],
+            vm.Steps.Select(s => s.Key));
+        Assert.All(vm.Steps, s => Assert.Matches(@"^\d\d:\d\d:\d\d$", s.TimeText));
+    }
+
+    [Fact]
+    public void StoreApplication_HasNoRestorePoint()
+    {
+        var (vm, _, _) = Create();
+        vm.Start(Gimp with { Kind = AppKind.Store, PackageFullName = "Vendor.App_1.0.0.0_x64__abcdefghjk123" }, complete: true);
+        Assert.False(vm.IsWin32);
+        vm.Start(Gimp, complete: true);
+        Assert.True(vm.IsWin32);
     }
 }

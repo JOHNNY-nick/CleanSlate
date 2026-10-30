@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use crate::error::{CoreError, CoreResult};
 use crate::inventory::is_guid;
-use crate::model::InstalledApp;
+use crate::model::{InstalledApp, JobProcess};
 
 /// Longest wait for an uninstaller (specs § 7.1).
 pub const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
@@ -241,12 +241,14 @@ pub struct RunOutcome {
 /// Starts a program and waits for its whole process tree.
 pub trait ProcessRunner: Send + Sync {
     /// Runs `command` and waits until every process of its tree has exited,
-    /// `cancel` is set or `timeout` is reached.
+    /// `cancel` is set or `timeout` is reached. `on_tick` receives the
+    /// processes still running, at each poll (every 250 ms, ENF-06).
     fn run(
         &self,
         command: &Command,
         cancel: &AtomicBool,
         timeout: Duration,
+        on_tick: &dyn Fn(&[JobProcess]),
     ) -> CoreResult<RunOutcome>;
 }
 
@@ -263,7 +265,13 @@ pub trait RestorePoints: Send + Sync {
 pub struct NoProcessRunner;
 
 impl ProcessRunner for NoProcessRunner {
-    fn run(&self, command: &Command, _: &AtomicBool, _: Duration) -> CoreResult<RunOutcome> {
+    fn run(
+        &self,
+        command: &Command,
+        _: &AtomicBool,
+        _: Duration,
+        _: &dyn Fn(&[JobProcess]),
+    ) -> CoreResult<RunOutcome> {
         Err(CoreError::InvalidInput(format!(
             "no process runner on this engine: {}",
             command.program.display()
@@ -292,8 +300,9 @@ impl ProcessRunner for JobProcessRunner {
         command: &Command,
         cancel: &AtomicBool,
         timeout: Duration,
+        on_tick: &dyn Fn(&[JobProcess]),
     ) -> CoreResult<RunOutcome> {
-        win::run_in_job(command, cancel, timeout)
+        win::run_in_job(command, cancel, timeout, on_tick)
     }
 }
 
@@ -324,7 +333,8 @@ mod win {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation,
-        QueryInformationJobObject, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
+        JobObjectBasicProcessIdList, QueryInformationJobObject,
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_BASIC_PROCESS_ID_LIST,
     };
     use windows::Win32::System::Restore::{
         SRSetRestorePointW, APPLICATION_UNINSTALL, BEGIN_SYSTEM_CHANGE, CANCELLED_OPERATION,
@@ -337,6 +347,48 @@ mod win {
 
     use super::{Command, RunOutcome};
     use crate::error::{CoreError, CoreResult};
+    use crate::model::JobProcess;
+
+    /// Most process ids read from the Job Object at once.
+    const MAX_JOB_PROCESSES: usize = 256;
+
+    /// Processes still in `job`, with their executable names.
+    fn job_processes(job: windows::Win32::Foundation::HANDLE) -> Vec<JobProcess> {
+        // Header (two u32) then the ids: an aligned u64 buffer.
+        let mut buffer = vec![0u64; 1 + MAX_JOB_PROCESSES];
+        let raw = buffer
+            .as_mut_ptr()
+            .cast::<JOBOBJECT_BASIC_PROCESS_ID_LIST>();
+        // SAFETY: the buffer is aligned for the structure and as large as
+        // announced; ids are read only up to the count Windows wrote.
+        unsafe {
+            let ok = QueryInformationJobObject(
+                Some(job),
+                JobObjectBasicProcessIdList,
+                raw.cast(),
+                (buffer.len() * 8) as u32,
+                None,
+            );
+            if ok.is_err() {
+                return Vec::new();
+            }
+            let count = ((*raw).NumberOfProcessIdsInList as usize).min(MAX_JOB_PROCESSES);
+            let ids = std::slice::from_raw_parts((*raw).ProcessIdList.as_ptr(), count);
+            ids.iter()
+                .filter_map(|&id| {
+                    let pid = u32::try_from(id).ok()?;
+                    let name = crate::system::process_path(pid)
+                        .and_then(|p| {
+                            std::path::Path::new(&p)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                        })
+                        .unwrap_or_else(|| format!("processus {pid}"));
+                    Some(JobProcess { pid, name })
+                })
+                .collect()
+        }
+    }
 
     const POLL: Duration = Duration::from_millis(250);
 
@@ -348,6 +400,7 @@ mod win {
         command: &Command,
         cancel: &AtomicBool,
         timeout: Duration,
+        on_tick: &dyn Fn(&[JobProcess]),
     ) -> CoreResult<RunOutcome> {
         let program = wide(command.program.as_os_str());
         let mut line = wide(std::ffi::OsStr::new(&command.command_line()));
@@ -408,6 +461,9 @@ mod win {
                 };
                 if !active {
                     break;
+                }
+                if in_job {
+                    on_tick(&job_processes(job));
                 }
                 std::thread::sleep(POLL);
             }
@@ -684,13 +740,23 @@ mod tests {
     fn job_runner_waits_for_a_real_process() {
         let command = cmd(sys("hostname.exe"), &[]);
         let outcome = JobProcessRunner
-            .run(&command, &AtomicBool::new(false), Duration::from_secs(30))
+            .run(
+                &command,
+                &AtomicBool::new(false),
+                Duration::from_secs(30),
+                &|_| {},
+            )
             .unwrap();
         assert_eq!(outcome.exit_code, Some(0));
         assert!(!outcome.timed_out && !outcome.cancelled);
         let missing = cmd(r"C:\definitely\missing.exe", &[]);
         assert!(JobProcessRunner
-            .run(&missing, &AtomicBool::new(false), Duration::from_secs(1))
+            .run(
+                &missing,
+                &AtomicBool::new(false),
+                Duration::from_secs(1),
+                &|_| {}
+            )
             .is_err());
     }
 
@@ -700,7 +766,8 @@ mod tests {
             .run(
                 &cmd(sys("hostname.exe"), &[]),
                 &AtomicBool::new(false),
-                Duration::from_secs(1)
+                Duration::from_secs(1),
+                &|_| {}
             )
             .is_err());
         assert!(NoRestorePoints.begin("x").is_err());

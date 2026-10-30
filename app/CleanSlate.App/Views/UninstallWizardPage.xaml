@@ -55,7 +55,48 @@
             <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.IsStep2, Mode=OneWay}">
                 <StackPanel Spacing="12">
                     <TextBlock x:Uid="WizardWaiting" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <ProgressBar IsIndeterminate="True" x:Uid="WizardWaitingBar" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressBar
+                            x:Uid="WizardWaitingBar"
+                            VerticalAlignment="Center"
+                            IsIndeterminate="{x:Bind ViewModel.IsProgressIndeterminate, Mode=OneWay}"
+                            Maximum="100"
+                            Value="{x:Bind ViewModel.ProgressPercent, Mode=OneWay}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Foreground="{ThemeResource TextPrimaryBrush}"
+                            Text="{x:Bind conv:Texts.One('Format_Percent', ViewModel.ProgressPercent), Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.IsProgressKnown, Mode=OneWay}" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Foreground="{ThemeResource TextSecondaryBrush}"
+                            Text="{x:Bind conv:Texts.One('Format_Elapsed', ViewModel.ElapsedText), Mode=OneWay}" />
+                    </Grid>
+                    <TextBlock
+                        Foreground="{ThemeResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.ActionText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.HasAction, Mode=OneWay}" />
+                    <TextBlock x:Uid="WizardStepsTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                    <ItemsControl x:Uid="WizardStepsList" ItemsSource="{x:Bind ViewModel.Steps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UninstallStepItem">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <TextBlock FontFamily="{StaticResource PathFontFamily}" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind TimeText}" />
+                                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind Key, Converter={StaticResource ResourceString}, ConverterParameter=UninstallStep}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.HasProcesses, Mode=OneWay}">
+                        <TextBlock x:Uid="WizardProcessesTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                        <ItemsControl x:Uid="WizardProcessesList" FontFamily="{StaticResource PathFontFamily}" FontSize="12" ItemsSource="{x:Bind ViewModel.Processes}" />
+                    </StackPanel>
                     <TextBlock x:Uid="WizardWaitingHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                     <Button x:Uid="WizardStopWaiting" Command="{x:Bind ViewModel.LaunchCancelCommand}" />
                 </StackPanel>

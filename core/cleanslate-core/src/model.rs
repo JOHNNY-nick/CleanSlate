@@ -348,6 +348,48 @@ pub struct UninstallResult {
     pub still_installed: bool,
 }
 
+/// Step of an uninstall shown by the wizard (EF-21, design § 4.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UninstallStep {
+    /// Creating the restore point (EF-15).
+    RestorePoint,
+    /// Starting the official uninstaller.
+    Launching,
+    /// Waiting for the uninstaller and its whole process tree.
+    Waiting,
+    /// Checking that the application is gone.
+    Verifying,
+    /// Finished.
+    Done,
+}
+
+/// One process of the uninstaller's Job Object.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobProcess {
+    /// Process id.
+    pub pid: u32,
+    /// Executable name (`unins000.exe`).
+    pub name: String,
+}
+
+/// Progress event of `cs_uninstall`: sent at each step change and at most
+/// every 250 ms while waiting (ENF-06). `percent` and `action` are real
+/// values from Windows Installer or the Store; for `.exe` uninstallers they
+/// stay empty (no invented percentage) and `processes` lists the Job Object.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UninstallProgress {
+    /// Current step.
+    pub step: UninstallStep,
+    /// Milliseconds since the uninstall started.
+    pub elapsed_ms: u64,
+    /// 0 to 100, when known.
+    pub percent: Option<f64>,
+    /// Action in progress (MSI `ActionStart` description), when known.
+    pub action: Option<String>,
+    /// Processes still running in the Job Object.
+    pub processes: Vec<JobProcess>,
+}
 /// Request of `cs_scan_app_leftovers` (EF-13).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppLeftoversRequest {

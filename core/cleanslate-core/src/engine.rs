@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -11,11 +12,13 @@ use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
+use crate::inventory::is_guid;
 use crate::model::{
-    AppKind, AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, Leftover, PurgeRequest,
-    PurgeResult, RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session, UninstallRequest,
-    UninstallResult,
+    AppKind, AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, JobProcess, Leftover,
+    PurgeRequest, PurgeResult, RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session,
+    UninstallProgress, UninstallRequest, UninstallResult, UninstallStep,
 };
+use crate::msi::{ApiMsiUninstaller, MsiUninstaller, NoMsiUninstaller};
 use crate::quarantine::{simulate, Quarantine};
 use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
@@ -25,7 +28,7 @@ use crate::store::{NoPackageStore, PackageStore, StorePackage, WinRtPackageStore
 use crate::tasks::{ComTaskStore, NoTaskStore, TaskStore};
 use crate::uninstall::{
     build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
-    ProcessRunner, RestorePoints, SystemRestorePoints, UNINSTALL_TIMEOUT,
+    ProcessRunner, RestorePoints, RunOutcome, SystemRestorePoints, UNINSTALL_TIMEOUT,
 };
 
 fn default_true() -> bool {
@@ -106,6 +109,8 @@ pub struct Engine {
     services: Box<dyn ServiceControl>,
     /// Store packages of the current user (none on a test engine).
     packages: Box<dyn PackageStore>,
+    /// Windows Installer API (never used on a test engine: `msiexec` fallback).
+    msi: Box<dyn MsiUninstaller>,
     /// History database, opened on first use.
     history: Mutex<Option<History>>,
 }
@@ -143,6 +148,7 @@ impl Engine {
             tasks: Box::new(NoTaskStore),
             services: Box::new(NoServiceControl),
             packages: Box::new(NoPackageStore),
+            msi: Box::new(NoMsiUninstaller),
         }
     }
 
@@ -162,6 +168,7 @@ impl Engine {
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
         engine.set_package_store(Box::new(WinRtPackageStore));
+        engine.msi = Box::new(ApiMsiUninstaller);
         engine
     }
 
@@ -332,6 +339,11 @@ impl Engine {
         })
     }
 
+    /// Replaces the Windows Installer API (tests inject a fake).
+    pub fn set_msi_uninstaller(&mut self, msi: Box<dyn MsiUninstaller>) {
+        self.msi = msi;
+    }
+
     /// Replaces the Store package store (tests inject a fake).
     pub fn set_package_store(&mut self, packages: Box<dyn PackageStore>) {
         self.packages = packages;
@@ -361,7 +373,31 @@ impl Engine {
     /// EF-15) and waits for its whole process tree. In simulation (the
     /// default) only reports the command that would run.
     pub fn uninstall(&self, request: &UninstallRequest) -> CoreResult<UninstallResult> {
+        self.uninstall_with_progress(request, &|_| {})
+    }
+
+    /// [`Engine::uninstall`] reporting its progress (EF-21): each step, then
+    /// every 250 ms while waiting. MSI products go through the Windows
+    /// Installer API (real percentage and action), falling back to
+    /// `msiexec /x` if the API fails; `.exe` uninstallers report the
+    /// processes of their Job Object, never an invented percentage; Store
+    /// packages report the percentage of the removal.
+    pub fn uninstall_with_progress(
+        &self,
+        request: &UninstallRequest,
+        progress: &(dyn Fn(&UninstallProgress) + Sync),
+    ) -> CoreResult<UninstallResult> {
         let _guard = self.begin()?;
+        let started = Instant::now();
+        let emit = |step, percent, action, processes| {
+            progress(&UninstallProgress {
+                step,
+                elapsed_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                percent,
+                action,
+                processes,
+            });
+        };
         let app = self
             .list_apps()?
             .into_iter()
@@ -370,7 +406,7 @@ impl Engine {
                 location: request.app_id.clone(),
             })?;
         if app.kind == AppKind::Store {
-            return self.uninstall_package(&app, request);
+            return self.uninstall_package(&app, request, &emit);
         }
         let command = build_command(&app, request.quiet)?;
         if !program_exists(&command.program) {
@@ -399,6 +435,7 @@ impl Engine {
         }
         result.simulated = false;
         let sequence = if request.create_restore_point {
+            emit(UninstallStep::RestorePoint, None, None, Vec::new());
             match self.restore_points.begin(&format!(
                 "CleanSlate : désinstallation de {}",
                 app.display_name
@@ -415,8 +452,45 @@ impl Engine {
         } else {
             None
         };
-        tracing::info!(app = %app.display_name, command = %result.command, "running uninstaller");
-        let outcome = self.runner.run(&command, &self.cancel, UNINSTALL_TIMEOUT);
+        emit(UninstallStep::Launching, None, None, Vec::new());
+        let product_code = app
+            .product_code
+            .as_deref()
+            .filter(|c| app.is_msi && is_guid(c));
+        let through_api = product_code.and_then(|code| {
+            tracing::info!(app = %app.display_name, code, "uninstalling through Windows Installer");
+            emit(UninstallStep::Waiting, None, None, Vec::new());
+            match self.msi.uninstall(code, &self.cancel, &|percent, action| {
+                emit(UninstallStep::Waiting, percent, action, Vec::new())
+            }) {
+                Ok(code) => Some(code),
+                Err(err) => {
+                    tracing::warn!(%err, "Windows Installer API failed: falling back to msiexec");
+                    None
+                }
+            }
+        });
+        let outcome = match through_api {
+            Some(code) => {
+                result.command = format!(
+                    "MsiConfigureProductEx {} (absent)",
+                    product_code.unwrap_or_default()
+                );
+                Ok(RunOutcome {
+                    exit_code: Some(code),
+                    timed_out: false,
+                    cancelled: code == 1602,
+                })
+            }
+            None => {
+                tracing::info!(app = %app.display_name, command = %result.command, "running uninstaller");
+                emit(UninstallStep::Waiting, None, None, Vec::new());
+                self.runner
+                    .run(&command, &self.cancel, UNINSTALL_TIMEOUT, &|processes| {
+                        emit(UninstallStep::Waiting, None, None, processes.to_vec())
+                    })
+            }
+        };
         if let Some(seq) = sequence {
             self.restore_points.end(seq, outcome.is_ok());
         }
@@ -424,7 +498,9 @@ impl Engine {
         result.exit_code = outcome.exit_code;
         result.timed_out = outcome.timed_out;
         result.cancelled = outcome.cancelled;
+        emit(UninstallStep::Verifying, None, None, Vec::new());
         result.still_installed = self.list_apps()?.iter().any(|a| a.id == app.id);
+        emit(UninstallStep::Done, None, None, Vec::new());
         Ok(result)
     }
 
@@ -435,6 +511,7 @@ impl Engine {
         &self,
         app: &InstalledApp,
         request: &UninstallRequest,
+        emit: &(dyn Fn(UninstallStep, Option<f64>, Option<String>, Vec<JobProcess>) + Sync),
     ) -> CoreResult<UninstallResult> {
         let full_name = app
             .package_full_name
@@ -462,16 +539,25 @@ impl Engine {
         }
         result.simulated = false;
         tracing::info!(package = %full_name, "removing Store package for the current user");
-        self.packages.remove(&full_name, &|_| {})?;
+        emit(UninstallStep::Launching, None, None, Vec::new());
+        self.packages.remove(&full_name, &|percent| {
+            emit(
+                UninstallStep::Waiting,
+                Some(f64::from(percent)),
+                None,
+                Vec::new(),
+            )
+        })?;
         result.exit_code = Some(0);
+        emit(UninstallStep::Verifying, None, None, Vec::new());
         result.still_installed = self
             .packages
             .list()?
             .iter()
             .any(|p| p.full_name == full_name);
+        emit(UninstallStep::Done, None, None, Vec::new());
         Ok(result)
     }
-
     /// Leftovers of an application just uninstalled (EF-13): empty if it is
     /// still installed. Its items can then be passed to [`Engine::clean`].
     ///
@@ -803,7 +889,12 @@ mod tests {
             command: &crate::uninstall::Command,
             _: &AtomicBool,
             _: std::time::Duration,
+            on_tick: &dyn Fn(&[JobProcess]),
         ) -> CoreResult<crate::uninstall::RunOutcome> {
+            on_tick(&[JobProcess {
+                pid: 4242,
+                name: "unins000.exe".into(),
+            }]);
             self.calls.lock().unwrap().push(command.command_line());
             self.registry.delete_tree(&self.entry)?;
             Ok(crate::uninstall::RunOutcome {
@@ -924,7 +1015,33 @@ mod tests {
 
         // Real (fake process): restore point failure is reported, not blocking.
         let engine = make(false, true);
-        let result = engine.uninstall(&request(false)).unwrap();
+        let events = Mutex::new(Vec::new());
+        let result = engine
+            .uninstall_with_progress(&request(false), &|p| events.lock().unwrap().push(p.clone()))
+            .unwrap();
+        // EF-21: every step in order, the Job Object processes, no invented percentage.
+        let events = events.into_inner().unwrap();
+        let mut steps: Vec<UninstallStep> = events.iter().map(|e| e.step).collect();
+        steps.dedup();
+        assert_eq!(
+            steps,
+            [
+                UninstallStep::RestorePoint,
+                UninstallStep::Launching,
+                UninstallStep::Waiting,
+                UninstallStep::Verifying,
+                UninstallStep::Done
+            ]
+        );
+        assert!(events.iter().any(|e| e.processes
+            == [JobProcess {
+                pid: 4242,
+                name: "unins000.exe".into()
+            }]));
+        assert!(events.iter().all(|e| e.percent.is_none()));
+        assert!(events
+            .windows(2)
+            .all(|w| w[0].elapsed_ms <= w[1].elapsed_ms));
         assert!(!result.simulated);
         assert!(!result.still_installed);
         assert_eq!(result.exit_code, Some(0));
@@ -1054,8 +1171,17 @@ mod tests {
         };
         let simulated = engine.uninstall(&request(true)).unwrap();
         assert!(simulated.simulated && simulated.still_installed);
-        let removed = engine.uninstall(&request(false)).unwrap();
+        let percents = Mutex::new(Vec::new());
+        let removed = engine
+            .uninstall_with_progress(&request(false), &|p| {
+                if let Some(pct) = p.percent {
+                    percents.lock().unwrap().push(pct);
+                }
+            })
+            .unwrap();
         assert!(!removed.simulated && !removed.still_installed);
+        // Real percentage of the removal (EF-21).
+        assert_eq!(percents.into_inner().unwrap(), [0.0, 40.0, 100.0]);
         assert!(!removed.restore_point_created);
 
         // Its leftovers: the data folder and its key, High.
@@ -1105,6 +1231,108 @@ mod tests {
             KeySnapshot::read(&area.registry(), &app_key).unwrap(),
             before
         );
+    }
+
+    /// Fake Windows Installer API: reports progress and removes the entry,
+    /// or fails (the engine then falls back to `msiexec /x`).
+    struct FakeMsi {
+        registry: WinRegistry,
+        entry: crate::registry::RegKeyPath,
+        fail: bool,
+    }
+
+    impl MsiUninstaller for FakeMsi {
+        fn uninstall(
+            &self,
+            product_code: &str,
+            _: &AtomicBool,
+            report: &dyn Fn(Option<f64>, Option<String>),
+        ) -> CoreResult<u32> {
+            if self.fail {
+                return Err(CoreError::InvalidInput(format!(
+                    "api failed: {product_code}"
+                )));
+            }
+            report(Some(0.0), Some("Suppression des fichiers".into()));
+            report(Some(50.0), Some("Suppression des fichiers".into()));
+            self.registry.delete_tree(&self.entry)?;
+            Ok(0)
+        }
+    }
+
+    /// EF-21: an MSI product reports the real percentage and action through
+    /// the API; if the API fails, `msiexec /x` runs instead.
+    #[test]
+    fn msi_progress_through_the_api_or_msiexec_fallback() {
+        use crate::inventory::{stable_id, UNINSTALL_KEY};
+        use crate::model::RegistryView;
+        use crate::registry::{Hive, KeyView, RegKeyPath};
+        use std::sync::Arc;
+
+        let code = "{12345678-1234-1234-1234-123456789ABC}";
+        for fail in [false, true] {
+            let area = TestRegistryKey::new();
+            let entry = RegKeyPath::new(Hive::LocalMachine, UNINSTALL_KEY)
+                .with_view(KeyView::Force64)
+                .join(code);
+            let key = area.create(&entry);
+            key.set_value("DisplayName", &"MsiApp").unwrap();
+            key.set_value("WindowsInstaller", &1u32).unwrap();
+            key.set_value("UninstallString", &format!("MsiExec.exe /X{code}").as_str())
+                .unwrap();
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let config = EngineConfig {
+                dry_run: false,
+                data_dir: None,
+                exclusions: vec![],
+            };
+            let mut engine = Engine::new(
+                config,
+                Box::new(FakeFileSystem::new()),
+                Box::new(area.registry()),
+            );
+            engine.set_uninstall_backends(
+                Box::new(DeletingRunner {
+                    registry: area.registry(),
+                    entry: entry.clone(),
+                    calls: Arc::clone(&calls),
+                }),
+                Box::new(NoRestorePoints),
+            );
+            engine.set_msi_uninstaller(Box::new(FakeMsi {
+                registry: area.registry(),
+                entry: entry.clone(),
+                fail,
+            }));
+            let events = Mutex::new(Vec::new());
+            let result = engine
+                .uninstall_with_progress(
+                    &UninstallRequest {
+                        app_id: stable_id(RegistryView::Hklm64, code),
+                        quiet: false,
+                        create_restore_point: false,
+                        dry_run: false,
+                    },
+                    &|p| events.lock().unwrap().push(p.clone()),
+                )
+                .unwrap();
+            let events = events.into_inner().unwrap();
+            assert!(!result.still_installed);
+            if fail {
+                assert!(
+                    result.command.to_lowercase().contains("msiexec.exe"),
+                    "{}",
+                    result.command
+                );
+                assert_eq!(calls.lock().unwrap().len(), 1);
+                assert!(events.iter().all(|e| e.percent.is_none()));
+            } else {
+                assert!(result.command.starts_with("MsiConfigureProductEx"));
+                assert!(calls.lock().unwrap().is_empty(), "msiexec never started");
+                assert!(events.iter().any(|e| e.percent == Some(50.0)
+                    && e.action.as_deref() == Some("Suppression des fichiers")));
+            }
+        }
     }
 
     #[test]

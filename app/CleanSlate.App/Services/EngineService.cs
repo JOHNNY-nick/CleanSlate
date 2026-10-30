@@ -68,8 +68,8 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ListSessionsAsync(cancellationToken);
 
     /// <inheritdoc/>
-    public Task<UninstallResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken) =>
-        Client.UninstallAsync(request, cancellationToken);
+    public Task<UninstallResult> UninstallAsync(UninstallRequest request, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken) =>
+        Client.UninstallAsync(request, progress, cancellationToken);
 
     /// <inheritdoc/>
     public Task<ScanReport> ScanAppLeftoversAsync(AppLeftoversRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>

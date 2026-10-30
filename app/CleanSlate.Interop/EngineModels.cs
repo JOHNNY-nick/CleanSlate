@@ -290,6 +290,41 @@ public sealed record PurgeRequest(uint OlderThanDays, bool DryRun = true);
 /// <summary>Result of <c>cs_purge_quarantine</c>.</summary>
 public sealed record PurgeResult(ulong FreedBytes, bool Simulated);
 
+/// <summary>Step of an uninstall (EF-21).</summary>
+[JsonConverter(typeof(SnakeCaseEnumConverter<UninstallStep>))]
+public enum UninstallStep
+{
+    /// <summary>Creating the restore point.</summary>
+    RestorePoint,
+
+    /// <summary>Starting the official uninstaller.</summary>
+    Launching,
+
+    /// <summary>Waiting for the uninstaller and its process tree.</summary>
+    Waiting,
+
+    /// <summary>Checking that the application is gone.</summary>
+    Verifying,
+
+    /// <summary>Finished.</summary>
+    Done,
+}
+
+/// <summary>One process of the uninstaller's Job Object.</summary>
+public sealed record JobProcess(uint Pid, string Name);
+
+/// <summary>
+/// Progress event of <c>cs_uninstall</c> (EF-21): each step, then at most every 250 ms.
+/// <see cref="Percent"/> and <see cref="Action"/> come from Windows Installer or the Store;
+/// for an <c>.exe</c> uninstaller they stay empty and <see cref="Processes"/> lists the Job Object.
+/// </summary>
+public sealed record UninstallProgress(
+    UninstallStep Step,
+    ulong ElapsedMs,
+    double? Percent,
+    string? Action,
+    IReadOnlyList<JobProcess> Processes);
+
 /// <summary>Request of <c>cs_uninstall</c>; simulation by default, restore point requested.</summary>
 public sealed record UninstallRequest(string AppId, bool Quiet = false, bool CreateRestorePoint = true, bool DryRun = true);
 
@@ -328,6 +363,7 @@ public sealed record AppLeftoversRequest(string AppId, bool UninstallerMissing =
 [JsonSerializable(typeof(EngineResponse<List<Session>>))]
 [JsonSerializable(typeof(EngineResponse<PurgeResult>))]
 [JsonSerializable(typeof(UninstallRequest))]
+[JsonSerializable(typeof(UninstallProgress))]
 [JsonSerializable(typeof(AppLeftoversRequest))]
 [JsonSerializable(typeof(EngineResponse<UninstallResult>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext
