@@ -391,7 +391,42 @@ impl Engine {
     /// `msiexec /x` if the API fails; `.exe` uninstallers report the
     /// processes of their Job Object, never an invented percentage; Store
     /// packages report the percentage of the removal.
+    ///
+    /// Each uninstall ends with one log line: simulated, or the outcome with a
+    /// summary of the progress events (count, steps, percentages, processes,
+    /// duration), so that a fast uninstall can be checked afterwards (D57).
     pub fn uninstall_with_progress(
+        &self,
+        request: &UninstallRequest,
+        progress: &(dyn Fn(&UninstallProgress) + Sync),
+    ) -> CoreResult<UninstallResult> {
+        let stats = Mutex::new(ProgressStats::default());
+        let result = self.uninstall_observed(request, &|event| {
+            if let Ok(mut stats) = stats.lock() {
+                stats.observe(event);
+            }
+            progress(event);
+        });
+        let summary = stats.lock().map(|s| s.summary()).unwrap_or_default();
+        match &result {
+            Ok(r) if r.simulated => tracing::info!(
+                app = %r.display_name, command = %r.command, "uninstall simulated: nothing was run"
+            ),
+            Ok(r) => tracing::info!(
+                app = %r.display_name,
+                exit_code = ?r.exit_code,
+                still_installed = r.still_installed,
+                timed_out = r.timed_out,
+                cancelled = r.cancelled,
+                %summary,
+                "uninstall finished"
+            ),
+            Err(err) => tracing::warn!(app = %request.app_id, %err, %summary, "uninstall failed"),
+        }
+        result
+    }
+
+    fn uninstall_observed(
         &self,
         request: &UninstallRequest,
         progress: &(dyn Fn(&UninstallProgress) + Sync),
@@ -738,6 +773,61 @@ impl Engine {
     }
 }
 
+/// Summary of the progress events of one uninstall, for the log line that
+/// ends it (D57): a fast uninstall leaves a checkable trace.
+#[derive(Debug, Default)]
+struct ProgressStats {
+    events: usize,
+    steps: Vec<UninstallStep>,
+    min_percent: Option<f64>,
+    max_percent: Option<f64>,
+    actions: usize,
+    processes: Vec<String>,
+    last_elapsed_ms: u64,
+}
+
+impl ProgressStats {
+    fn observe(&mut self, event: &UninstallProgress) {
+        self.events += 1;
+        if self.steps.last() != Some(&event.step) {
+            self.steps.push(event.step);
+        }
+        if let Some(p) = event.percent {
+            self.min_percent = Some(self.min_percent.map_or(p, |m| m.min(p)));
+            self.max_percent = Some(self.max_percent.map_or(p, |m| m.max(p)));
+        }
+        if event.action.is_some() {
+            self.actions += 1;
+        }
+        for process in &event.processes {
+            if !self.processes.contains(&process.name) {
+                self.processes.push(process.name.clone());
+            }
+        }
+        self.last_elapsed_ms = event.elapsed_ms;
+    }
+
+    fn summary(&self) -> String {
+        let steps: Vec<String> = self.steps.iter().map(|s| format!("{s:?}")).collect();
+        let percent = match (self.min_percent, self.max_percent) {
+            (Some(min), Some(max)) => format!("{min:.0}..{max:.0}"),
+            _ => "none".to_owned(),
+        };
+        let processes = if self.processes.is_empty() {
+            "none".to_owned()
+        } else {
+            self.processes.join(",")
+        };
+        format!(
+            "events={} steps={} percent={percent} actions={} processes={processes} duration_ms={}",
+            self.events,
+            steps.join(">"),
+            self.actions,
+            self.last_elapsed_ms
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -747,6 +837,57 @@ mod tests {
     };
     use crate::registry::TestRegistryKey;
     use std::path::Path;
+
+    #[test]
+    fn progress_stats_summarize_steps_percentages_and_processes() {
+        let event =
+            |step, elapsed_ms, percent, action: Option<&str>, names: &[&str]| UninstallProgress {
+                step,
+                elapsed_ms,
+                percent,
+                action: action.map(str::to_owned),
+                processes: names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| crate::model::JobProcess {
+                        pid: 100 + i as u32,
+                        name: (*n).to_owned(),
+                    })
+                    .collect(),
+            };
+        let mut stats = ProgressStats::default();
+        assert_eq!(
+            stats.summary(),
+            "events=0 steps= percent=none actions=0 processes=none duration_ms=0"
+        );
+        for e in [
+            event(UninstallStep::Launching, 5, None, None, &[]),
+            event(UninstallStep::Waiting, 10, Some(0.0), None, &[]),
+            event(
+                UninstallStep::Waiting,
+                400,
+                Some(42.4),
+                Some("Removing files"),
+                &["unins000.exe"],
+            ),
+            event(
+                UninstallStep::Waiting,
+                650,
+                Some(100.0),
+                None,
+                &["unins000.exe", "_iu14D2N.tmp"],
+            ),
+            event(UninstallStep::Verifying, 700, None, None, &[]),
+            event(UninstallStep::Done, 720, None, None, &[]),
+        ] {
+            stats.observe(&e);
+        }
+        assert_eq!(
+            stats.summary(),
+            "events=6 steps=Launching>Waiting>Verifying>Done percent=0..100 actions=1 \
+             processes=unins000.exe,_iu14D2N.tmp duration_ms=720"
+        );
+    }
 
     #[test]
     fn config_defaults_to_dry_run() {

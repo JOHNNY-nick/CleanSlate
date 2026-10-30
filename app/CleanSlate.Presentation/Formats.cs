@@ -46,6 +46,9 @@ public static class Formats
     /// <summary>Formats a date: « 22 oct. 2026 ».</summary>
     public static string Date(DateOnly date) => date.ToString("d MMM yyyy", French);
 
+    /// <summary>Whole percentage, e.g. « 43 % » for 42.6.</summary>
+    public static string Percent(double percent) => string.Format(French, "{0:0} %", percent);
+
     /// <summary>Formats an optional date, or « — » when unknown.</summary>
     public static string Date(DateOnly? date) => date is { } d ? Date(d) : Unknown;
 }

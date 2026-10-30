@@ -9,6 +9,21 @@
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />
         <conv:ConfidenceBrushConverter x:Key="ConfidenceBrush" />
+        <!-- One line of the progress history (D57): clock, elapsed time, step, detail. -->
+        <DataTemplate x:Key="ProgressEntryTemplate" x:DataType="vm:UninstallProgressEntry">
+            <Grid Padding="0,2" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind TimeText}" />
+                <TextBlock Grid.Column="1" FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind ElapsedText}" />
+                <TextBlock Grid.Column="2" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind StepKey, Converter={StaticResource ResourceString}, ConverterParameter=UninstallStep}" />
+                <TextBlock Grid.Column="3" FontSize="13" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind Detail}" TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <ScrollViewer>
@@ -83,16 +98,9 @@
                         TextWrapping="Wrap"
                         Visibility="{x:Bind ViewModel.HasAction, Mode=OneWay}" />
                     <TextBlock x:Uid="WizardStepsTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
-                    <ItemsControl x:Uid="WizardStepsList" ItemsSource="{x:Bind ViewModel.Steps}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:UninstallStepItem">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <TextBlock FontFamily="{StaticResource PathFontFamily}" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind TimeText}" />
-                                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind Key, Converter={StaticResource ResourceString}, ConverterParameter=UninstallStep}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ScrollViewer MaxHeight="240">
+                        <ItemsControl x:Uid="WizardStepsList" ItemsSource="{x:Bind ViewModel.History}" ItemTemplate="{StaticResource ProgressEntryTemplate}" />
+                    </ScrollViewer>
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.HasProcesses, Mode=OneWay}">
                         <TextBlock x:Uid="WizardProcessesTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
                         <ItemsControl x:Uid="WizardProcessesList" FontFamily="{StaticResource PathFontFamily}" FontSize="12" ItemsSource="{x:Bind ViewModel.Processes}" />
@@ -164,6 +172,21 @@
                         Text="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
                         TextWrapping="Wrap"
                         Visibility="{x:Bind ViewModel.ShowCleanSimulatedLine, Mode=OneWay}" />
+                    <!-- What happened during the uninstall, even when it was too fast to follow (D57). -->
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.HasHistory, Mode=OneWay}">
+                        <TextBlock x:Uid="WizardHistoryTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
+                        <TextBlock
+                            Style="{StaticResource SecondaryTextBlockStyle}"
+                            Text="{x:Bind conv:Texts.Two('Format_ProgressCounts', ViewModel.ProgressEventCount, ViewModel.DurationText), Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Style="{StaticResource SecondaryTextBlockStyle}"
+                            Text="{x:Bind conv:Texts.Two('Format_ProgressSeen', ViewModel.MaxPercentText, ViewModel.ProcessNamesText), Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <ScrollViewer MaxHeight="260">
+                            <ItemsControl x:Uid="WizardHistoryList" ItemsSource="{x:Bind ViewModel.History}" ItemTemplate="{StaticResource ProgressEntryTemplate}" />
+                        </ScrollViewer>
+                    </StackPanel>
                     <HyperlinkButton x:Uid="WizardOpenHistory" Command="{x:Bind ViewModel.OpenHistoryCommand}" />
                 </StackPanel>
             </Border>

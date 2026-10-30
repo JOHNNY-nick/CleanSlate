@@ -582,6 +582,21 @@
   <data name="UninstallStep_Leftovers" xml:space="preserve">
     <value>Recherche des restes</value>
   </data>
+  <data name="UninstallStep_Simulated" xml:space="preserve">
+    <value>Simulation : rien n'a été lancé</value>
+  </data>
+  <data name="WizardHistoryTitle.Text" xml:space="preserve">
+    <value>Déroulé de la désinstallation</value>
+  </data>
+  <data name="WizardHistoryList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Déroulé horodaté de la désinstallation</value>
+  </data>
+  <data name="Format_ProgressCounts" xml:space="preserve">
+    <value>{0} relevé(s) de progression ; durée : {1}</value>
+  </data>
+  <data name="Format_ProgressSeen" xml:space="preserve">
+    <value>Pourcentage maximal : {0} ; processus vus : {1}</value>
+  </data>
   <data name="HiddenReason_MicrosoftApp" xml:space="preserve">
     <value>Application Microsoft : CleanSlate ne la désinstalle pas. Utilisez Paramètres → Applications si vous y tenez.</value>
   </data>

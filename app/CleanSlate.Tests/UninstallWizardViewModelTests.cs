@@ -235,6 +235,87 @@ public sealed class UninstallWizardViewModelTests
     }
 
     [Fact]
+    public async Task FastUninstall_KeepsTheTimedHistory_UpToTheSummary()
+    {
+        // VLC in Windows Sandbox: the MSI uninstall ends in about 1 s, before step 2 can be read.
+        var (vm, engine, _) = Create();
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var progress = call.Arg<IProgress<UninstallProgress>?>()!;
+                progress.Report(new UninstallProgress(UninstallStep.Launching, 12, null, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 30, 0, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 400, 42.4, "Suppression des fichiers", []));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 450, 42.6, "Suppression des fichiers", []));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 900, 100, null, [new JobProcess(4242, "msiexec.exe")]));
+                progress.Report(new UninstallProgress(UninstallStep.Waiting, 1_100, 100, null, [new JobProcess(4242, "msiexec.exe")]));
+                progress.Report(new UninstallProgress(UninstallStep.Verifying, 1_295, null, null, []));
+                progress.Report(new UninstallProgress(UninstallStep.Done, 1_307, null, null, []));
+                return Task.FromResult(Result());
+            });
+        engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanReport([], [], 10, false));
+        vm.Start(Gimp, complete: true);
+
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsStep4);
+        Assert.True(vm.HasHistory);
+        // A line per change: step, whole percentage, action or process list (not per event).
+        Assert.Equal(
+            [
+                ("Launching", "00:00.012", ""),
+                ("Waiting", "00:00.030", "0 %"),
+                ("Waiting", "00:00.400", "42 % — Suppression des fichiers"),
+                ("Waiting", "00:00.450", "43 % — Suppression des fichiers"),
+                ("Waiting", "00:00.900", "100 % — msiexec.exe (PID 4242)"),
+                ("Verifying", "00:01.295", ""),
+                ("Done", "00:01.307", ""),
+            ],
+            vm.History.Select(h => (h.StepKey, h.ElapsedText, h.Detail)));
+        Assert.All(vm.History, h => Assert.Matches(@"^\d\d:\d\d:\d\d$", h.TimeText));
+        Assert.Equal(8, vm.ProgressEventCount);
+        Assert.Equal("100 %", vm.MaxPercentText);
+        Assert.Equal("msiexec.exe", vm.ProcessNamesText);
+        Assert.Equal("00:01.307", vm.DurationText);
+    }
+
+    [Fact]
+    public async Task Simulation_SaysInTheHistoryThatNothingWasRun()
+    {
+        // Complements scenario of 30 Oct. 2026: CleanSlate in simulation (default of a new
+        // Sandbox), the summary came at once and looked like a finished uninstall.
+        var (vm, engine, _) = Create(simulation: true);
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
+        vm.Start(Gimp, complete: true);
+
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsStep4);
+        Assert.True(vm.WasSimulated);
+        var line = Assert.Single(vm.History);
+        Assert.Equal("Simulated", line.StepKey);
+        Assert.Equal("\"C:\\…\\unins000.exe\"", line.Detail);
+        Assert.Equal(0, vm.ProgressEventCount);
+        Assert.Equal("—", vm.MaxPercentText);
+        Assert.Equal("—", vm.ProcessNamesText);
+    }
+
+    [Fact]
+    public async Task ANewUninstall_StartsAFreshHistory()
+    {
+        var (vm, engine, _) = Create(simulation: true);
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
+        vm.Start(Gimp, complete: true);
+        await vm.LaunchCommand.ExecuteAsync(null);
+
+        vm.Start(Gimp, complete: true);
+
+        Assert.False(vm.HasHistory);
+        Assert.Equal(0, vm.ProgressEventCount);
+    }
+
+    [Fact]
     public void StoreApplication_HasNoRestorePoint()
     {
         var (vm, _, _) = Create();

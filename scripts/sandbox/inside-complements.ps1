@@ -255,22 +255,74 @@ RoundTrip 'Reste de paquet du Store (dossier + clé)' 'CleanSlateTest.Leftover' 
     (FileState $folder) + "`n" + (RegState $key)
 } { -not (Test-Path -LiteralPath $folder) } 'dossier Packages\<famille> et clé AppContainer\Storage'
 
-# 6. VLC (MSI) and GIMP (Inno Setup) for the manual checks, from the verified installers.
+# 6. VLC (MSI) and GIMP (Inno Setup), from the verified installers: installed, uninstalled
+#    by CleanSlate with an automatic check of the progress events (EF-21, D57), then
+#    installed again for the manual checks.
 $installers = @(Test-Installer "$Repo\scripts\sandbox\manifeste.json" "$Repo\artifacts\sandbox\installers" 'complements')
 $bad = @($installers | Where-Object { -not $_.Ok })
 $checks += [pscustomobject]@{ Name = 'Installeurs VLC et GIMP conformes au manifeste'; Measure = "$($installers.Count - $bad.Count) / $($installers.Count) SHA-256"; Status = $(if ($installers.Count -and -not $bad.Count) { 'ok' } else { 'script' }) }
-if (-not $bad.Count) {
-    foreach ($i in $installers) {
-        Invoke-Step "Installation de $($i.Name) $($i.Version) (vérifications manuelles)" {
-            $line = $i.Install.Replace('<fichier>', "`"$($i.Path)`"")
-            $program, $arguments = Split-Command $line
-            Write-Host "$program $arguments"
-            $p = Start-Process $program $arguments -Wait -PassThru
-            Write-Host "code de sortie $($p.ExitCode)"
-        }
+
+function Install-FromManifest($installer, [string] $purpose) {
+    Invoke-Step "Installation de $($installer.Name) $($installer.Version) ($purpose)" {
+        $program, $arguments = Split-Command $installer.Install.Replace('<fichier>', "`"$($installer.Path)`"")
+        Write-Host "$program $arguments"
+        $p = Start-Process $program $arguments -Wait -PassThru
+        Write-Host "code de sortie $($p.ExitCode)"
     }
 }
-$checks += [pscustomobject]@{ Name = 'MSI (VLC) : pourcentage et action à l''étape 2 ; GIMP (Inno Setup) : liste des processus (EF-21) ; filtre « Store »'; Measure = 'dans CleanSlate (Bureau), mode simulation désactivé'; Status = 'manuel' }
+
+# Uninstalls with "sandbox uninstall" (quiet, like « Désinstallation silencieuse » in the
+# app), keeps every progress event in progression-<app>.txt and checks them. MSI: real
+# percentages up to 100 % and Windows Installer actions; .exe: the processes of the Job
+# Object and never a percentage. Both: really uninstalled, and the summary line
+# « uninstall finished » in CleanSlate's log.
+function Test-UninstallProgress($installer, [string] $cliName, [bool] $isMsi) {
+    $ctx = @{ Result = $null; Events = @() }
+    Invoke-Step "Désinstallation de $($installer.Name) par CleanSlate (progression vérifiée)" {
+        $ctx.Result = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'uninstall', $cliName)
+        $ctx.Events = @(Get-Content "$out\cli-err.txt" -Encoding utf8 -ErrorAction SilentlyContinue | Where-Object { $_ -like '{*' } | ForEach-Object { $_ | ConvertFrom-Json })
+        Write-Host "$($ctx.Events.Count) événement(s) de progression"
+    }
+    $step = $Run.Steps[-1]
+    $slug = ($cliName -replace '\W+', '-').ToLowerInvariant()
+    $lines = @("Progression de la désinstallation de $($installer.Name) $($installer.Version) par cleanslate-cli-sandbox", 'elapsed_ms | étape | % | action | processus')
+    $lines += $ctx.Events | ForEach-Object { "$($_.elapsed_ms) | $($_.step) | $($_.percent) | $($_.action) | $(($_.processes | ForEach-Object { "$($_.name) ($($_.pid))" }) -join ', ')" }
+    $lines | Set-Content "$out\progression-$slug.txt" -Encoding utf8
+
+    $events = $ctx.Events
+    $percents = @($events | Where-Object { $null -ne $_.percent } | ForEach-Object { [double]$_.percent })
+    $actions = @($events | Where-Object { $_.action })
+    $names = @($events | ForEach-Object { $_.processes } | ForEach-Object { $_.name } | Select-Object -Unique)
+    $withProcesses = @($events | Where-Object { @($_.processes).Count -gt 0 })
+    $duration = if ($events.Count) { $events[-1].elapsed_ms } else { 0 }
+    $steps = (@($events | ForEach-Object { $_.step }) | Get-Unique) -join ' > '
+    $gone = [bool]($ctx.Result -and -not $ctx.Result.still_installed)
+    $script:checks += [pscustomobject]@{ Name = "$($installer.Name) : désinstallé par CleanSlate"; Measure = "$($events.Count) événement(s) en $duration ms ($steps) ; code $($ctx.Result.exit_code) ; progression-$slug.txt"; Status = (Status $gone $step) }
+    if ($isMsi) {
+        $maxPercent = if ($percents.Count) { ($percents | Measure-Object -Maximum).Maximum } else { $null }
+        $distinct = @($percents | Select-Object -Unique).Count
+        $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (MSI) : pourcentage réel jusqu'à 100 % (EF-21)"; Measure = "$($percents.Count) relevé(s), $distinct valeur(s) distincte(s), maximum $maxPercent %"; Status = (Status ($distinct -ge 2 -and $maxPercent -eq 100) $step) }
+        $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (MSI) : action en cours de Windows Installer"; Measure = "$($actions.Count) relevé(s) avec action$(if ($actions.Count) { ", ex. « $($actions[0].action) »" })"; Status = (Status ($actions.Count -ge 1) $step) }
+    }
+    else {
+        $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (.exe) : processus du désinstalleur (EF-21)"; Measure = "$($withProcesses.Count) relevé(s) avec processus : $(if ($names.Count) { $names -join ', ' } else { 'aucun' })"; Status = (Status ($withProcesses.Count -ge 1) $step) }
+        $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (.exe) : aucun pourcentage inventé"; Measure = "$($percents.Count) relevé(s) avec pourcentage"; Status = (Status ($percents.Count -eq 0) $step) }
+    }
+    $logLine = Get-ChildItem "$out\cleanslate-logs" -Filter 'cleanslate.*.log' -ErrorAction SilentlyContinue |
+        Select-String -Pattern 'uninstall finished' | Where-Object { $_.Line -match [regex]::Escape($cliName) } | Select-Object -Last 1
+    $logMeasure = if ($logLine) { $logLine.Line -replace '^.*?uninstall finished\s*', '' } else { 'absente de cleanslate-logs' }
+    $script:checks += [pscustomobject]@{ Name = "$($installer.Name) : ligne récapitulative dans le journal de CleanSlate"; Measure = $logMeasure; Status = (Status ([bool]$logLine) $step) }
+}
+
+if (-not $bad.Count) {
+    $cliNames = @{ 'VideoLAN.VLC' = 'VLC media player'; 'GIMP.GIMP.3' = 'GIMP' }
+    foreach ($i in $installers) {
+        Install-FromManifest $i 'désinstallation vérifiée'
+        Test-UninstallProgress $i $cliNames[$i.Id] ($i.Install -like 'msiexec*')
+        Install-FromManifest $i 'vérifications manuelles'
+    }
+}
+$checks += [pscustomobject]@{ Name = 'Dans CleanSlate (Bureau) : VLC et GIMP par « Désinstaller complètement », filtre « Store »'; Measure = 'd''abord Réglages → désactiver « Mode simulation » (sinon rien n''est lancé : l''étape 4 l''indique) ; puis comparer le « Déroulé de la désinstallation » de l''étape 4 avec progression-*.txt'; Status = 'manuel' }
 
 Write-Report 'Compléments v1.0 — résultats dans Windows Sandbox' $meta $checks ([ordered]@{
         'Installeurs vérifiés' = @($installers | ForEach-Object { "$(if ($_.Ok) { 'conforme' } else { 'NON CONFORME' }) — $($_.Name) $($_.Version) — SHA-256 $($_.Actual)" })

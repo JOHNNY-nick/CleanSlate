@@ -13,6 +13,16 @@ namespace CleanSlate.Presentation.ViewModels;
 public sealed record UninstallStepItem(string Key, string TimeText);
 
 /// <summary>
+/// One line of the progress history (step 2, kept for the summary of step 4, D57): a new line
+/// when the step, the whole percentage, the action or the process list changes.
+/// </summary>
+/// <param name="TimeText">Clock time, e.g. « 14:02:37 ».</param>
+/// <param name="ElapsedText">Time since the start, e.g. « 00:01.295 ».</param>
+/// <param name="StepKey">Step name, turned into text by the view (<c>UninstallStep_{Key}</c>).</param>
+/// <param name="Detail">« 42 % — Suppression des fichiers — msiexec.exe (PID 4242) », or empty.</param>
+public sealed record UninstallProgressEntry(string TimeText, string ElapsedText, string StepKey, string Detail);
+
+/// <summary>
 /// Uninstall wizard (design § 4.2): 1 confirmation, 2 official uninstaller,
 /// 3 leftovers, 4 summary. The classic mode stops after the uninstaller.
 /// </summary>
@@ -135,6 +145,33 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     private bool _hasProcesses;
 
     private UninstallStep? _lastStep;
+    private readonly HashSet<string> _processNames = [];
+    private double? _maxPercent;
+
+    /// <summary>Most lines kept in the history; past it, only step changes are added.</summary>
+    public const int MaxHistoryLines = 300;
+
+    /// <summary>Timed history of the progress, kept after the uninstall (step 2 and 4, D57).</summary>
+    public ObservableCollection<UninstallProgressEntry> History { get; } = [];
+
+    /// <summary>The history has lines.</summary>
+    public bool HasHistory => History.Count > 0;
+
+    /// <summary>Progress events received from the engine.</summary>
+    [ObservableProperty]
+    private int _progressEventCount;
+
+    /// <summary>Highest real percentage, e.g. « 100 % », or « — ».</summary>
+    [ObservableProperty]
+    private string _maxPercentText = Formats.Unknown;
+
+    /// <summary>Processes seen in the Job Object, e.g. « unins000.exe, _iu14D2N.tmp », or « — ».</summary>
+    [ObservableProperty]
+    private string _processNamesText = Formats.Unknown;
+
+    /// <summary>Duration given by the last event, e.g. « 00:01.307 ».</summary>
+    [ObservableProperty]
+    private string _durationText = ElapsedFormat(0);
 
     /// <summary>Leftovers found after the uninstaller (step 3).</summary>
     public ObservableCollection<LeftoverGroupViewModel> Groups { get; } = [];
@@ -203,6 +240,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         CleanSimulated = false;
         WithoutUninstaller = false;
         NoLeftoverFound = false;
+        ResetProgress();
         ClearGroups();
         OnPropertyChanged(nameof(CanQuiet));
         OnPropertyChanged(nameof(IsSimulationMode));
@@ -226,6 +264,11 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         {
             var request = new UninstallRequest(App.App.Id, Quiet && CanQuiet, CreateRestorePoint && IsWin32, DryRun: _settings.SimulationMode);
             Result = await _engine.UninstallAsync(request, new UiProgress<UninstallProgress>(OnUninstallProgress), cancellationToken);
+            if (Result.Simulated)
+            {
+                // Nothing ran, so no progress event: the history says so, with the command.
+                AddHistory("Simulated", 0, Result.Command);
+            }
             OnPropertyChanged(nameof(StillInstalled));
             OnPropertyChanged(nameof(WasSimulated));
             OnPropertyChanged(nameof(ShowCleanedLine));
@@ -256,6 +299,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     /// </summary>
     public void OnUninstallProgress(UninstallProgress progress)
     {
+        RecordProgress(progress);
         if (_lastStep != progress.Step)
         {
             _lastStep = progress.Step;
@@ -280,9 +324,71 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
 
     private void AddStep(string key) => Steps.Add(new UninstallStepItem(key, DateTime.Now.ToString("HH:mm:ss")));
 
+    private static string ElapsedFormat(ulong milliseconds) => TimeSpan.FromMilliseconds(milliseconds).ToString(@"mm\:ss\.fff");
+
+    // Counts every event; adds a history line only when what is shown changes.
+    private void RecordProgress(UninstallProgress progress)
+    {
+        ProgressEventCount++;
+        DurationText = ElapsedFormat(progress.ElapsedMs);
+        if (progress.Percent is double percent)
+        {
+            _maxPercent = Math.Max(_maxPercent ?? percent, percent);
+            MaxPercentText = Formats.Percent(_maxPercent.Value);
+        }
+
+        foreach (JobProcess process in progress.Processes)
+        {
+            _processNames.Add(process.Name);
+        }
+
+        if (_processNames.Count > 0)
+        {
+            ProcessNamesText = string.Join(", ", _processNames);
+        }
+
+        var parts = new List<string>();
+        if (progress.Percent is double shown)
+        {
+            parts.Add(Formats.Percent(shown));
+        }
+
+        if (!string.IsNullOrEmpty(progress.Action))
+        {
+            parts.Add(progress.Action);
+        }
+
+        if (progress.Processes.Count > 0)
+        {
+            parts.Add(string.Join(", ", progress.Processes.Select(p => $"{p.Name} (PID {p.Pid})")));
+        }
+
+        string key = progress.Step.ToString();
+        string detail = string.Join(" — ", parts);
+        UninstallProgressEntry? last = History.Count > 0 ? History[^1] : null;
+        if (last is null || last.StepKey != key || (last.Detail != detail && History.Count < MaxHistoryLines))
+        {
+            AddHistory(key, progress.ElapsedMs, detail);
+        }
+    }
+
+    private void AddHistory(string key, ulong elapsedMs, string detail)
+    {
+        History.Add(new UninstallProgressEntry(DateTime.Now.ToString("HH:mm:ss"), ElapsedFormat(elapsedMs), key, detail));
+        OnPropertyChanged(nameof(HasHistory));
+    }
+
     private void ResetProgress()
     {
         Steps.Clear();
+        History.Clear();
+        OnPropertyChanged(nameof(HasHistory));
+        _processNames.Clear();
+        _maxPercent = null;
+        ProgressEventCount = 0;
+        MaxPercentText = Formats.Unknown;
+        ProcessNamesText = Formats.Unknown;
+        DurationText = ElapsedFormat(0);
         Processes.Clear();
         HasProcesses = false;
         _lastStep = null;
