@@ -205,6 +205,10 @@ pub struct ScanOptions {
     /// Also look for dead shortcuts (EF-07).
     #[serde(default = "default_true")]
     pub include_shortcuts: bool,
+    /// Also look for scheduled tasks and services whose program is missing
+    /// (EF-07); detection only, they are never quarantined.
+    #[serde(default = "default_true")]
+    pub include_tasks_and_services: bool,
 }
 
 impl Default for ScanOptions {
@@ -213,6 +217,7 @@ impl Default for ScanOptions {
             dry_run: true,
             include_registry: true,
             include_shortcuts: true,
+            include_tasks_and_services: true,
         }
     }
 }

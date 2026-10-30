@@ -22,6 +22,7 @@ use crate::model::{
 };
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
 use crate::safety::{KnownFolders, SafetyRules};
+use crate::system::{dead_services, dead_tasks, DeadEntry};
 
 /// Minimum delay between two progress events (ENF-06).
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
@@ -181,7 +182,7 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
     candidates.dedup_by_key(|c| c.location.to_lowercase());
 
     let reporter = Reporter::new(progress, candidates.len() as u64);
-    let found: Vec<(Option<String>, Leftover)> = candidates
+    let mut found: Vec<(Option<String>, Leftover)> = candidates
         .par_iter()
         .filter_map(|candidate| {
             if env.cancel.load(Ordering::Relaxed) {
@@ -192,6 +193,12 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
             result.map(|leftover| (candidate.publisher.clone(), leftover))
         })
         .collect();
+    if options.include_tasks_and_services && !env.cancel.load(Ordering::Relaxed) {
+        let dead = dead_tasks(env.fs, env.folders)
+            .into_iter()
+            .chain(dead_services(env.fs, env.registry, env.folders));
+        found.extend(dead.map(|entry| dead_entry_leftover(&known, env.folders, &entry)));
+    }
 
     let cancelled = env.cancel.load(Ordering::Relaxed);
     reporter.emit(ScanPhase::Done, "");
@@ -433,6 +440,75 @@ fn list_shortcuts(
             });
         }
     }
+}
+
+/// Folder names too generic to name an application (`…\Vendor\App\bin\x.exe`).
+const GENERIC_FOLDERS: [&str; 6] = ["bin", "x64", "x86", "app", "current", "service"];
+
+/// A dead scheduled task or service (EF-07) as an item of the report:
+/// shown with its missing program, at most Medium, and never quarantined
+/// (the quarantine refuses these kinds; owner's decision, V11 plan).
+fn dead_entry_leftover(
+    known: &KnownSet,
+    folders: &KnownFolders,
+    entry: &DeadEntry,
+) -> (Option<String>, Leftover) {
+    let program = entry.program.to_string_lossy().into_owned();
+    let app = guess_app(&entry.program, folders)
+        .unwrap_or_else(|| entry.name.trim_start_matches('\\').to_owned());
+    let installed = known.attach(&app, Some(&program), &[]).is_some();
+    let how = if entry.kind == LeftoverKind::ScheduledTask {
+        "Affichée seulement : à supprimer dans le Planificateur de tâches"
+    } else {
+        "Affiché seulement : à supprimer en administrateur avec « sc.exe delete »"
+    };
+    let mut reasons = vec![
+        format!("Exécutable introuvable : {program}"),
+        how.to_owned(),
+    ];
+    if installed {
+        reasons.push("Appartient peut-être à une application installée".to_owned());
+    }
+    let leftover = Leftover {
+        id: fnv1a_hex(&entry.location.to_lowercase()),
+        kind: entry.kind,
+        location: entry.location.clone(),
+        size_bytes: 0,
+        last_modified: None,
+        confidence: if installed {
+            Confidence::Low
+        } else {
+            Confidence::Medium
+        },
+        reasons,
+        guessed_app: Some(app),
+    };
+    (None, leftover)
+}
+
+/// Application deduced from the folder of a program: the first non-generic
+/// folder name below the install roots, else the program's name.
+fn guess_app(program: &Path, folders: &KnownFolders) -> Option<String> {
+    let roots = [
+        &folders.program_files,
+        &folders.program_files_x86,
+        &folders.local_programs,
+        &folders.program_data,
+        &folders.roaming,
+        &folders.local,
+    ];
+    for dir in program.ancestors().skip(1) {
+        if roots.iter().any(|r| r.as_path() == dir) || dir.parent().is_none() {
+            break;
+        }
+        let name = dir.file_name()?.to_string_lossy();
+        if !GENERIC_FOLDERS.iter().any(|g| name.eq_ignore_ascii_case(g)) {
+            return Some(name.into_owned());
+        }
+    }
+    program
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
 }
 
 /// Similarity above which a candidate carries the name of the uninstalled
@@ -958,6 +1034,101 @@ pub(crate) mod tests {
             .iter()
             .flat_map(|g| g.items.iter().map(|i| i.location.clone()))
             .collect()
+    }
+
+    #[test]
+    fn dead_tasks_and_services_are_shown_never_prechecked() {
+        use crate::system::SERVICES_KEY;
+        let (mut fs, apps) = fixture();
+        let tasks = r"C:\Windows\System32\Tasks";
+        let task = |command: &str| {
+            let xml = format!(
+                "<Task><Actions><Exec><Command>{command}</Command></Exec></Actions></Task>"
+            );
+            let mut bytes = vec![0xFF, 0xFE];
+            bytes.extend(xml.encode_utf16().flat_map(u16::to_le_bytes));
+            bytes
+        };
+        fs.add_file_with_content(
+            format!(r"{tasks}\AudacityUpdate"),
+            task(r"C:\Program Files\Audacity\audacity.exe"),
+            None,
+        )
+        .add_file_with_content(
+            format!(r"{tasks}\VLC Helper"),
+            task(r"C:\Program Files\VideoLAN\VLC\gone.exe"),
+            None,
+        );
+        let area = TestRegistryKey::new();
+        let service = RegKeyPath::new(Hive::LocalMachine, SERVICES_KEY).join("OldSvc");
+        area.create(&service)
+            .set_value("ImagePath", &r#""C:\Program Files\OldVendor\svc.exe" -run"#)
+            .unwrap();
+
+        let report = run(
+            &fs,
+            &area.registry(),
+            &apps,
+            &AtomicBool::new(false),
+            &|_| {},
+        );
+        let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let find = |kind: LeftoverKind, end: &str| {
+            items
+                .iter()
+                .find(|i| i.kind == kind && i.location.ends_with(end))
+                .copied()
+                .unwrap_or_else(|| panic!("{end} not found"))
+        };
+
+        // Orphan task: grouped with the other leftovers of Audacity.
+        let audacity = find(LeftoverKind::ScheduledTask, "AudacityUpdate");
+        assert_eq!(audacity.confidence, Confidence::Medium);
+        assert!(audacity.reasons[0].contains(r"Audacity\audacity.exe"));
+        let group = report
+            .groups
+            .iter()
+            .find(|g| g.items.iter().any(|i| i.id == audacity.id))
+            .unwrap();
+        assert!(group.items.iter().any(|i| i.kind == LeftoverKind::Folder));
+
+        // Task in the folder of an installed application: Low, and said so.
+        let vlc = find(LeftoverKind::ScheduledTask, "VLC Helper");
+        assert_eq!(vlc.confidence, Confidence::Low);
+        assert!(vlc.reasons.iter().any(|r| r.contains("installée")));
+
+        let svc = find(LeftoverKind::Service, r"Services\OldSvc");
+        assert_eq!(svc.guessed_app.as_deref(), Some("OldVendor"));
+        assert!(svc.reasons.iter().any(|r| r.contains("sc.exe delete")));
+
+        // Never prechecked; and they can be switched off.
+        assert!(items
+            .iter()
+            .filter(|i| matches!(i.kind, LeftoverKind::ScheduledTask | LeftoverKind::Service))
+            .all(|i| i.confidence != Confidence::High));
+        let folders = KnownFolders::under(r"C:\");
+        let rules = SafetyRules::new(&folders, &[]);
+        let registry = area.registry();
+        let env = ScanEnv {
+            fs: &fs,
+            registry: &registry,
+            folders: &folders,
+            rules: &rules,
+            apps: &apps,
+            extra_executables: &[],
+            cancel: &AtomicBool::new(false),
+            now: now(),
+        };
+        let options = ScanOptions {
+            include_tasks_and_services: false,
+            ..ScanOptions::default()
+        };
+        let without = scan_orphans(&env, &options, &|_| {});
+        assert!(without
+            .groups
+            .iter()
+            .flat_map(|g| &g.items)
+            .all(|i| !matches!(i.kind, LeftoverKind::ScheduledTask | LeftoverKind::Service)));
     }
 
     #[test]
