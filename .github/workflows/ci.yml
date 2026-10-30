@@ -94,6 +94,18 @@ jobs:
           pwsh -NoProfile -File ./scripts/tests/sandbox-programs.tests.ps1
           exit $LASTEXITCODE
 
+      - name: Silent classic uninstall of the Apps scenario, Windows PowerShell 5.1 (D59)
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/tests/sandbox-uninstall.tests.ps1
+          exit $LASTEXITCODE
+
+      - name: Silent classic uninstall of the Apps scenario, PowerShell 7 (D59)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/tests/sandbox-uninstall.tests.ps1
+          exit $LASTEXITCODE
+
       - name: Exit codes of check-release-cli.ps1 (clean 0, feature 1, missing 2)
         shell: pwsh
         run: |

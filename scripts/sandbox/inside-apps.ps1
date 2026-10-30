@@ -134,27 +134,25 @@ Invoke-Step 'Relevé de référence (§ 4.1.3)' {
 } -NoInventory
 
 # 6. Classic uninstall with each application's own uninstaller (Firefox is kept).
+# No uninstaller is waited for more than 10 min: a box left open is reported, not clicked (D59).
+$uninstallTimeout = 600
+$uninstallSteps = @()
 foreach ($a in $apps) {
     Invoke-Step "Désinstallation classique de $($a.Name)" {
         foreach ($e in Uninstall-Entries | Where-Object DisplayName -Match $a.Pattern) {
-            if ($e.WindowsInstaller -eq 1 -or $e.UninstallString -match 'msiexec') {
-                $program = 'msiexec.exe'; $arguments = "/x $($e.PSChildName) /qn /norestart"
-            }
-            elseif ($e.QuietUninstallString) {
-                $program, $arguments = Split-Command $e.QuietUninstallString
-            }
-            else {
-                $program, $rest = Split-Command $e.UninstallString
-                $quiet = if ($program -match 'unins\d*\.exe$') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' } else { '/S' }
-                $arguments = "$rest $quiet".Trim()
-            }
+            $program, $arguments = Get-SilentUninstall $e
             Write-Host "$($e.DisplayName) : $program $arguments"
-            Run $program $arguments | Out-Null
+            $p = if ($arguments) { Start-Process $program $arguments -PassThru } else { Start-Process $program -PassThru }
+            if (-not (Wait-Program $p $uninstallTimeout)) {
+                $windows = Get-Process | Where-Object MainWindowTitle | ForEach-Object { "$($_.ProcessName) « $($_.MainWindowTitle) »" }
+                throw "$($e.DisplayName) : désinstalleur toujours actif après $uninstallTimeout s ; fenêtres ouvertes : $($windows -join ' ; ')"
+            }
             # NSIS uninstallers copy themselves and return at once: wait for the entry to go.
             for ($w = 0; $w -lt 60 -and (Uninstall-Entries | Where-Object PSChildName -EQ $e.PSChildName); $w++) { Start-Sleep -Seconds 2 }
         }
         Start-Sleep -Seconds 3
     }
+    $uninstallSteps += $Run.Steps[-1]
 }
 
 # 7. R: reference entries still present after the classic uninstall.
@@ -210,8 +208,12 @@ $wrong = @($high | Where-Object {
 $ratio = if ($remaining.Count) { [math]::Round(100.0 * $found.Count / $remaining.Count, 1) } else { 100 }
 # An application never started wrote no data: the measure is incomplete, not « atteint ».
 $notStarted = @($launchSteps | Where-Object Failure | ForEach-Object { $_.Name -replace '^Premier lancement de ', '' })
-$criterion2 = if ($notStarted.Count) { 'script' } elseif ($ratio -ge 90) { 'ok' } else { 'ko' }
-$measure2 = "T / R = $($found.Count) / $($remaining.Count) ($ratio %)" + $(if ($notStarted.Count) { " ; mesure incomplète : $($notStarted -join ', ') jamais lancé(s)" } else { '' })
+# An uninstall that did not end leaves R unknown (D59).
+$notUninstalled = @($uninstallSteps | Where-Object Failure | ForEach-Object { $_.Name -replace '^Désinstallation classique de ', '' })
+$criterion2 = if ($notStarted.Count -or $notUninstalled.Count) { 'script' } elseif ($ratio -ge 90) { 'ok' } else { 'ko' }
+$measure2 = "T / R = $($found.Count) / $($remaining.Count) ($ratio %)" +
+    $(if ($notStarted.Count) { " ; mesure incomplète : $($notStarted -join ', ') jamais lancé(s)" } else { '' }) +
+    $(if ($notUninstalled.Count) { " ; mesure incomplète : désinstallation de $($notUninstalled -join ', ') non terminée" } else { '' })
 
 # Criterion 4 (D58): each real leftover found is quarantined by CleanSlate (sandbox CLI, on
 # the item it proposed), checked gone, restored, and compared with its state before: files

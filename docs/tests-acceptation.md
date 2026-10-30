@@ -145,9 +145,9 @@ But : vérifier les trois critères mesurables du cahier § 6.3 sur un jeu de 5 
 | Critère (cahier § 6.3) | Mesure | Résultat |
 | --- | --- | --- |
 | Exigences M satisfaites | `docs/journal/revue-finale.md` | voir la revue finale |
-| ≥ 90 % des restes retrouvés | T / R = 4 / 4 (100 %) le 30 oct. 2026 (run `apps-20261030-182833`) | **à remesurer** : Audacity n'a pas été lancé (échec du script, corrigé en D58), ses données manquent à R |
+| ≥ 90 % des restes retrouvés | T / R = 6 / 6 (100 %) le 30 oct. 2026 (run `apps-20261030-185352`, Audacity compris) | atteint ; à confirmer au prochain run Apps, la désinstallation de GIMP ayant attendu un clic (D59, § 7.3) |
 | Zéro élément d'une application installée ou du système précoché | 0 précoché fautif ; 0 précoché au total (41 proposés : 20 Moyenne, 21 Faible) | atteint ; voir § 7 sur l'absence de précochés dans un Sandbox |
-| Session restaurable à l'identique | non mesuré le 30 oct. 2026 (étape manuelle non faite) ; automatique depuis D58 | **à mesurer** au prochain run Apps |
+| Session restaurable à l'identique | 6 / 6 restes mis en quarantaine puis restaurés à l'identique (run `apps-20261030-185352`, automatique depuis D58) | atteint |
 | Tests automatisés et `clippy` sans alerte | `cargo test` 231, `dotnet test` 86, `cargo clippy -D warnings` avec et sans `--all-features` ; tests des scripts sous PowerShell 5.1 et 7 | atteint |
 
 Noter dans la colonne « Résultat » les éléments manqués ou précochés à tort, avec leur chemin : ce sont les cas à ajouter aux tests du `matcher`.
@@ -211,3 +211,20 @@ Constats :
 - **Aucun élément précoché** : dans un Sandbox neuf, toutes les données ont quelques minutes ; le signal « Modifié il y a moins de 7 jours » et l'absence d'exécutable laissent les restes en Moyenne ou Faible. C'est le comportement prévu (prudence, EF-10) : le critère 3 est atteint, mais il ne dit rien des précochés sur des données anciennes, qu'un Sandbox ne peut pas reproduire.
 - **Critère 4** : désormais automatique (D58) : chaque reste réel retrouvé est mis en quarantaine par CleanSlate, restauré, puis comparé (fichiers : chemin, taille, date, SHA-256 ; clés : export `.reg`, valeurs triées). La vérification dans l'interface (§ 4.2, étapes 4 à 7) reste possible.
 - Le diff de l'étape d'analyse (lecture seule) montre une seule ligne retirée, `Program Files\Windows Defender Advanced Threat Protection\en-US` : mise à jour de Windows Defender pendant l'analyse, sans rapport avec CleanSlate.
+
+### 7.3 Scénario des 5 applications, second run (run `apps-20261030-185352`, commit `a46c064`)
+
+| Critère (cahier § 6.3) | Mesure | Résultat |
+| --- | --- | --- |
+| Installeurs conformes au manifeste | 6 SHA-256 vérifiés | atteint |
+| Premier lancement des 5 applications et du témoin | 6 / 6, Audacity 4 trouvé dans `bin\` (D58) | atteint |
+| ≥ 90 % des restes retrouvés (critère 2) | T / R = 6 / 6 (100 %) : `Local\Audacity`, `Local\GIMP`, `Roaming\Audacity`, `Roaming\GIMP`, `Roaming\Notepad++`, `HKCU\Software\7-Zip` | atteint, voir le constat sur GIMP |
+| Zéro précoché fautif (critère 3) | 0 / 0 précoché, 45 éléments proposés | atteint |
+| Analyse sous 60 s (ENF-05) | 9,2 s | atteint |
+| Session restaurable à l'identique (critère 4) | 6 / 6 restes retirés puis restaurés à l'identique (SHA-256, `.reg`) | atteint |
+
+Constats :
+
+- **Désinstallation classique de GIMP : 4417 s (étape 20)**. GIMP 3 enregistre `QuietUninstallString = "…\unins000.exe" /SILENT` ; après un premier lancement, son désinstalleur demande s'il faut supprimer les réglages personnels, et `/SILENT` ne supprime pas cette boîte. Le script attendait sans limite : 126 s au run `182833` (`Roaming\GIMP\3.2` gardé), 4417 s ici (`Roaming\GIMP\3.2` supprimé). R dépendait donc d'un clic. Corrigé (D59) : `Get-SilentUninstall` passe toujours `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` aux désinstalleurs Inno Setup, chaque désinstallation est limitée à 10 min (étape en « échec du script » avec les fenêtres ouvertes), et le critère 2 passe en « échec du script » si une désinstallation n'a pas abouti ; test `scripts/tests/sandbox-uninstall.tests.ps1` (5.1 et 7, CI). Le critère 2 reste atteint, mais il est à remesurer sans clic.
+- **Analyse : 9,2 s** contre 1,6 s au run précédent, toujours sous 60 s ; elle suivait 74 min d'attente, avec Windows Update actif dans le Sandbox (diff de l'étape 20). Aucune action.
+- `evenements.txt` : un plantage de `msedge.exe` à 20:26, après la fin des mesures, sans rapport avec CleanSlate.

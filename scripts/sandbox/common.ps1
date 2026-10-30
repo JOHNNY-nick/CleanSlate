@@ -270,6 +270,29 @@ function Split-Command([string] $line) {
     return @($line.Substring(0, $i + 4), $line.Substring($i + 4).Trim())
 }
 
+# Silent uninstall command (program, arguments) of an Uninstall entry, for the classic
+# uninstall of the Apps scenario (D59). Inno Setup uninstallers always get
+# /VERYSILENT /SUPPRESSMSGBOXES /NORESTART, even when QuietUninstallString says /SILENT only:
+# GIMP 3's « remove personal settings? » box stayed open 4417 s on 30 Oct. 2026 (step 20).
+function Get-SilentUninstall($entry) {
+    if ($entry.WindowsInstaller -eq 1 -or "$($entry.UninstallString)" -match 'msiexec') {
+        return @('msiexec.exe', "/x $($entry.PSChildName) /qn /norestart")
+    }
+    $line = if ($entry.QuietUninstallString) { $entry.QuietUninstallString } else { $entry.UninstallString }
+    $program, $rest = Split-Command $line
+    if ($program -match 'unins\d*\.exe$') {
+        $rest = ($rest -replace '(?i)(?<!\S)/(VERYSILENT|SILENT|SUPPRESSMSGBOXES|NORESTART)(?!\S)', '' -replace '\s+', ' ').Trim()
+        return @($program, "$rest /VERYSILENT /SUPPRESSMSGBOXES /NORESTART".Trim())
+    }
+    if ($entry.QuietUninstallString) { return @($program, $rest) }
+    return @($program, "$rest /S".Trim())
+}
+
+# Waits at most $seconds for a started program; $false when it is still running (D59).
+function Wait-Program([System.Diagnostics.Process] $process, [int] $seconds) {
+    return $process.WaitForExit($seconds * 1000)
+}
+
 # Runs a CleanSlate CLI with separate arguments (Invoke-Program: each argument arrives whole,
 # spaces included) and returns its JSON output. stderr is appended to cli-progression.txt.
 # The function is not called "Cli": that name is a built-in alias of Clear-Item, and an alias
