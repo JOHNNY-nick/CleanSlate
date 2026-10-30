@@ -89,7 +89,8 @@ foreach ($dir in Get-ChildItem "$base\installers" -Directory) {
     }
     else {
         $program = $file.FullName
-        $arguments = if ($silent) { $silent } elseif ($type -eq 'inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /ALLUSERS' } else { '/S' }
+        # Scope of the manifest kept: GIMP is a per-user Inno Setup (no /ALLUSERS).
+        $arguments = if ($silent) { $silent } elseif ($type -eq 'inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } else { '/S' }
     }
     Write-Host "$($dir.Name) ($type) : $program $arguments"
     $p = Run $program $arguments
@@ -98,8 +99,9 @@ foreach ($dir in Get-ChildItem "$base\installers" -Directory) {
 
 # 3. One start each, so that the applications write their data, then a normal close.
 Step 'Premier lancement de chaque application'
+$programRoots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs"
 foreach ($a in $apps + $witness) {
-    $exe = Get-ChildItem (Join-Path $env:ProgramFiles $a.Main) -ErrorAction SilentlyContinue |
+    $exe = $programRoots | ForEach-Object { Get-ChildItem (Join-Path $_ $a.Main) -ErrorAction SilentlyContinue } |
         Where-Object Name -NotMatch 'console' | Select-Object -First 1
     if (-not $exe) { Write-Warning "$($a.Name) : programme introuvable"; continue }
     Write-Host "$($a.Name) : $($exe.FullName) ($($a.Wait) s)"
