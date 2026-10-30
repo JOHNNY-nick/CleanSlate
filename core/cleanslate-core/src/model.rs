@@ -43,6 +43,12 @@ pub enum HiddenReason {
     SystemComponent,
     /// Update, hotfix or service pack of another product.
     Update,
+    /// Store application published by Microsoft (Windows or the Store): never
+    /// proposed for removal (D52).
+    MicrosoftApp,
+    /// Package provisioned for every user (preinstalled by Windows or the PC
+    /// maker, `AppxAllUserStore\Applications`): never proposed for removal (D52).
+    Preinstalled,
 }
 
 /// Technology of the installer, deduced from the Uninstall entry.

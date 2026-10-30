@@ -10,7 +10,8 @@ use std::path::PathBuf;
 use chrono::NaiveDate;
 
 use crate::error::{CoreError, CoreResult};
-use crate::model::{AppKind, InstalledApp, InstallerKind, RegistryView};
+use crate::model::{AppKind, HiddenReason, InstalledApp, InstallerKind, RegistryView};
+use crate::registry::{Hive, KeyView, RegKeyPath, Registry};
 
 /// One package installed for the current user.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -35,6 +36,9 @@ pub struct StorePackage {
     pub is_resource: bool,
     /// Stub package.
     pub is_stub: bool,
+    /// Bundle (the Store installs most applications as a bundle plus its
+    /// main package: one line per family is shown, D52).
+    pub is_bundle: bool,
     /// Signed by Windows itself (`PackageSignatureKind::System`).
     pub is_system: bool,
 }
@@ -48,8 +52,36 @@ impl StorePackage {
         !(self.is_framework || self.is_resource || self.is_stub || self.is_system)
     }
 
+    /// Published by Microsoft: family `Microsoft*`, `Windows.*`, publisher id
+    /// of Microsoft (`8wekyb3d8bbwe`) or of Windows (`cw5n1h2txyewy`), or a
+    /// publisher display name starting with « Microsoft ».
+    pub fn is_microsoft(&self) -> bool {
+        let family = self.family_name.to_ascii_lowercase();
+        family.starts_with("microsoft")
+            || family.starts_with("windows.")
+            || family.ends_with("_8wekyb3d8bbwe")
+            || family.ends_with("_cw5n1h2txyewy")
+            || self.publisher.to_ascii_lowercase().starts_with("microsoft")
+    }
+
+    /// Why the application is hidden and never proposed for removal (D52):
+    /// preinstalled for every user (Windows or the PC maker), or Microsoft's.
+    /// `None`: installed by the user, removable.
+    pub fn hidden_reason(&self, provisioned: &[String]) -> Option<HiddenReason> {
+        if provisioned
+            .iter()
+            .any(|f| f.eq_ignore_ascii_case(&self.family_name))
+        {
+            Some(HiddenReason::Preinstalled)
+        } else if self.is_microsoft() {
+            Some(HiddenReason::MicrosoftApp)
+        } else {
+            None
+        }
+    }
+
     /// The package as an application of the inventory.
-    pub fn to_app(&self) -> InstalledApp {
+    pub fn to_app(&self, hidden_reason: Option<HiddenReason>) -> InstalledApp {
         InstalledApp {
             id: store_app_id(&self.family_name),
             display_name: self.display_name.clone(),
@@ -64,12 +96,63 @@ impl StorePackage {
             product_code: None,
             registry_view: RegistryView::Package,
             kind: AppKind::Store,
-            hidden_reason: None,
+            hidden_reason,
             installer: InstallerKind::Msix,
             package_full_name: Some(self.full_name.clone()),
             package_family_name: Some(self.family_name.clone()),
         }
     }
+}
+
+/// One package per family (D52): the bundle when there is one (removing it
+/// removes all its packages), with the best display name found in the family.
+pub fn one_per_family(packages: Vec<StorePackage>) -> Vec<StorePackage> {
+    let mut families: Vec<StorePackage> = Vec::new();
+    for package in packages {
+        let family = package.family_name.to_ascii_lowercase();
+        match families
+            .iter_mut()
+            .find(|p| p.family_name.to_ascii_lowercase() == family)
+        {
+            None => families.push(package),
+            Some(kept) => {
+                // Best name: with spaces (« Unigram—Telegram for Windows »), then
+                // without dots (« UnigramPreview »), then a technical one.
+                let rank = |n: &str| u8::from(n.contains(' ')) * 2 + u8::from(!n.contains('.'));
+                let name = if rank(&package.display_name) > rank(&kept.display_name) {
+                    package.display_name.clone()
+                } else {
+                    kept.display_name.clone()
+                };
+                if package.is_bundle && !kept.is_bundle {
+                    *kept = package;
+                }
+                kept.display_name = name;
+            }
+        }
+    }
+    families
+}
+
+/// Registry key of the packages provisioned for every user.
+pub const PROVISIONED_KEY: &str =
+    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Applications";
+
+/// Families of the packages provisioned for every user (preinstalled by
+/// Windows or the PC maker), read-only from `PROVISIONED_KEY`, whose
+/// sub-keys are full names (`Name_Version_Arch_Resource_PublisherId`).
+pub fn provisioned_families(registry: &dyn Registry) -> Vec<String> {
+    let key = RegKeyPath::new(Hive::LocalMachine, PROVISIONED_KEY).with_view(KeyView::Force64);
+    registry
+        .subkeys(&key)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|full| {
+            let (name, _) = full.split_once('_')?;
+            let (_, publisher) = full.rsplit_once('_')?;
+            Some(format!("{name}_{publisher}"))
+        })
+        .collect()
 }
 
 /// Stable id of a Store application, from its family name.
@@ -222,6 +305,7 @@ mod winrt {
                 family_name: family_name.to_string(),
                 is_framework: package.IsFramework().unwrap_or(true),
                 is_resource: package.IsResourcePackage().unwrap_or(true),
+                is_bundle: package.IsBundle().unwrap_or(false),
                 is_system: package
                     .SignatureKind()
                     .map_or(true, |k| k == PackageSignatureKind::System),
@@ -410,7 +494,7 @@ pub(crate) mod tests {
 
     #[test]
     fn package_becomes_a_store_application() {
-        let app = package("Vendor.App_abcdefghjk123").to_app();
+        let app = package("Vendor.App_abcdefghjk123").to_app(None);
         assert_eq!(app.id, "store:vendor.app_abcdefghjk123");
         assert_eq!(app.kind, AppKind::Store);
         assert_eq!(app.installer, InstallerKind::Msix);
@@ -421,6 +505,87 @@ pub(crate) mod tests {
         );
         assert_eq!(app.version.as_deref(), Some("1.2.3.0"));
         assert!(app.uninstall_string.is_none());
+    }
+
+    #[test]
+    fn one_line_per_family_prefers_the_bundle_and_a_resolved_name() {
+        let main = StorePackage {
+            display_name: "WhatsApp Messenger".into(),
+            ..package("5319275A.WhatsAppDesktop_cv1g1gvanyjgm")
+        };
+        let bundle = StorePackage {
+            full_name: "5319275A.WhatsAppDesktop_2.0.0.0_neutral_~_cv1g1gvanyjgm".into(),
+            display_name: "WhatsAppDesktop".into(),
+            is_bundle: true,
+            ..main.clone()
+        };
+        let other = package("Vendor.Notes_abcdefghjk123");
+        let kept = one_per_family(vec![main, other.clone(), bundle.clone()]);
+        assert_eq!(kept.len(), 2);
+        assert_eq!(kept[0].full_name, bundle.full_name, "the bundle is removed");
+        assert_eq!(
+            kept[0].display_name, "WhatsApp Messenger",
+            "the resolved name is kept"
+        );
+        assert_eq!(kept[1], other);
+    }
+
+    #[test]
+    fn microsoft_and_preinstalled_packages_are_never_proposed() {
+        let provisioned = vec!["RealtekSemiconductorCorp.HPAudioControl_dt26b99r8h8gj".to_owned()];
+        let oem = package("RealtekSemiconductorCorp.HPAudioControl_dt26b99r8h8gj");
+        assert_eq!(
+            oem.hidden_reason(&provisioned),
+            Some(HiddenReason::Preinstalled)
+        );
+        for microsoft in [
+            package("Microsoft.People_8wekyb3d8bbwe"),
+            package("MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy"),
+            package("Windows.PrintDialog_cw5n1h2txyewy"),
+            package("Clipchamp.Clipchamp_8wekyb3d8bbwe"),
+            StorePackage {
+                publisher: "Microsoft Corporation".into(),
+                ..package("SomeTool.App_abcdefghjk123")
+            },
+        ] {
+            assert_eq!(
+                microsoft.hidden_reason(&[]),
+                Some(HiddenReason::MicrosoftApp),
+                "{}",
+                microsoft.family_name
+            );
+        }
+        // Installed by the user: proposed.
+        let user = package("5319275A.WhatsAppDesktop_cv1g1gvanyjgm");
+        assert_eq!(user.hidden_reason(&provisioned), None);
+        assert_eq!(
+            user.to_app(Some(HiddenReason::Preinstalled)).hidden_reason,
+            Some(HiddenReason::Preinstalled)
+        );
+    }
+
+    #[test]
+    fn provisioned_families_are_read_from_the_registry() {
+        use crate::registry::TestRegistryKey;
+        let area = TestRegistryKey::new();
+        let key = RegKeyPath::new(Hive::LocalMachine, PROVISIONED_KEY);
+        for full in [
+            "AD2F1837.HPSystemInformation_2.0.0.0_x64__v10z8vjag6ke6",
+            "Microsoft.People_10.2202.100.0_neutral_~_8wekyb3d8bbwe",
+        ] {
+            area.create(&key.join(full));
+        }
+        let mut families = provisioned_families(&area.registry());
+        families.sort();
+        assert_eq!(
+            families,
+            [
+                "AD2F1837.HPSystemInformation_v10z8vjag6ke6",
+                "Microsoft.People_8wekyb3d8bbwe"
+            ]
+        );
+        // Missing key: nothing provisioned, nothing hidden for that reason.
+        assert!(provisioned_families(&TestRegistryKey::new().registry()).is_empty());
     }
 
     #[test]

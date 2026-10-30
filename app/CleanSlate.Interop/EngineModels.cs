@@ -71,6 +71,12 @@ public enum HiddenReason
 
     /// <summary>Update, hotfix or service pack.</summary>
     Update,
+
+    /// <summary>Store application published by Microsoft: never proposed for removal (D52).</summary>
+    MicrosoftApp,
+
+    /// <summary>Package preinstalled for every user by Windows or the PC maker: never proposed for removal (D52).</summary>
+    Preinstalled,
 }
 
 /// <summary>Installer technology.</summary>

@@ -582,4 +582,10 @@
   <data name="UninstallStep_Leftovers" xml:space="preserve">
     <value>Recherche des restes</value>
   </data>
+  <data name="HiddenReason_MicrosoftApp" xml:space="preserve">
+    <value>Application Microsoft : CleanSlate ne la désinstalle pas. Utilisez Paramètres → Applications si vous y tenez.</value>
+  </data>
+  <data name="HiddenReason_Preinstalled" xml:space="preserve">
+    <value>Préinstallée par Windows ou le fabricant du PC : CleanSlate ne la désinstalle pas.</value>
+  </data>
 </root>

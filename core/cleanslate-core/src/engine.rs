@@ -24,7 +24,10 @@ use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
 use crate::scan::{scan_app_leftovers, scan_orphans, ScanEnv};
 use crate::services::{NoServiceControl, ScmServiceControl, ServiceControl};
-use crate::store::{NoPackageStore, PackageStore, StorePackage, WinRtPackageStore};
+use crate::store::{
+    one_per_family, provisioned_families, NoPackageStore, PackageStore, StorePackage,
+    WinRtPackageStore,
+};
 use crate::tasks::{ComTaskStore, NoTaskStore, TaskStore};
 use crate::uninstall::{
     build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
@@ -208,12 +211,18 @@ impl Engine {
     pub fn list_apps(&self) -> CoreResult<Vec<InstalledApp>> {
         let mut apps = crate::inventory::list_apps(self.registry())?;
         match self.packages.list() {
-            Ok(packages) => apps.extend(
-                packages
-                    .iter()
-                    .filter(|p| p.is_listed())
-                    .map(StorePackage::to_app),
-            ),
+            Ok(packages) => {
+                let provisioned = provisioned_families(self.registry());
+                let listed = packages
+                    .into_iter()
+                    .filter(StorePackage::is_listed)
+                    .collect();
+                apps.extend(
+                    one_per_family(listed)
+                        .iter()
+                        .map(|p| p.to_app(p.hidden_reason(&provisioned))),
+                );
+            }
             Err(err) => tracing::warn!(%err, "Store packages not listed"),
         }
         Ok(apps)
@@ -406,6 +415,12 @@ impl Engine {
                 location: request.app_id.clone(),
             })?;
         if app.kind == AppKind::Store {
+            // Microsoft's or preinstalled: never removed by CleanSlate (D52).
+            if app.hidden_reason.is_some() {
+                return Err(CoreError::Protected {
+                    location: app.display_name,
+                });
+            }
             return self.uninstall_package(&app, request, &emit);
         }
         let command = build_command(&app, request.quiet)?;
@@ -1335,6 +1350,62 @@ mod tests {
         }
     }
 
+    /// D52: a Microsoft or preinstalled Store application is listed hidden
+    /// and the engine refuses to remove it, even if asked directly.
+    #[test]
+    fn microsoft_and_preinstalled_store_apps_are_never_removed() {
+        use crate::model::HiddenReason;
+        use crate::store::{tests::package, FakePackageStore, PROVISIONED_KEY};
+        let area = TestRegistryKey::new();
+        area.create(
+            &crate::registry::RegKeyPath::new(crate::registry::Hive::LocalMachine, PROVISIONED_KEY)
+                .join("AD2F1837.HPSystemInformation_2.0.0.0_x64__v10z8vjag6ke6"),
+        );
+        let config = EngineConfig {
+            dry_run: false,
+            data_dir: None,
+            exclusions: vec![],
+        };
+        let mut engine = Engine::new(
+            config,
+            Box::new(FakeFileSystem::new()),
+            Box::new(area.registry()),
+        );
+        engine.set_package_store(Box::new(FakePackageStore::with(vec![
+            package("Microsoft.People_8wekyb3d8bbwe"),
+            package("AD2F1837.HPSystemInformation_v10z8vjag6ke6"),
+            package("Vendor.Notes_abcdefghjk123"),
+        ])));
+        let apps = engine.list_apps().unwrap();
+        let reason = |family: &str| {
+            apps.iter()
+                .find(|a| a.package_family_name.as_deref() == Some(family))
+                .unwrap()
+                .hidden_reason
+        };
+        assert_eq!(
+            reason("Microsoft.People_8wekyb3d8bbwe"),
+            Some(HiddenReason::MicrosoftApp)
+        );
+        assert_eq!(
+            reason("AD2F1837.HPSystemInformation_v10z8vjag6ke6"),
+            Some(HiddenReason::Preinstalled)
+        );
+        assert_eq!(reason("Vendor.Notes_abcdefghjk123"), None);
+        for app in apps.iter().filter(|a| a.hidden_reason.is_some()) {
+            let err = engine
+                .uninstall(&UninstallRequest {
+                    app_id: app.id.clone(),
+                    quiet: false,
+                    create_restore_point: false,
+                    dry_run: false,
+                })
+                .unwrap_err();
+            assert_eq!(err.code(), "PROTECTED", "{}", app.display_name);
+        }
+        // Nothing was removed from the store.
+        assert_eq!(engine.packages.list().unwrap().len(), 3);
+    }
     #[test]
     fn missing_uninstaller_program_is_reported() {
         use crate::inventory::UNINSTALL_KEY;

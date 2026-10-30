@@ -75,6 +75,19 @@ public sealed class AppsViewModelTests
         vm.KindFilterIndex = 0;
         vm.SelectedApp = vm.Apps.Single(a => a.DisplayName == "Audacity");
         Assert.True(vm.ClassicUninstallCommand.CanExecute(null));
+        // Microsoft's or preinstalled packages are shown with the system components, never removable (D52).
+        var hidden = await LoadedAsync(
+            StoreApp("Microsoft.People") with { HiddenReason = HiddenReason.MicrosoftApp },
+            StoreApp("RealtekSemiconductorCorp.HPAudioControl") with { HiddenReason = HiddenReason.Preinstalled });
+        Assert.Empty(hidden.Apps);
+        hidden.ShowSystemComponents = true;
+        foreach (AppItemViewModel row in hidden.Apps.ToList())
+        {
+            hidden.SelectedApp = row;
+            Assert.False(hidden.UninstallCompletelyCommand.CanExecute(null));
+            Assert.False(hidden.ClassicUninstallCommand.CanExecute(null));
+        }
+
         // A Store row without its full name cannot be removed.
         var broken = await LoadedAsync(StoreApp("Vendor.Broken") with { PackageFullName = null });
         broken.SelectedApp = broken.Apps[0];

@@ -56,6 +56,12 @@ public sealed class AppItemViewModel
     /// <summary>Microsoft Store application (badge « Store », EF-04).</summary>
     public bool IsStore => App.Kind == AppKind.Store;
 
+    /// <summary>Store package that CleanSlate never removes: Microsoft's or preinstalled (D52).</summary>
+    public bool IsProtectedStore => IsStore && App.HiddenReason is not null;
+
+    /// <summary>Why it is protected, turned into text by the view (<c>HiddenReason_{value}</c>).</summary>
+    public string HiddenReasonKey => App.HiddenReason?.ToString() ?? string.Empty;
+
     /// <summary>True for system components and updates (EF-02).</summary>
     public bool IsHidden => App.HiddenReason is not null;
 
