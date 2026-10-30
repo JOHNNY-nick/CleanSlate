@@ -45,6 +45,42 @@ public sealed class AppsViewModelTests
 
     private static string[] Names(AppsViewModel vm) => vm.Apps.Select(a => a.DisplayName).ToArray();
 
+    private static InstalledApp StoreApp(string name) => App(name) with
+    {
+        Id = $"store:{name.ToLowerInvariant()}_abcdefghjk123",
+        RegistryView = RegistryView.Package,
+        Kind = AppKind.Store,
+        Installer = InstallerKind.Msix,
+        PackageFullName = $"{name}_1.0.0.0_x64__abcdefghjk123",
+        PackageFamilyName = $"{name}_abcdefghjk123",
+    };
+
+    [Fact]
+    public async Task KindFilter_ShowsWin32StoreOrAll_AndStoreAppsCanBeUninstalled()
+    {
+        var vm = await LoadedAsync(
+            App("Audacity") with { UninstallString = @"C:\a\unins000.exe" },
+            StoreApp("Vendor.Notes"));
+        Assert.Equal(["Audacity", "Vendor.Notes"], Names(vm));
+        Assert.True(vm.Apps[1].IsStore);
+        Assert.Equal("MSIX (Microsoft Store)", vm.Apps[1].InstallerName);
+
+        vm.KindFilterIndex = 1;
+        Assert.Equal(["Audacity"], Names(vm));
+        vm.KindFilterIndex = 2;
+        Assert.Equal(["Vendor.Notes"], Names(vm));
+
+        vm.SelectedApp = vm.Apps[0];
+        Assert.True(vm.UninstallCompletelyCommand.CanExecute(null));
+        vm.KindFilterIndex = 0;
+        vm.SelectedApp = vm.Apps.Single(a => a.DisplayName == "Audacity");
+        Assert.True(vm.ClassicUninstallCommand.CanExecute(null));
+        // A Store row without its full name cannot be removed.
+        var broken = await LoadedAsync(StoreApp("Vendor.Broken") with { PackageFullName = null });
+        broken.SelectedApp = broken.Apps[0];
+        Assert.False(broken.UninstallCompletelyCommand.CanExecute(null));
+    }
+
     [Fact]
     public async Task Load_SortsByNameAndHidesSystemComponents()
     {

@@ -386,6 +386,8 @@ mod tests {
             kind: AppKind::Win32,
             hidden_reason: None,
             installer: InstallerKind::Unknown,
+            package_full_name: None,
+            package_family_name: None,
         }
     }
 

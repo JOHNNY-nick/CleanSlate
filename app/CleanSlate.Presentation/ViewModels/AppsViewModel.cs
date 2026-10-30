@@ -55,6 +55,10 @@ public sealed partial class AppsViewModel : ObservableObject
     [ObservableProperty]
     private bool _showSystemComponents;
 
+    /// <summary>Kind filter (EF-04), bound by index: 0 all, 1 Win32, 2 Store.</summary>
+    [ObservableProperty]
+    private int _kindFilterIndex;
+
     /// <summary>Selected row, if any.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
@@ -128,9 +132,10 @@ public sealed partial class AppsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Win32 application with an uninstaller (Store apps are read-only, EF-04).</summary>
-    private bool CanUninstall() =>
-        SelectedApp?.App is { Kind: AppKind.Win32 } app && (app.UninstallString is not null || app.IsMsi);
+    /// <summary>Win32 application with an uninstaller, or Store package (removed for this user, EF-04).</summary>
+    private bool CanUninstall() => SelectedApp?.App is { } app && (app.Kind == AppKind.Store
+        ? app.PackageFullName is not null
+        : app.UninstallString is not null || app.IsMsi);
 
     partial void OnSearchTextChanged(string value) => Refresh();
 
@@ -138,11 +143,19 @@ public sealed partial class AppsViewModel : ObservableObject
 
     partial void OnShowSystemComponentsChanged(bool value) => Refresh();
 
+    partial void OnKindFilterIndexChanged(int value) => Refresh();
+
     /// <summary>Rebuilds <see cref="Apps"/> from the full list, keeping the selection if still visible.</summary>
     private void Refresh()
     {
         string search = SearchText.Trim();
         IEnumerable<AppItemViewModel> rows = _all.Where(a => ShowSystemComponents || !a.IsHidden);
+        rows = KindFilterIndex switch
+        {
+            1 => rows.Where(a => a.App.Kind == AppKind.Win32),
+            2 => rows.Where(a => a.App.Kind == AppKind.Store),
+            _ => rows,
+        };
         if (search.Length > 0)
         {
             rows = rows.Where(a => Matches(a.DisplayName, search) || Matches(a.App.Publisher, search));

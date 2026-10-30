@@ -12,6 +12,7 @@ use crate::fs::FileSystem;
 use crate::model::LeftoverKind;
 use crate::registry::{Hive, RegKeyPath};
 use crate::services::{is_builtin_account, ServiceState, DRIVER_TYPES, STATE_STOPPED, WIN32_TYPES};
+use crate::store::is_family_name;
 use crate::system::{command_executable_raw, program_path, SERVICES_KEY};
 use crate::tasks::{parse_actions, TaskAction};
 
@@ -82,6 +83,16 @@ pub const WINDOWS_START_MENU_FOLDERS: [&str; 12] = [
     "windows tools",
     "windows kits",
 ];
+
+/// Parents of the only two registry keys of a package family that may be
+/// quarantined (D48); the family name is the single segment below them.
+pub const PACKAGE_KEY_PARENTS: [&str; 2] = [
+    r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage",
+    r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData",
+];
+
+/// Publisher id of Windows' own packages: never touched (D48).
+const WINDOWS_PUBLISHER_ID: &str = "cw5n1h2txyewy";
 
 /// Start menu programs folder, below `%APPDATA%` or `%PROGRAMDATA%`.
 const START_MENU_PROGRAMS: &str = r"Microsoft\Windows\Start Menu\Programs";
@@ -557,6 +568,9 @@ impl SafetyRules {
     /// restore (the item is not on disk).
     pub fn check_item_path(&self, kind: LeftoverKind, path: &Path) -> CoreResult<()> {
         let general = self.check_path(path);
+        if general.is_err() && kind == LeftoverKind::Folder && self.is_package_folder(path) {
+            return self.check_package_folder(path).map(|_| ());
+        }
         if general.is_ok() || !self.is_below_start_menu(path) {
             return general;
         }
@@ -565,6 +579,122 @@ impl SafetyRules {
             LeftoverKind::Folder => self.check_start_menu_folder(path),
             _ => general,
         }
+    }
+
+    /// D48: a well-formed family name that is neither Windows' (publisher
+    /// `cw5n1h2txyewy`) nor Microsoft's (`Microsoft*`, `Windows.*`).
+    fn check_family(&self, family: &str, location: &str) -> CoreResult<()> {
+        let lower = family.to_ascii_lowercase();
+        let ours = lower.starts_with("microsoft")
+            || lower.starts_with("windows.")
+            || lower.ends_with(&format!("_{WINDOWS_PUBLISHER_ID}"));
+        if !is_family_name(family) || ours {
+            return Err(CoreError::Protected {
+                location: location.to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    /// `true` if `path` is a direct child of `%LOCALAPPDATA%\Packages`.
+    pub fn is_package_folder(&self, path: &Path) -> bool {
+        path.parent().map(norm) == Some(norm(&self.folders.local.join("Packages")))
+    }
+
+    /// D48, pure part (also before a restore): `%LOCALAPPDATA%\Packages\<family>`
+    /// exactly (never `Packages` itself nor anything below a package
+    /// folder), for an allowed family; returns the family name.
+    pub fn check_package_folder(&self, path: &Path) -> CoreResult<String> {
+        let refuse = || CoreError::Protected {
+            location: path.display().to_string(),
+        };
+        Self::check_shape(path)?;
+        if !self.is_package_folder(path) {
+            return Err(refuse());
+        }
+        let family = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(refuse)?
+            .to_owned();
+        self.check_family(&family, &path.display().to_string())?;
+        if self.exclusions.iter().any(|e| is_within(&norm(path), e)) {
+            return Err(refuse());
+        }
+        Ok(family)
+    }
+
+    /// D48, right before acting: [`Self::check_package_folder`], a folder
+    /// without reparse point on the way, and its package absent from
+    /// `installed` (the packages of the user, listed just now; an empty
+    /// list means the listing failed and refuses everything).
+    pub fn validate_package_folder(
+        &self,
+        fs: &dyn FileSystem,
+        path: &Path,
+        installed: &[String],
+    ) -> CoreResult<()> {
+        let family = self.check_package_folder(path)?;
+        let refuse = || CoreError::Protected {
+            location: path.display().to_string(),
+        };
+        if installed.is_empty() || installed.iter().any(|f| f.eq_ignore_ascii_case(&family)) {
+            return Err(refuse());
+        }
+        if !fs.metadata(path)?.is_dir {
+            return Err(refuse());
+        }
+        Self::check_on_disk(fs, path)
+    }
+
+    /// D48, pure part: one of the two [`PACKAGE_KEY_PARENTS`] followed by a
+    /// single allowed family name, exactly; returns the family name.
+    pub fn check_package_key(&self, key: &RegKeyPath) -> CoreResult<String> {
+        let text = key.to_string();
+        let refuse = || CoreError::Protected {
+            location: text.clone(),
+        };
+        let family = PACKAGE_KEY_PARENTS
+            .iter()
+            .find_map(|parent| {
+                let head = text.get(..parent.len() + 1)?;
+                head.eq_ignore_ascii_case(&format!(r"{parent}\"))
+                    .then(|| text[parent.len() + 1..].to_owned())
+            })
+            .ok_or_else(refuse)?;
+        if family.contains('\\') || family.is_empty() {
+            return Err(refuse());
+        }
+        self.check_family(&family, &text)?;
+        if self
+            .exclusions
+            .iter()
+            .any(|e| is_within(&text.to_lowercase(), e))
+        {
+            return Err(refuse());
+        }
+        Ok(family)
+    }
+
+    /// D48, right before acting: [`Self::check_package_key`] and its package
+    /// absent from `installed` (an empty list refuses everything).
+    pub fn validate_package_key(&self, key: &RegKeyPath, installed: &[String]) -> CoreResult<()> {
+        let family = self.check_package_key(key)?;
+        if installed.is_empty() || installed.iter().any(|f| f.eq_ignore_ascii_case(&family)) {
+            return Err(CoreError::Protected {
+                location: key.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// `true` if `key` lies directly below one of the [`PACKAGE_KEY_PARENTS`].
+    pub fn is_package_key(&self, key: &RegKeyPath) -> bool {
+        let text = key.to_string().to_lowercase();
+        PACKAGE_KEY_PARENTS.iter().any(|parent| {
+            text.strip_prefix(&format!(r"{}\", parent.to_lowercase()))
+                .is_some_and(|rest| !rest.is_empty() && !rest.contains('\\'))
+        })
     }
 
     /// `true` if `path` lies strictly below a Start menu root.
@@ -1228,6 +1358,129 @@ mod tests {
             rules().validate_key(&key).is_err(),
             "general rule unchanged"
         );
+    }
+
+    const PACKAGES: &str = r"C:\Users\Ana\AppData\Local\Packages";
+    const STORAGE: &str = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage";
+    const SYSTEM_APP_DATA: &str = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData";
+
+    fn installed() -> Vec<String> {
+        vec!["Vendor.Kept_abcdefghjk123".into()]
+    }
+
+    /// D48: the allowed shapes (folder and both keys of a removed package).
+    #[test]
+    fn store_leftovers_allowed() {
+        let mut fs = FakeFileSystem::new();
+        let folder = format!(r"{PACKAGES}\Vendor.Gone_abcdefghjk123");
+        fs.add_file(format!(r"{folder}\LocalState\settings.dat"), 10, None);
+        let rules = rules();
+        rules
+            .validate_package_folder(&fs, Path::new(&folder), &installed())
+            .unwrap();
+        assert_eq!(
+            rules.check_package_folder(Path::new(&folder)).unwrap(),
+            "Vendor.Gone_abcdefghjk123"
+        );
+        for parent in [STORAGE, SYSTEM_APP_DATA] {
+            let key = RegKeyPath::new(
+                Hive::CurrentUser,
+                format!(r"{parent}\vendor.gone_abcdefghjk123"),
+            );
+            rules.validate_package_key(&key, &installed()).unwrap();
+            assert!(rules.is_package_key(&key));
+        }
+        // The general blacklist still refuses all of them.
+        assert!(rules.check_path(Path::new(&folder)).is_err());
+        let key = RegKeyPath::new(
+            Hive::CurrentUser,
+            format!(r"{STORAGE}\vendor.gone_abcdefghjk123"),
+        );
+        assert!(rules.validate_key(&key).is_err());
+    }
+
+    /// D48: each neighbouring case stays refused.
+    #[test]
+    fn store_neighbours_refused() {
+        let mut fs = FakeFileSystem::new();
+        let gone = format!(r"{PACKAGES}\Vendor.Gone_abcdefghjk123");
+        fs.add_dir(&gone)
+            .add_dir(format!(r"{PACKAGES}\Vendor.Kept_abcdefghjk123"))
+            .add_file(format!(r"{PACKAGES}\Vendor.File_abcdefghjk123"), 1, None)
+            .add_reparse_point(format!(r"{PACKAGES}\Vendor.Link_abcdefghjk123"));
+        let rules = rules();
+        let folders = [
+            PACKAGES.to_owned(),                              // Packages itself
+            format!(r"{gone}\LocalState"),                    // below a package
+            format!(r"{PACKAGES}\Vendor.Kept_abcdefghjk123"), // installed
+            format!(r"{PACKAGES}\vendor.kept_abcdefghjk123"), // installed, other case
+            format!(r"{PACKAGES}\Microsoft.WindowsCalculator_8wekyb3d8bbwe"), // Microsoft
+            format!(r"{PACKAGES}\MicrosoftWindows.Client.CBS_cw5n1h2txyewy"),
+            format!(r"{PACKAGES}\Windows.PrintDialog_cw5n1h2txyewy"),
+            format!(r"{PACKAGES}\1527c705-839a-4832-9118-54d4Bd6a0c89_cw5n1h2txyewy"), // Windows publisher
+            format!(r"{PACKAGES}\NotAFamily"),                                         // malformed
+            format!(r"{PACKAGES}\Vendor.Bad_ABCDEFGHJK123"),
+            format!(r"{PACKAGES}\Vendor.File_abcdefghjk123"), // a file
+            format!(r"{PACKAGES}\Vendor.Link_abcdefghjk123"), // reparse point
+            format!(r"{PACKAGES}\..\Packages\Vendor.Gone_abcdefghjk123"),
+            r"C:\Users\Bob\AppData\Local\Packages\Vendor.Gone_abcdefghjk123".to_owned(), // other user
+            r"C:\Users\Ana\AppData\Roaming\Packages\Vendor.Gone_abcdefghjk123".to_owned(),
+        ];
+        for folder in &folders {
+            assert!(
+                rules
+                    .validate_package_folder(&fs, Path::new(folder), &installed())
+                    .is_err(),
+                "{folder}"
+            );
+        }
+        // An empty list of installed packages (listing failed) refuses all.
+        assert!(rules
+            .validate_package_folder(&fs, Path::new(&gone), &[])
+            .is_err());
+
+        let keys = [
+            RegKeyPath::new(Hive::CurrentUser, STORAGE), // the parent
+            RegKeyPath::new(Hive::CurrentUser, SYSTEM_APP_DATA),
+            RegKeyPath::new(
+                Hive::CurrentUser,
+                format!(r"{STORAGE}\vendor.gone_abcdefghjk123\Sub"),
+            ),
+            RegKeyPath::new(
+                Hive::CurrentUser,
+                format!(r"{STORAGE}\vendor.kept_abcdefghjk123"),
+            ),
+            RegKeyPath::new(
+                Hive::CurrentUser,
+                format!(r"{STORAGE}\microsoft.windowscalculator_8wekyb3d8bbwe"),
+            ),
+            RegKeyPath::new(Hive::CurrentUser, format!(r"{STORAGE}\notafamily")),
+            RegKeyPath::new(
+                Hive::LocalMachine,
+                format!(r"{STORAGE}\vendor.gone_abcdefghjk123"),
+            ),
+            RegKeyPath::new(
+                Hive::CurrentUser,
+                r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Mappings\vendor.gone_abcdefghjk123",
+            ),
+        ];
+        for key in &keys {
+            assert!(
+                rules.validate_package_key(key, &installed()).is_err(),
+                "{key}"
+            );
+        }
+        let gone_key = RegKeyPath::new(
+            Hive::CurrentUser,
+            format!(r"{STORAGE}\vendor.gone_abcdefghjk123"),
+        );
+        assert!(rules.validate_package_key(&gone_key, &[]).is_err());
+
+        // A user exclusion wins over the exception.
+        let excluded = SafetyRules::new(&KnownFolders::under(r"C:\"), std::slice::from_ref(&gone));
+        assert!(excluded
+            .validate_package_folder(&fs, Path::new(&gone), &installed())
+            .is_err());
     }
 
     #[test]

@@ -119,6 +119,9 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     /// <summary>Simulation mode of the settings.</summary>
     public bool IsSimulationMode => _settings.SimulationMode;
 
+    /// <summary>Win32 application: a restore point is offered (not for a Store package).</summary>
+    public bool IsWin32 => App?.App.Kind != AppKind.Store;
+
     /// <summary>The uninstaller was cancelled or failed: the entry is still there (design § 4.2).</summary>
     public bool StillInstalled => Result is { Simulated: false, StillInstalled: true };
 
@@ -162,6 +165,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         ClearGroups();
         OnPropertyChanged(nameof(CanQuiet));
         OnPropertyChanged(nameof(IsSimulationMode));
+        OnPropertyChanged(nameof(IsWin32));
         OnPropertyChanged(nameof(StillInstalled));
     }
 

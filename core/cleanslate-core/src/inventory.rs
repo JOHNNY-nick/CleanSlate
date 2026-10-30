@@ -141,6 +141,8 @@ pub fn parse_entry(
         registry_view: view,
         kind: AppKind::Win32,
         hidden_reason,
+        package_full_name: None,
+        package_family_name: None,
     })
 }
 
@@ -152,6 +154,7 @@ pub fn stable_id(view: RegistryView, subkey: &str) -> String {
         RegistryView::Hklm64 => "hklm64",
         RegistryView::Hklm32 => "hklm32",
         RegistryView::Hkcu => "hkcu",
+        RegistryView::Package => "package",
     };
     fnv1a_hex(&format!("{tag}|{}", subkey.to_lowercase()))
 }

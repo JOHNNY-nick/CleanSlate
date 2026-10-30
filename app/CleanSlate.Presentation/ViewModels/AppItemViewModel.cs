@@ -46,11 +46,15 @@ public sealed class AppItemViewModel
         InstallerKind.Msi => "Windows Installer (MSI)",
         InstallerKind.InnoSetup => "Inno Setup",
         InstallerKind.Nsis => "NSIS",
+        InstallerKind.Msix => "MSIX (Microsoft Store)",
         _ => string.Empty,
     };
 
     /// <summary>True when the installer is known.</summary>
     public bool HasInstallerName => InstallerName.Length > 0;
+
+    /// <summary>Microsoft Store application (badge « Store », EF-04).</summary>
+    public bool IsStore => App.Kind == AppKind.Store;
 
     /// <summary>True for system components and updates (EF-02).</summary>
     public bool IsHidden => App.HiddenReason is not null;

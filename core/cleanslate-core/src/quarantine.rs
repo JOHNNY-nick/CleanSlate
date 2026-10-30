@@ -24,6 +24,7 @@ use crate::native::{self, Sha256};
 use crate::registry::{utf16_le_with_bom, KeySnapshot, RegKeyPath, Registry};
 use crate::safety::SafetyRules;
 use crate::services::{ServiceConfig, ServiceControl};
+use crate::store::PackageStore;
 use crate::tasks::TaskStore;
 
 /// Above this size, the user must type [`CONFIRMATION_WORD`] (specs § 9.2).
@@ -242,6 +243,9 @@ pub struct Quarantine<'a> {
     pub tasks: &'a dyn TaskStore,
     /// Services (query, delete, recreate).
     pub services: &'a dyn ServiceControl,
+    /// Store packages of the current user (D48: their data is quarantined
+    /// only once the package is gone).
+    pub packages: &'a dyn PackageStore,
 }
 
 /// What `services\<id>.json` holds: enough to recreate the service and
@@ -432,9 +436,15 @@ impl Quarantine<'_> {
         let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
         // Last line of defence, right before acting (safety rule 3); a Start
         // menu shortcut or emptied folder passes only through D20.
-        self.rules
-            .validate_item_path(self.fs, item.kind, &original)
-            .map_err(to_pair)?;
+        let validation = if self.rules.is_package_folder(&original) {
+            self.installed_families().and_then(|installed| {
+                self.rules
+                    .validate_package_folder(self.fs, &original, &installed)
+            })
+        } else {
+            self.rules.validate_item_path(self.fs, item.kind, &original)
+        };
+        validation.map_err(to_pair)?;
         let (files, has_link) = collect_files(&original).map_err(to_pair)?;
         if has_link {
             return Err((
@@ -488,7 +498,13 @@ impl Quarantine<'_> {
         let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
         let key = RegKeyPath::parse(&item.original_location)
             .ok_or_else(|| ("INVALID_INPUT".to_owned(), "clé illisible".to_owned()))?;
-        self.rules.validate_key(&key).map_err(to_pair)?;
+        let validation = if self.rules.is_package_key(&key) {
+            self.installed_families()
+                .and_then(|installed| self.rules.validate_package_key(&key, &installed))
+        } else {
+            self.rules.validate_key(&key)
+        };
+        validation.map_err(to_pair)?;
         let snapshot = KeySnapshot::read(self.registry, &key).map_err(to_pair)?;
         let registry_dir = dir.join("registry");
         fs::create_dir_all(&registry_dir)
@@ -507,6 +523,16 @@ impl Quarantine<'_> {
         replace_item(&mut manifest.session.items, item.clone());
         self.save(manifest).map_err(to_pair)?;
         self.registry.delete_tree(&key).map_err(to_pair)
+    }
+
+    /// Family names of the packages of the user, listed right now (D48).
+    fn installed_families(&self) -> CoreResult<Vec<String>> {
+        Ok(self
+            .packages
+            .list()?
+            .into_iter()
+            .map(|p| p.family_name)
+            .collect())
     }
 
     /// Scheduled tasks: read the definition now, validate it (D47), save
@@ -811,6 +837,7 @@ mod tests {
         area: TestRegistryKey,
         tasks: crate::tasks::FakeTaskStore,
         services: crate::services::FakeServiceControl,
+        packages: crate::store::FakePackageStore,
     }
 
     impl Lab {
@@ -829,6 +856,7 @@ mod tests {
                 area: TestRegistryKey::new(),
                 tasks: Default::default(),
                 services: Default::default(),
+                packages: Default::default(),
             }
         }
 
@@ -850,6 +878,7 @@ mod tests {
                 rules: &self.rules,
                 tasks: &self.tasks,
                 services: &self.services,
+                packages: &self.packages,
             };
             f(&q)
         }

@@ -528,4 +528,22 @@
   <data name="Format_Simulation" xml:space="preserve">
     <value>Simulation : {0} élément(s) auraient été mis en quarantaine ({1}).</value>
   </data>
+  <data name="AppsKindLabel.Text" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="AppsKind.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Type d'application</value>
+  </data>
+  <data name="AppsKindAll.Content" xml:space="preserve">
+    <value>Toutes</value>
+  </data>
+  <data name="AppsKindWin32.Content" xml:space="preserve">
+    <value>Win32</value>
+  </data>
+  <data name="AppsKindStore.Content" xml:space="preserve">
+    <value>Store</value>
+  </data>
+  <data name="AppsStoreBadge.Text" xml:space="preserve">
+    <value>Store</value>
+  </data>
 </root>

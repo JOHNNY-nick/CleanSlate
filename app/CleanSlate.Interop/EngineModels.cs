@@ -46,6 +46,9 @@ public enum RegistryView
 
     /// <summary>HKCU.</summary>
     Hkcu,
+
+    /// <summary>Not in the registry: a Store package of the current user (EF-04).</summary>
+    Package,
 }
 
 /// <summary>Kind of installed application.</summary>
@@ -55,7 +58,7 @@ public enum AppKind
     /// <summary>Classic Win32 application.</summary>
     Win32,
 
-    /// <summary>Microsoft Store application (read-only, v1.1).</summary>
+    /// <summary>Microsoft Store application (MSIX package of the current user, EF-04).</summary>
     Store,
 }
 
@@ -83,6 +86,9 @@ public enum InstallerKind
     /// <summary>NSIS.</summary>
     Nsis,
 
+    /// <summary>MSIX / AppX package (Microsoft Store).</summary>
+    Msix,
+
     /// <summary>Anything else.</summary>
     Unknown,
 }
@@ -103,7 +109,9 @@ public sealed record InstalledApp(
     RegistryView RegistryView,
     AppKind Kind,
     HiddenReason? HiddenReason,
-    InstallerKind Installer);
+    InstallerKind Installer,
+    string? PackageFullName = null,
+    string? PackageFamilyName = null);
 
 /// <summary>Kind of leftover item.</summary>
 [JsonConverter(typeof(SnakeCaseEnumConverter<LeftoverKind>))]

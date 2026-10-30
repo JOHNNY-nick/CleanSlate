@@ -17,12 +17,13 @@ use crate::fs::FileSystem;
 use crate::inventory::fnv1a_hex;
 use crate::matcher::{group, normalize, score, Facts, KnownSet};
 use crate::model::{
-    Confidence, InstalledApp, ItemError, Leftover, LeftoverKind, ScanOptions, ScanPhase,
+    AppKind, Confidence, InstalledApp, ItemError, Leftover, LeftoverKind, ScanOptions, ScanPhase,
     ScanProgress, ScanReport,
 };
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
-use crate::safety::{KnownFolders, SafetyRules};
+use crate::safety::{KnownFolders, SafetyRules, PACKAGE_KEY_PARENTS};
 use crate::shortcut::{self, Verdict};
+use crate::store::family_label;
 use crate::system::{dead_services, dead_tasks, DeadEntry};
 
 /// Minimum delay between two progress events (ENF-06).
@@ -52,6 +53,9 @@ pub struct ScanEnv<'a> {
     pub cancel: &'a AtomicBool,
     /// Reference time for the age signals.
     pub now: DateTime<Utc>,
+    /// Family names of every package of the current user, listed just
+    /// before the scan; `None` (or empty) disables the Store leftovers.
+    pub installed_packages: Option<&'a [String]>,
 }
 
 /// Receives progress events.
@@ -201,6 +205,12 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
             .into_iter()
             .chain(dead_services(env.fs, env.registry, env.folders));
         found.extend(dead.map(|entry| dead_entry_leftover(env, &known, &entry)));
+    }
+
+    if let Some(installed) = env.installed_packages.filter(|i| !i.is_empty()) {
+        if !env.cancel.load(Ordering::Relaxed) {
+            found.extend(package_leftovers(env, installed, None, &reporter, &errors));
+        }
     }
 
     let cancelled = env.cancel.load(Ordering::Relaxed);
@@ -502,6 +512,102 @@ fn start_menu_folder_leftover(candidate: &Candidate) -> Leftover {
         guessed_app: Some(candidate.name.clone()),
     }
 }
+/// Data of Store packages that are no longer installed (EF-04, D48): the
+/// folder `%LOCALAPPDATA%\Packages\<family>` and its two keys, each passing
+/// the narrow exception of `safety.rs` against `installed`. With `only`,
+/// the leftovers of that one family just uninstalled (High); otherwise every
+/// orphan family (Medium, never prechecked).
+fn package_leftovers(
+    env: &ScanEnv,
+    installed: &[String],
+    only: Option<&str>,
+    reporter: &Reporter,
+    errors: &Errors,
+) -> Vec<(Option<String>, Leftover)> {
+    let wanted = |family: &str| only.is_none_or(|f| f.eq_ignore_ascii_case(family));
+    let (confidence, reason) = match only {
+        Some(_) => (
+            Confidence::High,
+            "Données de l'application du Microsoft Store désinstallée",
+        ),
+        None => (
+            Confidence::Medium,
+            "Données d'une application du Microsoft Store qui n'est plus installée",
+        ),
+    };
+    let leftover = |kind, location: String, family: &str, size_bytes, last_modified| {
+        let id = fnv1a_hex(&location.to_lowercase());
+        (
+            None,
+            Leftover {
+                id,
+                kind,
+                location,
+                size_bytes,
+                last_modified,
+                confidence,
+                reasons: vec![reason.to_owned(), format!("Paquet {family}")],
+                guessed_app: Some(family_label(family).to_owned()),
+            },
+        )
+    };
+    let mut found = Vec::new();
+    let packages = env.folders.local.join("Packages");
+    for entry in read_dir_or_record(env.fs, &packages, errors) {
+        let family = entry
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned());
+        let Some(family) = family.filter(|f| wanted(f)) else {
+            continue;
+        };
+        if env
+            .rules
+            .validate_package_folder(env.fs, &entry.path, installed)
+            .is_err()
+        {
+            continue;
+        }
+        let stats = measure(env, &entry.path, reporter, errors);
+        found.push(leftover(
+            LeftoverKind::Folder,
+            entry.path.display().to_string(),
+            &family,
+            stats.size,
+            stats.last_modified,
+        ));
+    }
+    for parent in PACKAGE_KEY_PARENTS {
+        let Some(parent) = RegKeyPath::parse(parent) else {
+            continue;
+        };
+        for name in env.registry.subkeys(&parent).unwrap_or_default() {
+            let key = parent.join(&name);
+            if !wanted(&name) || env.rules.validate_package_key(&key, installed).is_err() {
+                continue;
+            }
+            let size = env
+                .registry
+                .values(&key)
+                .map(|values| {
+                    values
+                        .iter()
+                        .map(|(n, v)| (n.len() * 2) as u64 + data_len(v))
+                        .sum()
+                })
+                .unwrap_or(0);
+            found.push(leftover(
+                LeftoverKind::RegistryKey,
+                key.to_string(),
+                &name,
+                size,
+                None,
+            ));
+        }
+    }
+    found
+}
+
 /// Folder names too generic to name an application (`…\Vendor\App\bin\x.exe`).
 const GENERIC_FOLDERS: [&str; 6] = ["bin", "x64", "x86", "app", "current", "service"];
 
@@ -613,6 +719,25 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
     if env.apps.iter().any(|a| a.id == app.id) {
         reporter.emit(ScanPhase::Done, "");
         return ScanReport::default();
+    }
+    // A Store application leaves only its package data (EF-04, D48).
+    if app.kind == AppKind::Store {
+        let found = match (
+            env.installed_packages.filter(|i| !i.is_empty()),
+            app.package_family_name.as_deref(),
+        ) {
+            (Some(installed), Some(family)) => {
+                package_leftovers(env, installed, Some(family), &reporter, &errors)
+            }
+            _ => Vec::new(),
+        };
+        reporter.emit(ScanPhase::Done, "");
+        return ScanReport {
+            groups: group(found),
+            errors: errors.into_vec(),
+            duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            cancelled: env.cancel.load(Ordering::Relaxed),
+        };
     }
     let app_name = normalize(&app.display_name);
     let install = app
@@ -952,6 +1077,8 @@ pub(crate) mod tests {
             kind: AppKind::Win32,
             hidden_reason: None,
             installer: InstallerKind::Unknown,
+            package_full_name: None,
+            package_family_name: None,
         }
     }
 
@@ -1078,6 +1205,7 @@ pub(crate) mod tests {
             extra_executables: &[],
             cancel,
             now: now(),
+            installed_packages: None,
         };
         scan_orphans(&env, &ScanOptions::default(), progress)
     }
@@ -1264,6 +1392,7 @@ pub(crate) mod tests {
             extra_executables: &[],
             cancel: &AtomicBool::new(false),
             now: now(),
+            installed_packages: None,
         };
         let options = ScanOptions {
             include_tasks_and_services: false,
@@ -1415,6 +1544,7 @@ pub(crate) mod tests {
             extra_executables: &[],
             cancel: &cancel,
             now: now(),
+            installed_packages: None,
         };
         let report = scan_app_leftovers(&env, &gimp, &|_| {});
         let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();

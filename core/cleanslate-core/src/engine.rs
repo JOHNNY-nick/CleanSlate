@@ -12,8 +12,8 @@ use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
 use crate::model::{
-    AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, Leftover, PurgeRequest, PurgeResult,
-    RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session, UninstallRequest,
+    AppKind, AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, Leftover, PurgeRequest,
+    PurgeResult, RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session, UninstallRequest,
     UninstallResult,
 };
 use crate::quarantine::{simulate, Quarantine};
@@ -21,6 +21,7 @@ use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
 use crate::scan::{scan_app_leftovers, scan_orphans, ScanEnv};
 use crate::services::{NoServiceControl, ScmServiceControl, ServiceControl};
+use crate::store::{NoPackageStore, PackageStore, StorePackage, WinRtPackageStore};
 use crate::tasks::{ComTaskStore, NoTaskStore, TaskStore};
 use crate::uninstall::{
     build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
@@ -103,6 +104,8 @@ pub struct Engine {
     tasks: Box<dyn TaskStore>,
     /// Services (refuses everything on a test engine).
     services: Box<dyn ServiceControl>,
+    /// Store packages of the current user (none on a test engine).
+    packages: Box<dyn PackageStore>,
     /// History database, opened on first use.
     history: Mutex<Option<History>>,
 }
@@ -139,6 +142,7 @@ impl Engine {
             restore_points: Box::new(NoRestorePoints),
             tasks: Box::new(NoTaskStore),
             services: Box::new(NoServiceControl),
+            packages: Box::new(NoPackageStore),
         }
     }
 
@@ -157,6 +161,7 @@ impl Engine {
         }
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
+        engine.set_package_store(Box::new(WinRtPackageStore));
         engine
     }
 
@@ -190,9 +195,34 @@ impl Engine {
         &self.folders
     }
 
-    /// Lists installed applications, read-only (EF-01, EF-02).
+    /// Lists installed applications, read-only (EF-01, EF-02): the
+    /// Uninstall keys, then the Store packages of the current user (EF-04).
+    /// A failure of the package listing leaves the Win32 list intact.
     pub fn list_apps(&self) -> CoreResult<Vec<InstalledApp>> {
-        crate::inventory::list_apps(self.registry())
+        let mut apps = crate::inventory::list_apps(self.registry())?;
+        match self.packages.list() {
+            Ok(packages) => apps.extend(
+                packages
+                    .iter()
+                    .filter(|p| p.is_listed())
+                    .map(StorePackage::to_app),
+            ),
+            Err(err) => tracing::warn!(%err, "Store packages not listed"),
+        }
+        Ok(apps)
+    }
+
+    /// Family names of every package of the current user, listed now;
+    /// `None` when the listing fails or is empty (Store leftovers disabled).
+    fn installed_families(&self) -> Option<Vec<String>> {
+        let families: Vec<String> = self
+            .packages
+            .list()
+            .ok()?
+            .into_iter()
+            .map(|p| p.family_name)
+            .collect();
+        (!families.is_empty()).then_some(families)
     }
 
     /// Asks the running long operation to stop (EF-11); it returns a
@@ -229,6 +259,7 @@ impl Engine {
         } else {
             Vec::new()
         };
+        let families = self.installed_families();
         let env = ScanEnv {
             fs: self.fs(),
             registry: self.registry(),
@@ -238,6 +269,7 @@ impl Engine {
             extra_executables: &extra,
             cancel: &self.cancel,
             now: Utc::now(),
+            installed_packages: families.as_deref(),
         };
         let report = scan_orphans(&env, options, progress);
         self.remember(&report);
@@ -296,7 +328,13 @@ impl Engine {
             rules: &self.rules,
             tasks: self.tasks.as_ref(),
             services: self.services.as_ref(),
+            packages: self.packages.as_ref(),
         })
+    }
+
+    /// Replaces the Store package store (tests inject a fake).
+    pub fn set_package_store(&mut self, packages: Box<dyn PackageStore>) {
+        self.packages = packages;
     }
 
     /// Replaces the task store and the service control (tests inject fakes).
@@ -331,6 +369,9 @@ impl Engine {
             .ok_or_else(|| CoreError::NotFound {
                 location: request.app_id.clone(),
             })?;
+        if app.kind == AppKind::Store {
+            return self.uninstall_package(&app, request);
+        }
         let command = build_command(&app, request.quiet)?;
         if !program_exists(&command.program) {
             return Err(CoreError::NoUninstaller {
@@ -387,6 +428,50 @@ impl Engine {
         Ok(result)
     }
 
+    /// Removes a Store application for the current user only (EF-04), with
+    /// the progress reported by Windows. No restore point: it does not cover
+    /// packages, and the removal is not run through an uninstaller.
+    fn uninstall_package(
+        &self,
+        app: &InstalledApp,
+        request: &UninstallRequest,
+    ) -> CoreResult<UninstallResult> {
+        let full_name = app
+            .package_full_name
+            .clone()
+            .ok_or_else(|| CoreError::NoUninstaller {
+                location: app.display_name.clone(),
+            })?;
+        if let Ok(mut removed) = self.removed_apps.lock() {
+            removed.insert(app.id.clone(), app.clone());
+        }
+        let mut result = UninstallResult {
+            app_id: app.id.clone(),
+            display_name: app.display_name.clone(),
+            command: format!("RemovePackageAsync {full_name}"),
+            simulated: true,
+            restore_point_created: false,
+            restore_point_error: None,
+            exit_code: None,
+            timed_out: false,
+            cancelled: false,
+            still_installed: true,
+        };
+        if self.simulating(request.dry_run) {
+            return Ok(result);
+        }
+        result.simulated = false;
+        tracing::info!(package = %full_name, "removing Store package for the current user");
+        self.packages.remove(&full_name, &|_| {})?;
+        result.exit_code = Some(0);
+        result.still_installed = self
+            .packages
+            .list()?
+            .iter()
+            .any(|p| p.full_name == full_name);
+        Ok(result)
+    }
+
     /// Leftovers of an application just uninstalled (EF-13): empty if it is
     /// still installed. Its items can then be passed to [`Engine::clean`].
     ///
@@ -426,6 +511,7 @@ impl Engine {
             // Its own entry must not make its files "installed".
             apps.retain(|a| a.id != app.id);
         }
+        let families = self.installed_families();
         let env = ScanEnv {
             fs: self.fs(),
             registry: self.registry(),
@@ -435,6 +521,7 @@ impl Engine {
             extra_executables: &[],
             cancel: &self.cancel,
             now: Utc::now(),
+            installed_packages: families.as_deref(),
         };
         let mut report = scan_app_leftovers(&env, &app, progress);
         if request.uninstaller_missing {
@@ -879,6 +966,145 @@ mod tests {
             session.errors
         );
         assert!(!install.exists());
+    }
+
+    /// EF-04, D48: a Store application is listed, removed for the current
+    /// user (fake store), and its data folder and keys go to quarantine and
+    /// come back identically; another removed package is an orphan (Medium).
+    #[test]
+    fn store_application_full_cycle_with_fake_store() {
+        use crate::fs::strip_verbatim;
+        use crate::model::{Origin, SessionStatus};
+        use crate::registry::{KeySnapshot, RegKeyPath};
+        use crate::safety::PACKAGE_KEY_PARENTS;
+        use crate::store::{tests::package, FakePackageStore, StorePackage};
+
+        let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\store-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let folders = KnownFolders::under(&base);
+        let packages = folders.local.join("Packages");
+        let app_folder = packages.join("Vendor.App_abcdefghjk123");
+        std::fs::create_dir_all(app_folder.join("LocalState")).unwrap();
+        std::fs::write(app_folder.join(r"LocalState\settings.dat"), b"theme=dark").unwrap();
+        std::fs::create_dir_all(packages.join("Vendor.Orphan_abcdefghjk123")).unwrap();
+        std::fs::create_dir_all(packages.join("Vendor.Runtime_abcdefghjk123")).unwrap();
+
+        let area = TestRegistryKey::new();
+        let storage = RegKeyPath::parse(PACKAGE_KEY_PARENTS[0]).unwrap();
+        let app_key = storage.join("vendor.app_abcdefghjk123");
+        area.create(&app_key)
+            .set_value("Moniker", &"vendor.app")
+            .unwrap();
+
+        let framework = StorePackage {
+            is_framework: true,
+            ..package("Vendor.Runtime_abcdefghjk123")
+        };
+        let config = EngineConfig {
+            dry_run: false,
+            data_dir: Some(base.join("data-dir")),
+            exclusions: vec![],
+        };
+        let mut engine = Engine::with_folders(
+            config,
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            folders,
+        );
+        engine.set_package_store(Box::new(FakePackageStore::with(vec![
+            package("Vendor.App_abcdefghjk123"),
+            framework,
+        ])));
+
+        // Listed (frameworks are not), with its Store fields.
+        let apps = engine.list_apps().unwrap();
+        let app = apps
+            .iter()
+            .find(|a| a.kind == AppKind::Store)
+            .unwrap()
+            .clone();
+        assert_eq!(apps.iter().filter(|a| a.kind == AppKind::Store).count(), 1);
+        assert_eq!(
+            app.package_family_name.as_deref(),
+            Some("Vendor.App_abcdefghjk123")
+        );
+
+        // Orphan scan: the removed package's folder is Medium; installed ones never.
+        let report = engine
+            .scan_orphans(&ScanOptions::default(), &|_| {})
+            .unwrap();
+        let items: Vec<_> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let orphan = items
+            .iter()
+            .find(|i| i.location.ends_with("Vendor.Orphan_abcdefghjk123"))
+            .expect("orphan package folder");
+        assert_eq!(orphan.confidence, Confidence::Medium);
+        assert!(!items
+            .iter()
+            .any(|i| i.location.contains("Vendor.App_") || i.location.contains("Vendor.Runtime_")));
+
+        // Simulated, then real removal for the current user.
+        let request = |dry_run| UninstallRequest {
+            app_id: app.id.clone(),
+            quiet: false,
+            create_restore_point: true,
+            dry_run,
+        };
+        let simulated = engine.uninstall(&request(true)).unwrap();
+        assert!(simulated.simulated && simulated.still_installed);
+        let removed = engine.uninstall(&request(false)).unwrap();
+        assert!(!removed.simulated && !removed.still_installed);
+        assert!(!removed.restore_point_created);
+
+        // Its leftovers: the data folder and its key, High.
+        let report = engine
+            .scan_app_leftovers(
+                &AppLeftoversRequest {
+                    app_id: app.id.clone(),
+                    uninstaller_missing: false,
+                },
+                &|_| {},
+            )
+            .unwrap();
+        let leftovers: Vec<_> = report.groups.iter().flat_map(|g| &g.items).collect();
+        assert_eq!(leftovers.len(), 2, "{leftovers:?}");
+        assert!(leftovers.iter().all(|i| i.confidence == Confidence::High));
+        let before = KeySnapshot::read(&area.registry(), &app_key).unwrap();
+        let mut plan = CleanPlan::new(
+            leftovers.iter().map(|i| i.id.clone()).collect(),
+            Origin::App {
+                app_id: app.id.clone(),
+            },
+        );
+        plan.dry_run = false;
+        let session = engine.clean(&plan).unwrap();
+        assert_eq!(
+            session.status,
+            SessionStatus::Completed,
+            "{:?}",
+            session.errors
+        );
+        assert!(!app_folder.exists());
+        assert!(!area.registry().key_exists(&app_key));
+
+        let restored = engine
+            .restore(&crate::model::RestoreRequest {
+                session_id: session.id,
+                item_ids: None,
+                dry_run: false,
+            })
+            .unwrap();
+        assert!(restored.errors.is_empty(), "{:?}", restored.errors);
+        assert_eq!(
+            std::fs::read(app_folder.join(r"LocalState\settings.dat")).unwrap(),
+            b"theme=dark"
+        );
+        assert_eq!(
+            KeySnapshot::read(&area.registry(), &app_key).unwrap(),
+            before
+        );
     }
 
     #[test]

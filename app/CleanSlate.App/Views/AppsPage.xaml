@@ -39,6 +39,12 @@
                 x:Uid="AppsSearch"
                 Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <TextBlock x:Uid="AppsKindLabel" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" />
+                <ComboBox x:Uid="AppsKind" MinWidth="110" SelectedIndex="{x:Bind ViewModel.KindFilterIndex, Mode=TwoWay}">
+                    <ComboBoxItem x:Uid="AppsKindAll" />
+                    <ComboBoxItem x:Uid="AppsKindWin32" />
+                    <ComboBoxItem x:Uid="AppsKindStore" />
+                </ComboBox>
                 <TextBlock x:Uid="AppsSortLabel" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" />
                 <ComboBox x:Uid="AppsSort" MinWidth="150" SelectedIndex="{x:Bind ViewModel.SortIndex, Mode=TwoWay}">
                     <ComboBoxItem x:Uid="AppsSortName" />
@@ -93,6 +99,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Border Width="32" Height="32" CornerRadius="4" Background="{ThemeResource AccentSubtleBrush}">
                                         <TextBlock
@@ -103,6 +110,15 @@
                                             Text="{x:Bind Initials}" />
                                     </Border>
                                     <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind DisplayName}" />
+                                    <Border
+                                        Grid.Column="2"
+                                        Padding="6,1"
+                                        VerticalAlignment="Center"
+                                        Background="{ThemeResource AccentSubtleBrush}"
+                                        CornerRadius="4"
+                                        Visibility="{x:Bind IsStore}">
+                                        <TextBlock x:Uid="AppsStoreBadge" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
+                                    </Border>
                                 </Grid>
                                 <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind PublisherText}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind VersionText}" TextTrimming="CharacterEllipsis" />

@@ -56,6 +56,7 @@ fn bench(c: &mut Criterion) {
         extra_executables: &[],
         cancel: &cancel,
         now: Utc::now(),
+        installed_packages: None,
     };
     let mut group = c.benchmark_group("enf05");
     group.sample_size(10);

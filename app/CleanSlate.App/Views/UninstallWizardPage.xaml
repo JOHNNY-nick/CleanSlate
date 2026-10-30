@@ -44,7 +44,7 @@
                         <Run Text="·" />
                         <Run Text="{x:Bind ViewModel.App.SizeText, Mode=OneWay, FallbackValue=''}" />
                     </TextBlock>
-                    <CheckBox x:Uid="WizardRestorePoint" IsChecked="{x:Bind ViewModel.CreateRestorePoint, Mode=TwoWay}" />
+                    <CheckBox x:Uid="WizardRestorePoint" IsChecked="{x:Bind ViewModel.CreateRestorePoint, Mode=TwoWay}" Visibility="{x:Bind ViewModel.IsWin32, Mode=OneWay}" />
                     <CheckBox x:Uid="WizardQuiet" IsChecked="{x:Bind ViewModel.Quiet, Mode=TwoWay}" Visibility="{x:Bind ViewModel.CanQuiet, Mode=OneWay}" />
                     <TextBlock x:Uid="WizardStep1Help" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                     <Button x:Uid="WizardLaunch" Command="{x:Bind ViewModel.LaunchCommand}" Style="{StaticResource AccentButtonStyle}" />

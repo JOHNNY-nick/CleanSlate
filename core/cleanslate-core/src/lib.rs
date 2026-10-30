@@ -19,6 +19,7 @@ pub mod safety;
 pub mod scan;
 pub mod services;
 pub mod shortcut;
+pub mod store;
 pub mod system;
 pub mod tasks;
 pub mod uninstall;

@@ -21,6 +21,8 @@ pub enum RegistryView {
     Hklm32,
     /// `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`.
     Hkcu,
+    /// Not in the registry: a package of the current user (Microsoft Store, EF-04).
+    Package,
 }
 
 /// Kind of installed application.
@@ -29,7 +31,7 @@ pub enum RegistryView {
 pub enum AppKind {
     /// Classic Win32 application, can be uninstalled by CleanSlate.
     Win32,
-    /// Microsoft Store application, listed read-only (EF-04, v1.1).
+    /// Microsoft Store application (MSIX package of the current user, EF-04).
     Store,
 }
 
@@ -53,6 +55,8 @@ pub enum InstallerKind {
     InnoSetup,
     /// Nullsoft Scriptable Install System.
     Nsis,
+    /// MSIX / AppX package (Microsoft Store).
+    Msix,
     /// Anything else.
     Unknown,
 }
@@ -90,6 +94,12 @@ pub struct InstalledApp {
     pub hidden_reason: Option<HiddenReason>,
     /// Installer technology.
     pub installer: InstallerKind,
+    /// `PackageFullName` of a Store application.
+    #[serde(default)]
+    pub package_full_name: Option<String>,
+    /// `PackageFamilyName` of a Store application.
+    #[serde(default)]
+    pub package_family_name: Option<String>,
 }
 
 /// Kind of leftover item.
@@ -497,6 +507,8 @@ mod tests {
             kind: AppKind::Win32,
             hidden_reason: Some(HiddenReason::SystemComponent),
             installer: InstallerKind::InnoSetup,
+            package_full_name: None,
+            package_family_name: None,
         }
     }
 
