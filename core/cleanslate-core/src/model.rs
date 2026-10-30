@@ -338,6 +338,11 @@ pub struct UninstallResult {
 pub struct AppLeftoversRequest {
     /// [`InstalledApp::id`] of the (uninstalled) application.
     pub app_id: String,
+    /// The application is still listed but its uninstaller program is
+    /// missing (design § 5, D45): leftovers are searched anyway, never with
+    /// a confidence above Medium. Refused if the uninstaller exists.
+    #[serde(default)]
+    pub uninstaller_missing: bool,
 }
 
 /// Request of `cs_restore` (EF-18).

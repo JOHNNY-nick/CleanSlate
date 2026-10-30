@@ -12,7 +12,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
 use crate::model::{
-    AppLeftoversRequest, CleanPlan, InstalledApp, Leftover, PurgeRequest, PurgeResult,
+    AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, Leftover, PurgeRequest, PurgeResult,
     RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session, UninstallRequest,
     UninstallResult,
 };
@@ -27,6 +27,18 @@ use crate::uninstall::{
 
 fn default_true() -> bool {
     true
+}
+
+/// The application is still listed (uninstaller missing, D45): no item is
+/// High, so none is prechecked (EF-10), and each says why.
+fn cap_at_medium(report: &mut ScanReport) {
+    for item in report.groups.iter_mut().flat_map(|g| g.items.iter_mut()) {
+        if item.confidence == Confidence::High {
+            item.confidence = Confidence::Medium;
+        }
+        item.reasons
+            .push("Programme de désinstallation introuvable : vérifiez avant de cocher".to_owned());
+    }
 }
 
 /// Engine settings, sent as JSON by the UI to `cs_engine_new`.
@@ -356,13 +368,18 @@ impl Engine {
 
     /// Leftovers of an application just uninstalled (EF-13): empty if it is
     /// still installed. Its items can then be passed to [`Engine::clean`].
+    ///
+    /// With `uninstaller_missing` (design § 5, D45), the application is
+    /// still listed but cannot be uninstalled: its leftovers are searched
+    /// anyway and capped at Medium, so none is prechecked. Refused when its
+    /// uninstaller exists: the official uninstaller must run first.
     pub fn scan_app_leftovers(
         &self,
         request: &AppLeftoversRequest,
         progress: &(dyn Fn(&ScanProgress) + Sync),
     ) -> CoreResult<ScanReport> {
         let _guard = self.begin()?;
-        let apps = self.list_apps()?;
+        let mut apps = self.list_apps()?;
         let captured = self
             .removed_apps
             .lock()
@@ -374,6 +391,20 @@ impl Engine {
             .ok_or_else(|| CoreError::NotFound {
                 location: request.app_id.clone(),
             })?;
+        if request.uninstaller_missing {
+            let missing = match build_command(&app, false) {
+                Ok(command) => !program_exists(&command.program),
+                Err(err) => matches!(err, CoreError::NoUninstaller { .. }),
+            };
+            if !missing {
+                return Err(CoreError::InvalidInput(format!(
+                    "the uninstaller of {} exists: run it first",
+                    app.display_name
+                )));
+            }
+            // Its own entry must not make its files "installed".
+            apps.retain(|a| a.id != app.id);
+        }
         let env = ScanEnv {
             fs: self.fs(),
             registry: self.registry(),
@@ -384,7 +415,10 @@ impl Engine {
             cancel: &self.cancel,
             now: Utc::now(),
         };
-        let report = scan_app_leftovers(&env, &app, progress);
+        let mut report = scan_app_leftovers(&env, &app, progress);
+        if request.uninstaller_missing {
+            cap_at_medium(&mut report);
+        }
         self.remember(&report);
         Ok(report)
     }
@@ -799,6 +833,7 @@ mod tests {
             .scan_app_leftovers(
                 &AppLeftoversRequest {
                     app_id: app_id.clone(),
+                    uninstaller_missing: false,
                 },
                 &|_| {},
             )
@@ -855,6 +890,71 @@ mod tests {
             })
             .unwrap_err();
         assert_eq!(err.code(), "NO_UNINSTALLER");
+    }
+
+    #[test]
+    fn missing_uninstaller_leftovers_are_searched_but_never_high() {
+        use crate::fs::strip_verbatim;
+        use crate::inventory::{stable_id, UNINSTALL_KEY};
+        use crate::model::RegistryView;
+        use crate::registry::{Hive, KeyView, RegKeyPath};
+
+        let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\uninstall-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let install = base.join(r"Program Files\BrokenApp");
+        std::fs::create_dir_all(&install).unwrap();
+        std::fs::write(install.join("data.bin"), [0u8; 64]).unwrap();
+
+        let area = TestRegistryKey::new();
+        let entry = RegKeyPath::new(Hive::LocalMachine, UNINSTALL_KEY)
+            .with_view(KeyView::Force64)
+            .join("BrokenApp_is1");
+        let key = area.create(&entry);
+        key.set_value("DisplayName", &"BrokenApp").unwrap();
+        key.set_value("InstallLocation", &install.to_string_lossy().as_ref())
+            .unwrap();
+        let uninstaller = format!("\"{}\"", install.join("unins000.exe").display());
+        key.set_value("UninstallString", &uninstaller.as_str())
+            .unwrap();
+        let app_id = stable_id(RegistryView::Hklm64, "BrokenApp_is1");
+        let engine = Engine::with_folders(
+            EngineConfig::default(),
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            KnownFolders::under(&base),
+        );
+        let request = |uninstaller_missing| AppLeftoversRequest {
+            app_id: app_id.clone(),
+            uninstaller_missing,
+        };
+
+        // Without the flag the application is still installed: nothing.
+        assert!(engine
+            .scan_app_leftovers(&request(false), &|_| {})
+            .unwrap()
+            .groups
+            .is_empty());
+
+        // With it: the install folder is proposed, at most Medium.
+        let report = engine.scan_app_leftovers(&request(true), &|_| {}).unwrap();
+        let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let folder = items
+            .iter()
+            .find(|i| i.location.ends_with("BrokenApp"))
+            .expect("install folder");
+        assert_eq!(folder.confidence, Confidence::Medium);
+        assert!(folder.reasons.iter().any(|r| r.contains("introuvable")));
+        assert!(items.iter().all(|i| i.confidence != Confidence::High));
+
+        // The uninstaller is back: refused, it must run first.
+        std::fs::write(install.join("unins000.exe"), b"MZ fake").unwrap();
+        let err = engine
+            .scan_app_leftovers(&request(true), &|_| {})
+            .unwrap_err();
+        assert_eq!(err.code(), "INVALID_INPUT");
+        assert!(install.exists());
     }
 
     #[test]
