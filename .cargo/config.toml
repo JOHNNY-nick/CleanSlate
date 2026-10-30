@@ -1,0 +1,6 @@
+# The C runtime is linked statically (D51): cleanslate.dll and cleanslate-cli.exe
+# must run on a clean Windows (Windows Sandbox, a fresh PC) without the Visual C++
+# Redistributable (VCRUNTIME140.dll), which the installer does not ship.
+# At the repository root: every cargo command of the project runs from here.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

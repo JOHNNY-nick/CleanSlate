@@ -31,7 +31,7 @@ $apps = @(
     @{ Name = 'VLC'; Pattern = 'VLC'; Main = 'VideoLAN\VLC\vlc.exe'; Wait = 25 },
     @{ Name = '7-Zip'; Pattern = '7-Zip'; Main = '7-Zip\7zFM.exe'; Wait = 15 },
     @{ Name = 'Notepad++'; Pattern = 'Notepad\+\+'; Main = 'Notepad++\notepad++.exe'; Wait = 15 },
-    @{ Name = 'Audacity'; Pattern = 'Audacity'; Main = 'Audacity\Audacity.exe'; Wait = 30 },
+    @{ Name = 'Audacity'; Pattern = 'Audacity'; Main = 'Audacity*\Audacity.exe'; Wait = 30 },
     @{ Name = 'GIMP'; Pattern = 'GIMP'; Main = 'GIMP*\bin\gimp-[0-9]*.exe'; Wait = 90 }
 )
 $witness = @{ Name = 'Firefox'; Main = 'Mozilla Firefox\firefox.exe'; Wait = 25 }
@@ -160,8 +160,17 @@ $remaining | Set-Content "$out\restes-reels.txt" -Encoding utf8
 # 7. Read-only scan with the engine (same as the « Analyser les restes » button).
 Step 'Analyse CleanSlate (lecture seule)'
 $cli = "$base\tools\cleanslate-cli.exe"
-Start-Process $cli -ArgumentList 'scan', '--dry-run', '--json' -NoNewWindow -Wait `
+$scan = Start-Process $cli -ArgumentList 'scan', '--dry-run', '--json' -NoNewWindow -Wait -PassThru `
     -RedirectStandardOutput "$out\scan.json" -RedirectStandardError "$out\scan-progression.txt"
+# An empty analysis must never be reported as a measurement.
+if ($scan.ExitCode -ne 0 -or (Get-Item "$out\scan.json").Length -eq 0) {
+    $message = "# Scénario des 5 applications — ÉCHEC`n`ncleanslate-cli n'a rien produit (code de sortie $($scan.ExitCode)). Aucun critère n'est mesuré ; voir scan-progression.txt et journal.txt."
+    Set-Content "$out\rapport.md" $message -Encoding utf8
+    Write-Error $message
+    Stop-Transcript | Out-Null
+    Start-Process notepad.exe "$out\rapport.md"
+    exit 1
+}
 Start-Process $cli -ArgumentList 'apps', '--json' -NoNewWindow -Wait `
     -RedirectStandardOutput "$out\apps.json" -RedirectStandardError "$out\apps-err.txt"
 $report = Get-Content "$out\scan.json" -Raw -Encoding utf8 | ConvertFrom-Json
