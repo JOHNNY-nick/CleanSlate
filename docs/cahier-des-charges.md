@@ -72,7 +72,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | --- | --- | --- |
 | EF-12 | Sélectionner une application installée et lancer son désinstalleur officiel (`UninstallString`, ou `msiexec /x` pour un MSI), en attendant la fin du processus. | M |
 | EF-13 | Après la désinstallation, scanner automatiquement les restes de cette application et les afficher pour validation. | M |
-| EF-14 | Proposer un mode silencieux (`QuietUninstallString`, ou `/qn` pour un MSI) quand il existe. | S |
+| EF-14 | Proposer un mode silencieux (`QuietUninstallString`, ou `/qn` pour un MSI) quand il existe. Pour Inno Setup : `/VERYSILENT /NORESTART` à la place des options déclarées, jamais `/SUPPRESSMSGBOXES` (une question du désinstalleur reste affichée et l'utilisateur y répond ; les données qu'il garderait sont ensuite proposées comme restes, restaurables) (D60). | S |
 | EF-15 | Créer un point de restauration Windows avant la désinstallation, si la protection système est active. | S |
 | EF-21 | Afficher la progression réelle de la désinstallation : pourcentage et action en cours pour un MSI et une application du Store ; pour un désinstalleur `.exe`, étapes horodatées, temps écoulé et processus actifs, sans pourcentage inventé. | S |
 

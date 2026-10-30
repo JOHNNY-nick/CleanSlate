@@ -137,6 +137,9 @@ Invoke-Step 'Relevé de référence (§ 4.1.3)' {
 # No uninstaller is waited for more than 10 min: a box left open is reported, not clicked (D59).
 $uninstallTimeout = 600
 $uninstallSteps = @()
+# D60: the settings GIMP created at its first launch, to see which answer /SUPPRESSMSGBOXES
+# gives to its « remove personal settings? » question (CleanSlate never passes it).
+$gimpSettings = @(Get-ChildItem "$env:APPDATA\GIMP" -Directory -ErrorAction SilentlyContinue | ForEach-Object FullName)
 foreach ($a in $apps) {
     Invoke-Step "Désinstallation classique de $($a.Name)" {
         foreach ($e in Uninstall-Entries | Where-Object DisplayName -Match $a.Pattern) {
@@ -154,6 +157,10 @@ foreach ($a in $apps) {
     }
     $uninstallSteps += $Run.Steps[-1]
 }
+$gimpStep = $uninstallSteps | Where-Object Name -EQ 'Désinstallation classique de GIMP'
+$gimpKept = @($gimpSettings | Where-Object { Test-Path -LiteralPath $_ })
+$gimpStatus = if (-not $gimpSettings.Count -or ($gimpStep -and $gimpStep.Failure)) { 'script' } elseif ($gimpKept.Count -eq $gimpSettings.Count) { 'ok' } else { 'ko' }
+$gimpMeasure = if ($gimpSettings.Count) { "$($gimpKept.Count) / $($gimpSettings.Count) dossier(s) de réglages gardé(s) : $(($gimpSettings | ForEach-Object { "$(Split-Path $_ -Leaf) $(if (Test-Path -LiteralPath $_) { 'gardé' } else { 'supprimé' })" }) -join ', ')" } else { 'aucun réglage de GIMP créé au premier lancement : mesure impossible' }
 
 # 7. R: reference entries still present after the classic uninstall.
 $remaining = @($script:reference | Where-Object {
@@ -263,7 +270,8 @@ Write-Report 'Scénario des 5 applications — résultats' $meta @(
     [pscustomobject]@{ Name = "Zéro élément d'une application installée ou du système précoché (critère 3)"; Measure = "$($wrong.Count) précoché(s) fautif(s)"; Status = $(if ($wrong.Count -eq 0) { 'ok' } else { 'ko' }) },
     [pscustomobject]@{ Name = 'Analyse sous 60 s (ENF-05)'; Measure = "$([math]::Round($report.duration_ms / 1000, 1)) s"; Status = $(if ($report.duration_ms -lt 60000) { 'ok' } else { 'ko' }) },
     [pscustomobject]@{ Name = 'Session restaurable à l''identique (critère 4)'; Measure = $measure4; Status = $criterion4 },
-    [pscustomobject]@{ Name = 'Critère 4 dans l''interface (facultatif)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau), mode simulation désactivé'; Status = 'manuel' }
+    [pscustomobject]@{ Name = 'Critère 4 dans l''interface (facultatif)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau), mode simulation désactivé'; Status = 'manuel' },
+    [pscustomobject]@{ Name = 'Information (D60) : GIMP garde ses réglages avec /SUPPRESSMSGBOXES (désinstallation classique ; CleanSlate ne passe jamais cette option)'; Measure = $gimpMeasure; Status = $gimpStatus }
 ) ([ordered]@{
         'Restes réels manqués'                = $missed
         'Éléments précochés fautifs'          = @($wrong | ForEach-Object { "$($_.location) ($($_.guessed_app))" })

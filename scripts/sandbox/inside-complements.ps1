@@ -255,6 +255,10 @@ function Test-UninstallProgress($installer, [string] $cliName, [bool] $isMsi) {
     else {
         $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (.exe) : processus du désinstalleur (EF-21)"; Measure = "$($withProcesses.Count) relevé(s) avec processus : $(if ($names.Count) { $names -join ', ' } else { 'aucun' })"; Status = (Status ($withProcesses.Count -ge 1) $step) }
         $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (.exe) : aucun pourcentage inventé"; Measure = "$($percents.Count) relevé(s) avec pourcentage"; Status = (Status ($percents.Count -eq 0) $step) }
+        # D60: Inno Setup in silent mode gets /VERYSILENT /NORESTART, never /SUPPRESSMSGBOXES.
+        $command = [string]$ctx.Result.command
+        $innoOk = $command -match '(?i)/VERYSILENT\b' -and $command -match '(?i)/NORESTART\b' -and $command -notmatch '(?i)/SUPPRESSMSGBOXES\b' -and $command -notmatch '(?i)(?<!\S)/SILENT\b'
+        $script:checks += [pscustomobject]@{ Name = "$($installer.Name) (Inno Setup) : mode silencieux sans réponse automatique (EF-14, D60)"; Measure = "commande : $command"; Status = (Status $innoOk $step) }
     }
     $logLine = Get-ChildItem "$out\cleanslate-logs" -Filter 'cleanslate.*.log' -ErrorAction SilentlyContinue |
         Select-String -Pattern 'uninstall finished' | Where-Object { $_.Line -match [regex]::Escape($cliName) } | Select-Object -Last 1
@@ -271,6 +275,7 @@ if (-not $bad.Count) {
     }
 }
 $checks += [pscustomobject]@{ Name = 'Dans CleanSlate (Bureau) : VLC et GIMP par « Désinstaller complètement », filtre « Store »'; Measure = 'd''abord Réglages → désactiver « Mode simulation » (sinon rien n''est lancé : l''étape 4 l''indique) ; puis comparer le « Déroulé de la désinstallation » de l''étape 4 avec progression-*.txt'; Status = 'manuel' }
+$checks += [pscustomobject]@{ Name = 'GIMP déjà lancé, désinstallé en mode silencieux (EF-14, D60)'; Measure = 'lancer GIMP une fois et le fermer ; dans CleanSlate, cocher « mode silencieux » puis désinstaller : si GIMP demande de supprimer ses réglages, répondre Non ; à l''étape 3, %APPDATA%\GIMP doit être proposé comme reste'; Status = 'manuel' }
 
 Write-Report 'Compléments v1.0 — résultats dans Windows Sandbox' $meta $checks ([ordered]@{
         'Installeurs vérifiés' = @($installers | ForEach-Object { "$(if ($_.Ok) { 'conforme' } else { 'NON CONFORME' }) — $($_.Name) $($_.Version) — SHA-256 $($_.Actual)" })

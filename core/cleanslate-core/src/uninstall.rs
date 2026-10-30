@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use crate::error::{CoreError, CoreResult};
 use crate::inventory::is_guid;
-use crate::model::{InstalledApp, JobProcess};
+use crate::model::{InstalledApp, InstallerKind, JobProcess};
 
 /// Longest wait for an uninstaller (specs § 7.1).
 pub const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
@@ -197,9 +197,31 @@ fn to_msi_uninstall(args: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+/// Switches of an Inno Setup uninstaller in silent mode (EF-14, D60): no progress window,
+/// no restart. Never `/SUPPRESSMSGBOXES`: it answers each question with the default the
+/// author chose, which may delete user data outside the quarantine (GIMP 3 asks whether
+/// to remove its settings). A question still shows, and the user answers it.
+const INNO_SILENT_SWITCHES: [&str; 2] = ["/VERYSILENT", "/NORESTART"];
+
+/// Replaces the Inno Setup switches of `args` with [`INNO_SILENT_SWITCHES`].
+fn to_inno_silent(args: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = args
+        .into_iter()
+        .filter(|arg| {
+            !matches!(
+                arg.to_ascii_uppercase().as_str(),
+                "/SILENT" | "/VERYSILENT" | "/SUPPRESSMSGBOXES" | "/NORESTART"
+            )
+        })
+        .collect();
+    kept.extend(INNO_SILENT_SWITCHES.iter().map(|s| (*s).to_owned()));
+    kept
+}
+
 /// Command that uninstalls `app` (specs § 7.1, step 3): `msiexec /x
 /// {ProductCode}` for MSI, else the `UninstallString` (or the
-/// `QuietUninstallString` in silent mode, EF-14).
+/// `QuietUninstallString` in silent mode, EF-14; for Inno Setup, with
+/// `/VERYSILENT /NORESTART` instead of the declared switches, D60).
 pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
     if let Some(code) = app
         .product_code
@@ -224,7 +246,11 @@ pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
             })
         }
     };
-    split_command(source)
+    let mut command = split_command(source)?;
+    if quiet && app.installer == InstallerKind::InnoSetup {
+        command.args = to_inno_silent(command.args);
+    }
+    Ok(command)
 }
 
 /// How an uninstaller run ended.
@@ -537,7 +563,7 @@ pub fn wait_until(cancel: &AtomicBool, limit: Duration) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{AppKind, InstallerKind, RegistryView};
+    use crate::model::{AppKind, RegistryView};
 
     fn sys(name: &str) -> PathBuf {
         system32().join(name)
@@ -732,6 +758,41 @@ mod tests {
                 .unwrap_err()
                 .code(),
             "NO_UNINSTALLER"
+        );
+    }
+
+    /// EF-14, D60: GIMP 3 declares `"…\unins000.exe" /SILENT` (Sandbox run of 30 Oct. 2026).
+    #[test]
+    fn inno_setup_silent_mode_never_answers_questions() {
+        let gimp = r"C:\Users\Ana\AppData\Local\Programs\GIMP 3\uninst\unins000.exe";
+        let mut inno = app(
+            Some(&format!("\"{gimp}\"")),
+            Some(&format!("\"{gimp}\" /SILENT")),
+            None,
+        );
+        inno.installer = InstallerKind::InnoSetup;
+        assert_eq!(
+            build_command(&inno, true).unwrap(),
+            cmd(gimp, &["/VERYSILENT", "/NORESTART"])
+        );
+        // Interactive mode keeps the uninstaller's own dialogs.
+        assert_eq!(build_command(&inno, false).unwrap(), cmd(gimp, &[]));
+
+        // A declared /SUPPRESSMSGBOXES is dropped: its answers are the author's defaults,
+        // which may delete data without quarantine. Other arguments are kept.
+        inno.quiet_uninstall_string = Some(format!(
+            "\"{gimp}\" /verysilent /SuppressMsgBoxes /LOG /NoRestart"
+        ));
+        assert_eq!(
+            build_command(&inno, true).unwrap(),
+            cmd(gimp, &["/LOG", "/VERYSILENT", "/NORESTART"])
+        );
+
+        // Same name, other installer: the declared command is used as is.
+        let other = app(None, Some(r#""C:\A\unins000.exe" /SILENT"#), None);
+        assert_eq!(
+            build_command(&other, true).unwrap(),
+            cmd(r"C:\A\unins000.exe", &["/SILENT"])
         );
     }
 
