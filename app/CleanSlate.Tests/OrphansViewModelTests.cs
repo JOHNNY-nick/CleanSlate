@@ -171,6 +171,24 @@ public sealed class OrphansViewModelTests
     }
 
     [Fact]
+    public void DeadTasksAndServices_CanNeverBeChecked()
+    {
+        var service = new LeftoverItemViewModel(new Leftover(
+            "s1", LeftoverKind.Service, @"HKLM\SYSTEM\CurrentControlSet\Services\Old", 0, null, Confidence.Medium, ["Exécutable introuvable"], "Old"));
+        var task = new LeftoverItemViewModel(Item(@"C:\A\task", Confidence.High, 0) with { Kind = LeftoverKind.ScheduledTask });
+        var folder = new LeftoverItemViewModel(Item(@"C:\A\old", Confidence.Medium, 10));
+
+        service.IsChecked = true;
+        folder.IsChecked = true;
+
+        Assert.False(service.IsSelectable);
+        Assert.False(service.IsChecked);
+        Assert.False(task.IsChecked);   // even if the engine ever said High
+        Assert.True(folder.IsSelectable);
+        Assert.True(folder.IsChecked);
+    }
+
+    [Fact]
     public async Task StateActions_NavigateAndListIgnoredItems()
     {
         var engine = Substitute.For<IEngineService>();

@@ -184,7 +184,7 @@ public sealed record ScanReport(
     bool Cancelled);
 
 /// <summary>Options of <c>cs_scan_orphans</c>; simulation is always on for a scan.</summary>
-public sealed record ScanOptions(bool DryRun = true, bool IncludeRegistry = true, bool IncludeShortcuts = true);
+public sealed record ScanOptions(bool DryRun = true, bool IncludeRegistry = true, bool IncludeShortcuts = true, bool IncludeTasksAndServices = true);
 
 /// <summary>Progress event (at most one per 250 ms).</summary>
 public sealed record ScanProgress(ScanPhase Phase, ulong Current, ulong Total, string Path);

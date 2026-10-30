@@ -42,7 +42,7 @@ public sealed class ScanReportJsonTests
     {
         string json = JsonSerializer.Serialize(new ScanOptions(), EngineJsonContext.Default.ScanOptions);
 
-        Assert.Equal("""{"dry_run":true,"include_registry":true,"include_shortcuts":true}""", json);
+        Assert.Equal("""{"dry_run":true,"include_registry":true,"include_shortcuts":true,"include_tasks_and_services":true}""", json);
     }
 
     [Fact]
