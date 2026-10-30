@@ -50,8 +50,10 @@ Toutes les commandes se lancent depuis la racine du dépôt.
   cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- scan --dry-run --json
   (toute autre commande de la CLI est bloquée par le hook .claude/hooks/guard-cleanslate-cli.ps1, D53).
   Les commandes de test destructives n'existent que dans un binaire compilé avec la feature
-  `sandbox-tests` (par scripts/sandbox/prepare.ps1 seulement) ; jamais dans build.ps1, la CI de release
-  ni l'installeur (contrôle : scripts/check-release-cli.ps1)
+  `sandbox-tests` (par scripts/sandbox/prepare.ps1 pour le Sandbox, et par
+  scripts/tests/check-release-cli.tests.ps1 dans core/target/feature-check, jamais exécuté ni livré) ;
+  jamais dans build.ps1, le binaire publié ni l'installeur (contrôle : scripts/check-release-cli.ps1,
+  codes de sortie 0 propre, 1 commandes trouvées, 2 erreur)
 Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 
 ## Règles de sécurité (non négociables)

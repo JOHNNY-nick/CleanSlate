@@ -57,13 +57,24 @@ jobs:
         working-directory: core
         run: cargo llvm-cov --workspace --fail-under-lines 80 --summary-only
 
+      # Scripts run with -File: the step fails on their real exit code (each ends with an explicit exit).
       - name: Build (cargo + dotnet)
         shell: pwsh
-        run: ./scripts/build.ps1 -Configuration Release
+        run: |
+          pwsh -NoProfile -File ./scripts/build.ps1 -Configuration Release
+          exit $LASTEXITCODE
 
       - name: The Release CLI has no test command (D53)
         shell: pwsh
-        run: ./scripts/check-release-cli.ps1 -Binary core/target/release/cleanslate-cli.exe -RunHelp
+        run: |
+          pwsh -NoProfile -File ./scripts/check-release-cli.ps1 -Binary core/target/release/cleanslate-cli.exe -RunHelp
+          exit $LASTEXITCODE
+
+      - name: Exit codes of check-release-cli.ps1 (clean 0, feature 1, missing 2)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/tests/check-release-cli.tests.ps1
+          exit $LASTEXITCODE
 
       - name: NativeMethods.g.cs is up to date
         shell: pwsh

@@ -217,3 +217,4 @@ Write-Report 'Scénario des 5 applications — résultats' $meta @(
 
 Stop-Run
 Start-Process "$out\rapport.html"
+exit 0

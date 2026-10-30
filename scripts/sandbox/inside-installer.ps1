@@ -84,3 +84,4 @@ $checks += [pscustomobject]@{ Name = '%LOCALAPPDATA%\CleanSlate conservé (D43)'
 Write-Report 'Installeur — résultats dans Windows Sandbox' $meta $checks ([ordered]@{})
 Stop-Run
 Start-Process "$out\rapport.html"
+exit 0

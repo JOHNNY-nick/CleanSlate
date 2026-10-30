@@ -255,3 +255,4 @@ Write-Report 'Compléments v1.0 — résultats dans Windows Sandbox' $meta $chec
     })
 Stop-Run
 Start-Process "$out\rapport.html"
+exit 0

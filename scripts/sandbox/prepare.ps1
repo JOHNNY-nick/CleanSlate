@@ -55,8 +55,14 @@ $cli = Join-Path $root 'core\target\release\cleanslate-cli.exe'
 foreach ($needed in "$app\CleanSlate.App.exe", $cli) {
     if (-not (Test-Path $needed)) { throw "Missing $needed : run scripts/build.ps1 -Configuration Release first." }
 }
-& (Join-Path $root 'scripts\check-release-cli.ps1') -Binary $cli
-if ($LASTEXITCODE -ne 0) { throw 'The release cleanslate-cli.exe contains the test commands (check-release-cli.ps1).' }
+# Separate process: its exit code is the one of the check (0 clean, 1 markers, 2 error),
+# never a value left by an earlier command of this session.
+pwsh -NoProfile -File (Join-Path $root 'scripts\check-release-cli.ps1') -Binary $cli
+switch ($LASTEXITCODE) {
+    0 { }
+    1 { throw 'The release cleanslate-cli.exe contains the test commands (check-release-cli.ps1).' }
+    default { throw "check-release-cli.ps1 could not run (exit code $LASTEXITCODE)." }
+}
 Copy-Item $cli $toolsDir -Force
 
 # 2. Test commands, for the Complements scenario only (D53).
@@ -163,3 +169,4 @@ if ($Launch) {
     if (-not (Test-Path $sandbox)) { throw 'Windows Sandbox is not enabled (scripts/sandbox/README.md).' }
     Start-Process $wsb
 }
+exit 0

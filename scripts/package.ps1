@@ -21,9 +21,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
+# $LASTEXITCODE is reset first: otherwise a step that runs no program (or a script
+# without an explicit exit) would be judged on a stale or $null value.
 function Invoke-Step {
     param([string] $Title, [scriptblock] $Command)
     Write-Host "==> $Title" -ForegroundColor Cyan
+    $global:LASTEXITCODE = 0
     & $Command
     if ($LASTEXITCODE -ne 0) {
         throw "Step failed ($Title), exit code $LASTEXITCODE."
@@ -51,7 +54,6 @@ if (Get-Process CleanSlate.App -ErrorAction SilentlyContinue) {
 if (-not $SkipBuild) {
     Invoke-Step 'build.ps1 -Configuration Release' {
         & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Release
-        $global:LASTEXITCODE = 0
     }
 }
 
@@ -80,3 +82,4 @@ Invoke-Step "ISCC (version $version)" {
 
 $setup = Join-Path $root "artifacts\installer\CleanSlate-$version-setup.exe"
 Write-Host "==> Done: $setup" -ForegroundColor Green
+exit 0
