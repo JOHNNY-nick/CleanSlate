@@ -89,20 +89,23 @@
                     <Button x:Uid="OrphansRescan" Command="{x:Bind ViewModel.ScanCommand}" />
                 </InfoBar.ActionButton>
             </InfoBar>
-            <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasItemErrors, Mode=OneWay}" Severity="Informational">
+            <InfoBar
+                IsClosable="False"
+                IsOpen="{x:Bind ViewModel.HasItemErrors, Mode=OneWay}"
+                Message="{x:Bind conv:Texts.One('Format_AccessDenied', ViewModel.ErrorCount), Mode=OneWay}"
+                Severity="Informational">
                 <InfoBar.ActionButton>
                     <Button x:Uid="OrphansErrorDetails" Command="{x:Bind ViewModel.ToggleItemErrorsCommand}" />
                 </InfoBar.ActionButton>
                 <InfoBar.Content>
-                    <StackPanel Margin="0,0,0,12" Spacing="8">
-                        <TextBlock TextWrapping="Wrap">
-                            <Run Text="{x:Bind ViewModel.ErrorCount, Mode=OneWay}" />
-                            <Run x:Uid="OrphansAccessDenied" />
-                        </TextBlock>
-                        <ScrollViewer MaxHeight="160" Visibility="{x:Bind ViewModel.ShowItemErrors, Mode=OneWay}">
-                            <ItemsControl x:Uid="OrphansErrorList" FontFamily="{StaticResource PathFontFamily}" FontSize="12" ItemsSource="{x:Bind ViewModel.ItemErrors}" />
-                        </ScrollViewer>
-                    </StackPanel>
+                    <ScrollViewer
+                        MaxHeight="160"
+                        Margin="0,0,0,12"
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Auto"
+                        Visibility="{x:Bind ViewModel.ShowItemErrors, Mode=OneWay}">
+                        <ItemsControl x:Uid="OrphansErrorList" FontFamily="{StaticResource PathFontFamily}" FontSize="12" ItemsSource="{x:Bind ViewModel.ItemErrors}" />
+                    </ScrollViewer>
                 </InfoBar.Content>
             </InfoBar>
             <RadioButtons
@@ -227,47 +230,36 @@
                     Command="{x:Bind ViewModel.QuarantineCommand}"
                     Foreground="White" />
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.ShowCleanResult, Mode=OneWay}">
-                    <InfoBar IsClosable="False" IsOpen="True" Severity="Success">
-                        <InfoBar.Content>
-                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
-                                <Run Text="{x:Bind ViewModel.CleanedCount, Mode=OneWay}" />
-                                <Run x:Uid="OrphansCleanedMiddle" />
-                                <Run Text="{x:Bind ViewModel.CleanedSizeText, Mode=OneWay}" /><Run x:Uid="OrphansCleanedSuffix" />
-                            </TextBlock>
-                        </InfoBar.Content>
-                    </InfoBar>
-                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasPendingReboot, Mode=OneWay}" Severity="Warning">
+                    <InfoBar
+                        IsClosable="False"
+                        IsOpen="True"
+                        Message="{x:Bind conv:Texts.Two('Format_Cleaned', ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
+                        Severity="Success" />
+                    <InfoBar
+                        IsClosable="False"
+                        IsOpen="{x:Bind ViewModel.HasPendingReboot, Mode=OneWay}"
+                        Message="{x:Bind conv:Texts.One('Format_PendingReboot', ViewModel.PendingRebootCount), Mode=OneWay}"
+                        Severity="Warning">
                         <InfoBar.ActionButton>
                             <Button x:Uid="OrphansSeeFiles" Command="{x:Bind ViewModel.OpenHistoryCommand}" />
                         </InfoBar.ActionButton>
-                        <InfoBar.Content>
-                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
-                                <Run Text="{x:Bind ViewModel.PendingRebootCount, Mode=OneWay}" />
-                                <Run x:Uid="OrphansPendingReboot" />
-                            </TextBlock>
-                        </InfoBar.Content>
                     </InfoBar>
-                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasCleanFailures, Mode=OneWay}" Severity="Warning">
-                        <InfoBar.Content>
-                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
-                                <Run Text="{x:Bind ViewModel.CleanFailureCount, Mode=OneWay}" />
-                                <Run x:Uid="OrphansCleanFailures" />
-                            </TextBlock>
-                        </InfoBar.Content>
-                    </InfoBar>
+                    <InfoBar
+                        IsClosable="False"
+                        IsOpen="{x:Bind ViewModel.HasCleanFailures, Mode=OneWay}"
+                        Message="{x:Bind conv:Texts.One('Format_CleanFailures', ViewModel.CleanFailureCount), Mode=OneWay}"
+                        Severity="Warning" />
                 </StackPanel>
-                <InfoBar Grid.Row="1" Grid.ColumnSpan="3" IsClosable="False" IsOpen="{x:Bind ViewModel.ShowSimulation, Mode=OneWay}" Severity="Success">
+                <InfoBar
+                    Grid.Row="1"
+                    Grid.ColumnSpan="3"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.ShowSimulation, Mode=OneWay}"
+                    Message="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.SimulatedCount, ViewModel.SimulatedSizeText), Mode=OneWay}"
+                    Severity="Success">
                     <InfoBar.ActionButton>
                         <Button x:Uid="OrphansDisableSimulation" Command="{x:Bind ViewModel.OpenSettingsCommand}" Visibility="{x:Bind ViewModel.IsSimulationMode}" />
                     </InfoBar.ActionButton>
-                    <InfoBar.Content>
-                        <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
-                            <Run x:Uid="OrphansSimulationPrefix" />
-                            <Run Text="{x:Bind ViewModel.SimulatedCount, Mode=OneWay}" />
-                            <Run x:Uid="OrphansSimulationMiddle" />
-                            <Run Text="{x:Bind ViewModel.SimulatedSizeText, Mode=OneWay}" /><Run Text=")." />
-                        </TextBlock>
-                    </InfoBar.Content>
                 </InfoBar>
             </Grid>
         </Border>

@@ -138,9 +138,6 @@
   <data name="OrphansCancelled.Title" xml:space="preserve">
     <value>Analyse interrompue : résultats partiels affichés.</value>
   </data>
-  <data name="OrphansAccessDenied.Text" xml:space="preserve">
-    <value>élément(s) ignoré(s) : accès refusé.</value>
-  </data>
   <data name="OrphansFilter.Header" xml:space="preserve">
     <value>Confiance</value>
   </data>
@@ -179,12 +176,6 @@
   </data>
   <data name="OrphansQuarantine.Content" xml:space="preserve">
     <value>Mettre en quarantaine</value>
-  </data>
-  <data name="OrphansSimulationPrefix.Text" xml:space="preserve">
-    <value>Simulation :</value>
-  </data>
-  <data name="OrphansSimulationMiddle.Text" xml:space="preserve">
-    <value>élément(s) auraient été mis en quarantaine (</value>
   </data>
   <data name="Kind_Folder" xml:space="preserve">
     <value>Dossier</value>
@@ -302,18 +293,6 @@
   </data>
   <data name="SettingsQuarantineHelp.Text" xml:space="preserve">
     <value>Au-delà, les sessions sont supprimées définitivement au démarrage de CleanSlate ou depuis l'Historique.</value>
-  </data>
-  <data name="OrphansCleanedMiddle.Text" xml:space="preserve">
-    <value>élément(s) mis en quarantaine (</value>
-  </data>
-  <data name="OrphansCleanedSuffix.Text" xml:space="preserve">
-    <value>). Ils restent restaurables depuis l'Historique.</value>
-  </data>
-  <data name="OrphansPendingReboot.Text" xml:space="preserve">
-    <value>fichier(s) utilisé(s) par un programme seront déplacés au prochain redémarrage.</value>
-  </data>
-  <data name="OrphansCleanFailures.Text" xml:space="preserve">
-    <value>élément(s) laissé(s) en place (protégé, utilisé ou inaccessible).</value>
   </data>
   <data name="ConfirmTitle" xml:space="preserve">
     <value>Mettre en quarantaine ?</value>
@@ -533,5 +512,20 @@
   </data>
   <data name="WizardNoLeftover.Text" xml:space="preserve">
     <value>Aucun reste trouvé.</value>
+  </data>
+  <data name="Format_AccessDenied" xml:space="preserve">
+    <value>Accès refusé à {0} élément(s) : ignoré(s).</value>
+  </data>
+  <data name="Format_Cleaned" xml:space="preserve">
+    <value>{0} élément(s) mis en quarantaine ({1}). Ils restent restaurables depuis l'Historique.</value>
+  </data>
+  <data name="Format_PendingReboot" xml:space="preserve">
+    <value>{0} fichier(s) utilisé(s) par un programme. Ils seront déplacés au prochain redémarrage.</value>
+  </data>
+  <data name="Format_CleanFailures" xml:space="preserve">
+    <value>{0} élément(s) laissé(s) en place (protégé, utilisé ou inaccessible).</value>
+  </data>
+  <data name="Format_Simulation" xml:space="preserve">
+    <value>Simulation : {0} élément(s) auraient été mis en quarantaine ({1}).</value>
   </data>
 </root>

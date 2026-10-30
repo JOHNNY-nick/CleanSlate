@@ -119,12 +119,10 @@
                         <Run x:Uid="WizardCleaned" />
                         <Run Text="{x:Bind ViewModel.CleanedSizeText, Mode=OneWay}" />
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ShowCleanSimulatedLine, Mode=OneWay}">
-                        <Run x:Uid="OrphansSimulationPrefix" />
-                        <Run Text="{x:Bind ViewModel.CleanedCount, Mode=OneWay}" />
-                        <Run x:Uid="OrphansSimulationMiddle" />
-                        <Run Text="{x:Bind ViewModel.CleanedSizeText, Mode=OneWay}" /><Run Text=")." />
-                    </TextBlock>
+                    <TextBlock
+                        Text="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.ShowCleanSimulatedLine, Mode=OneWay}" />
                     <HyperlinkButton x:Uid="WizardOpenHistory" Command="{x:Bind ViewModel.OpenHistoryCommand}" />
                 </StackPanel>
             </Border>

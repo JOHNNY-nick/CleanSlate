@@ -113,7 +113,7 @@ public sealed partial class OrphansViewModel : ObservableObject
     /// <summary>Some items could not be read; they were ignored (ENF-09).</summary>
     public bool HasItemErrors => ErrorCount > 0;
 
-    /// <summary>Paths (or messages) of the items that could not be read, shown by « Détails ».</summary>
+    /// <summary>Paths of the items that could not be read (message if no path), shown by « Détails ».</summary>
     public ObservableCollection<string> ItemErrors { get; } = [];
 
     /// <summary>The list of ignored items is shown (design § 5, « Détails »).</summary>
@@ -340,7 +340,8 @@ public sealed partial class OrphansViewModel : ObservableObject
         ItemErrors.Clear();
         foreach (ItemError error in report.Errors)
         {
-            ItemErrors.Add(error.Path is null ? error.Message : $"{error.Path} : {error.Message}");
+            // The engine message repeats the path, in English: the path alone is enough.
+            ItemErrors.Add(error.Path ?? error.Message);
         }
 
         ShowItemErrors = false;

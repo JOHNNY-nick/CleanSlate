@@ -181,7 +181,7 @@ public sealed class OrphansViewModelTests
         await vm.ScanCommand.ExecuteAsync(null);
 
         // « Détails »: the ignored items, hidden until asked.
-        Assert.Equal([@"C:\0 : denied", @"C:\1 : denied"], vm.ItemErrors);
+        Assert.Equal([@"C:\0", @"C:\1"], vm.ItemErrors);
         Assert.False(vm.ShowItemErrors);
         vm.ToggleItemErrorsCommand.Execute(null);
         Assert.True(vm.ShowItemErrors);
