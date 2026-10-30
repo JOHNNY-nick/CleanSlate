@@ -49,6 +49,10 @@ jobs:
         working-directory: core
         run: cargo test --workspace
 
+      - name: cargo test, with the guard of the test commands (D53)
+        working-directory: core
+        run: cargo test --workspace --all-features
+
       - name: Coverage of the engine (ENF-12, >= 80 %)
         working-directory: core
         run: cargo llvm-cov --workspace --fail-under-lines 80 --summary-only
@@ -56,6 +60,10 @@ jobs:
       - name: Build (cargo + dotnet)
         shell: pwsh
         run: ./scripts/build.ps1 -Configuration Release
+
+      - name: The Release CLI has no test command (D53)
+        shell: pwsh
+        run: ./scripts/check-release-cli.ps1 -Binary core/target/release/cleanslate-cli.exe -RunHelp
 
       - name: NativeMethods.g.cs is up to date
         shell: pwsh

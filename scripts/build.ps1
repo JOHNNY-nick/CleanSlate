@@ -63,6 +63,14 @@ if (-not (Test-Path $dll)) {
     throw "cleanslate.dll was not produced at $dll."
 }
 
+# The Release CLI must never contain the destructive test commands (D53): this
+# script never enables the "sandbox-tests" feature, and checks the result.
+if ($Configuration -eq 'Release') {
+    Invoke-Step 'check: no test command in the Release CLI' {
+        & (Join-Path $PSScriptRoot 'check-release-cli.ps1') -Binary (Join-Path $root 'core\target\release\cleanslate-cli.exe')
+    }
+}
+
 $solution = Join-Path $root 'app\CleanSlate.sln'
 Invoke-Step "dotnet build ($Configuration|x64)" {
     dotnet build $solution -c $Configuration -p:Platform=x64 --nologo

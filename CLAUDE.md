@@ -46,9 +46,12 @@ Toutes les commandes se lancent depuis la racine du dépôt.
 - Tests C# : dotnet test app/CleanSlate.sln -p:Platform=x64
 - Couverture Rust : cargo llvm-cov --manifest-path core/Cargo.toml --workspace
   (outil de dev, objectif ≥ 80 %, ENF-12)
-- CLI : cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- version --json
-  (scan --dry-run --json à partir de J3). Les commandes `sandbox` (actions réelles) refusent de tourner
-  hors de Windows Sandbox : ne jamais les lancer sur cette machine (D50)
+- CLI : sur cette machine, Claude ne lance que
+  cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- scan --dry-run --json
+  (toute autre commande de la CLI est bloquée par le hook .claude/hooks/guard-cleanslate-cli.ps1, D53).
+  Les commandes de test destructives n'existent que dans un binaire compilé avec la feature
+  `sandbox-tests` (par scripts/sandbox/prepare.ps1 seulement) ; jamais dans build.ps1, la CI de release
+  ni l'installeur (contrôle : scripts/check-release-cli.ps1)
 Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 
 ## Règles de sécurité (non négociables)
@@ -56,6 +59,10 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
    Pas de suppression, déplacement ou écriture de registre hors des zones de test,
    et jamais cleanslate-cli sans --dry-run ni l'application hors mode simulation,
    sauf si je le demande explicitement dans le message en cours.
+   Incident du 30 oct. 2026 (D53), à ne jamais reproduire : Claude a lancé
+   « cleanslate-cli sandbox quarantine » sur cette machine pour « vérifier la garde » ; l'outil
+   l'a bloqué avant exécution. Une garde se teste par une fonction pure, jamais en lançant
+   l'action réelle ; et aucune commande de test destructive ne s'exécute hors de Windows Sandbox.
 2. Tests : uniquement des dossiers temporaires (tempfile) et la clé
    HKCU\Software\CleanSlateTest\<uuid>, créée puis supprimée par le test (TestRegistryKey).
    Le moteur reçoit son disque et son registre par injection : Engine::new(config, fs, registry)

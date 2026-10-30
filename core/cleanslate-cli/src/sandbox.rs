@@ -1,8 +1,9 @@
 //! `sandbox` commands: real quarantine, restore and uninstall, for the
-//! acceptance tests inside Windows Sandbox only (D50).
+//! acceptance tests inside Windows Sandbox only (D50, D53).
 //!
-//! They refuse to run outside the Sandbox account (`WDAGUtilityAccount`):
-//! on any other machine the CLI stays read-only (safety rule 1).
+//! Compiled only with the `sandbox-tests` feature. Before any action, three
+//! independent conditions must all hold (see [`check_guard`]); otherwise the
+//! command exits with code 3 and touches nothing (safety rule 1).
 
 use std::process::ExitCode;
 
@@ -13,15 +14,46 @@ use cleanslate_core::{Engine, EngineConfig};
 
 /// Account of Windows Sandbox.
 const SANDBOX_USER: &str = "WDAGUtilityAccount";
+/// Variable set by the logon command of the `.wsb` file written by
+/// `prepare.ps1` (one random token per preparation).
+const TOKEN_VARIABLE: &str = "CLEANSLATE_SANDBOX_RUN";
+/// Same token, in the repository shared read-only with the Sandbox: this
+/// path exists only through the mapping of the `.wsb` file.
+const TOKEN_FILE: &str = r"C:\CleanSlate\repo\artifacts\sandbox\run\token.txt";
+/// A token is 64 hexadecimal digits (32 random bytes).
+const TOKEN_LEN: usize = 64;
 
-/// `true` only for the account of Windows Sandbox.
-fn is_sandbox_user(user: Option<&str>) -> bool {
-    user.is_some_and(|u| u.eq_ignore_ascii_case(SANDBOX_USER))
+/// The three conditions of the guard, each from a different source:
+/// the account is the Sandbox one (`USERNAME`), the `.wsb` logon command set
+/// the token (`CLEANSLATE_SANDBOX_RUN`), and the same token is in the file
+/// shared read-only by that `.wsb`. Returns why it refuses.
+fn check_guard(
+    user: Option<&str>,
+    env_token: Option<&str>,
+    file_token: Option<&str>,
+) -> Result<(), &'static str> {
+    if !user.is_some_and(|u| u.eq_ignore_ascii_case(SANDBOX_USER)) {
+        return Err("not the Windows Sandbox account (WDAGUtilityAccount)");
+    }
+    let env_token = env_token
+        .map(str::trim)
+        .filter(|t| t.len() == TOKEN_LEN && t.chars().all(|c| c.is_ascii_hexdigit()))
+        .ok_or("CLEANSLATE_SANDBOX_RUN is missing or malformed (set by the .wsb file)")?;
+    match file_token.map(str::trim) {
+        Some(file) if file.eq_ignore_ascii_case(env_token) => Ok(()),
+        Some(_) => Err("the run token differs from the one shared by prepare.ps1"),
+        None => Err("no run token shared by prepare.ps1 (C:\\CleanSlate\\repo\\…\\token.txt)"),
+    }
 }
 
-/// `true` only inside Windows Sandbox.
-fn in_sandbox() -> bool {
-    is_sandbox_user(std::env::var("USERNAME").ok().as_deref())
+/// The guard with the real values of this process.
+fn guard() -> Result<(), &'static str> {
+    let file = std::fs::read_to_string(TOKEN_FILE).ok();
+    check_guard(
+        std::env::var("USERNAME").ok().as_deref(),
+        std::env::var(TOKEN_VARIABLE).ok().as_deref(),
+        file.as_deref(),
+    )
 }
 
 fn print_json(value: &impl serde::Serialize) -> ExitCode {
@@ -52,10 +84,10 @@ fn engine() -> Engine {
 
 /// `sandbox <action> <argument>`.
 pub fn run(args: &[String]) -> ExitCode {
-    if !in_sandbox() {
+    if let Err(reason) = guard() {
         eprintln!(
-            "sandbox commands only run inside Windows Sandbox ({SANDBOX_USER}): \
-             on this machine the CLI never modifies anything."
+            "sandbox commands only run inside Windows Sandbox started by prepare.ps1 ({reason}): \
+             nothing was modified."
         );
         return ExitCode::from(3);
     }
@@ -150,11 +182,22 @@ fn uninstall(name: &str) -> ExitCode {
 mod tests {
     use super::*;
 
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
     /// The guard alone is tested: the actions never run outside the Sandbox.
     #[test]
-    fn only_the_sandbox_account_is_allowed() {
-        assert!(is_sandbox_user(Some("WDAGUtilityAccount")));
-        assert!(is_sandbox_user(Some("wdagutilityaccount")));
+    fn all_three_conditions_are_required() {
+        let user = Some("WDAGUtilityAccount");
+        assert_eq!(check_guard(user, Some(TOKEN), Some(TOKEN)), Ok(()));
+        assert_eq!(
+            check_guard(
+                Some("wdagutilityaccount"),
+                Some(TOKEN),
+                Some(&format!("{TOKEN}\r\n"))
+            ),
+            Ok(())
+        );
+        // Each condition missing on its own refuses.
         for other in [
             None,
             Some(""),
@@ -162,9 +205,22 @@ mod tests {
             Some("Administrator"),
             Some("WDAGUtilityAccount2"),
         ] {
-            assert!(!is_sandbox_user(other), "{other:?}");
+            assert!(
+                check_guard(other, Some(TOKEN), Some(TOKEN)).is_err(),
+                "{other:?}"
+            );
         }
-        // This development machine is not the Sandbox.
-        assert!(!in_sandbox());
+        assert!(check_guard(user, None, Some(TOKEN)).is_err());
+        assert!(check_guard(user, Some("short"), Some("short")).is_err());
+        assert!(check_guard(user, Some(&"z".repeat(64)), Some(&"z".repeat(64))).is_err());
+        assert!(check_guard(user, Some(TOKEN), None).is_err());
+        assert!(check_guard(user, Some(TOKEN), Some(&TOKEN.replace('0', "1"))).is_err());
+    }
+
+    /// This development machine fails the guard: reading the real values
+    /// only, no action is ever called.
+    #[test]
+    fn this_machine_is_refused() {
+        assert!(guard().is_err());
     }
 }

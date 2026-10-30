@@ -11,5 +11,12 @@ cleanslate-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+[features]
+# Real quarantine, restore and uninstall commands for the acceptance tests in
+# Windows Sandbox (D50, D53). Never enabled by build.ps1, the CI release build or
+# the installer: only scripts/sandbox/prepare.ps1 builds it, into its own target
+# directory (core/target/sandbox-tests), as cleanslate-cli-sandbox.exe.
+sandbox-tests = []
+
 [lints]
 workspace = true

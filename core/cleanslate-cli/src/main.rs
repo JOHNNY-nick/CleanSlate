@@ -1,9 +1,11 @@
 //! Debug command-line front-end for the CleanSlate engine.
 //!
-//! Every command is read-only: nothing is ever moved or deleted from here,
-//! except the `sandbox` commands, which refuse to run outside Windows
-//! Sandbox (D50).
+//! Every command is read-only: nothing is ever moved or deleted from here.
+//! The `sandbox` commands (real actions, for the acceptance tests) exist only
+//! in a binary built with the `sandbox-tests` feature, never in a release
+//! build, and refuse to run outside Windows Sandbox (D50, D53).
 
+#[cfg(feature = "sandbox-tests")]
 mod sandbox;
 
 use std::process::ExitCode;
@@ -21,9 +23,6 @@ Commands:
                             --all also shows system components and updates
   scan --dry-run [--json]   Look for orphan leftovers (read-only simulation,
                             EF-05 to EF-11); --dry-run is mandatory
-  sandbox quarantine <text> | restore <session-id> | uninstall <name>
-                            Acceptance tests: real actions, refused outside
-                            Windows Sandbox (WDAGUtilityAccount)
   help                      Print this help";
 
 fn main() -> ExitCode {
@@ -53,6 +52,7 @@ fn main() -> ExitCode {
             }
             scan(flag("--json"))
         }
+        #[cfg(feature = "sandbox-tests")]
         Some("sandbox") => {
             let rest: Vec<String> = args
                 .iter()

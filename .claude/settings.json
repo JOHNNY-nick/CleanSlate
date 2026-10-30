@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(*cleanslate-cli* sandbox*)",
+      "Bash(*cleanslate-cli* quarantine*)",
+      "Bash(*cleanslate-cli* restore*)",
+      "Bash(*cleanslate-cli* uninstall*)",
+      "Bash(*cleanslate-cli-sandbox*)",
+      "PowerShell(*cleanslate-cli* sandbox*)",
+      "PowerShell(*cleanslate-cli* quarantine*)",
+      "PowerShell(*cleanslate-cli* restore*)",
+      "PowerShell(*cleanslate-cli* uninstall*)",
+      "PowerShell(*cleanslate-cli-sandbox*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\guard-cleanslate-cli.ps1\"",
+            "timeout": 15,
+            "onFailure": "block",
+            "statusMessage": "Garde cleanslate-cli (D53)"
+          }
+        ]
+      }
+    ]
+  }
+}
