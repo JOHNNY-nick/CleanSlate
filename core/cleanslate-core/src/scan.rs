@@ -200,7 +200,7 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
         let dead = dead_tasks(env.fs, env.folders)
             .into_iter()
             .chain(dead_services(env.fs, env.registry, env.folders));
-        found.extend(dead.map(|entry| dead_entry_leftover(&known, env.folders, &entry)));
+        found.extend(dead.map(|entry| dead_entry_leftover(env, &known, &entry)));
     }
 
     let cancelled = env.cancel.load(Ordering::Relaxed);
@@ -505,47 +505,72 @@ fn start_menu_folder_leftover(candidate: &Candidate) -> Leftover {
 /// Folder names too generic to name an application (`…\Vendor\App\bin\x.exe`).
 const GENERIC_FOLDERS: [&str; 6] = ["bin", "x64", "x86", "app", "current", "service"];
 
-/// A dead scheduled task or service (EF-07) as an item of the report:
-/// shown with its missing program, at most Medium, and never quarantined
-/// (the quarantine refuses these kinds; owner's decision, V11 plan).
+/// Days a program must have been missing for a task to reach High (D47).
+const TASK_ABSENT_DAYS: i64 = 30;
+
+/// Latest time the program could have disappeared: the modification time
+/// of its nearest parent folder still present (removing a file or a folder
+/// updates its parent). `None` when it cannot be told (drive root, no time).
+/// Measured this way, an error can only make the absence look more recent.
+fn absent_since(fs: &dyn FileSystem, program: &Path) -> Option<DateTime<Utc>> {
+    let parent = program
+        .ancestors()
+        .skip(1)
+        .find(|dir| dir.parent().is_some() && fs.exists(dir))?;
+    fs.metadata(parent).ok()?.modified
+}
+
+/// A dead scheduled task or service (EF-07, D47) as an item of the report,
+/// with its missing program. A task reaches High only when its program has
+/// been missing for more than 30 days; a service never goes above Medium
+/// (never prechecked); either is Low if its folder belongs to an installed
+/// application.
 fn dead_entry_leftover(
+    env: &ScanEnv,
     known: &KnownSet,
-    folders: &KnownFolders,
     entry: &DeadEntry,
 ) -> (Option<String>, Leftover) {
     let program = entry.program.to_string_lossy().into_owned();
-    let app = guess_app(&entry.program, folders)
+    let app = guess_app(&entry.program, env.folders)
         .unwrap_or_else(|| entry.name.trim_start_matches('\\').to_owned());
     let installed = known.attach(&app, Some(&program), &[]).is_some();
-    let how = if entry.kind == LeftoverKind::ScheduledTask {
-        "Affichée seulement : à supprimer dans le Planificateur de tâches"
-    } else {
-        "Affiché seulement : à supprimer en administrateur avec « sc.exe delete »"
-    };
-    let mut reasons = vec![
-        format!("Exécutable introuvable : {program}"),
-        how.to_owned(),
-    ];
-    if installed {
-        reasons.push("Appartient peut-être à une application installée".to_owned());
+    let mut reasons = vec![format!("Exécutable introuvable : {program}")];
+    let since = absent_since(env.fs, &entry.program);
+    let old = since.is_some_and(|t| env.now - t > chrono::Duration::days(TASK_ABSENT_DAYS));
+    if let Some(t) = since.filter(|_| old) {
+        reasons.push(format!(
+            "Absent depuis au moins {} jours",
+            (env.now - t).num_days()
+        ));
     }
+    let confidence = if installed {
+        reasons.push("Appartient peut-être à une application installée".to_owned());
+        Confidence::Low
+    } else if entry.kind == LeftoverKind::ScheduledTask && old {
+        Confidence::High
+    } else {
+        Confidence::Medium
+    };
+    reasons.push(
+        if entry.kind == LeftoverKind::ScheduledTask {
+            "Sa définition XML complète est enregistrée avant la suppression"
+        } else {
+            "Jamais précoché : configuration et clé enregistrées avant la suppression"
+        }
+        .to_owned(),
+    );
     let leftover = Leftover {
         id: fnv1a_hex(&entry.location.to_lowercase()),
         kind: entry.kind,
         location: entry.location.clone(),
         size_bytes: 0,
-        last_modified: None,
-        confidence: if installed {
-            Confidence::Low
-        } else {
-            Confidence::Medium
-        },
+        last_modified: since,
+        confidence,
         reasons,
         guessed_app: Some(app),
     };
     (None, leftover)
 }
-
 /// Application deduced from the folder of a program: the first non-generic
 /// folder name below the install roots, else the program's name.
 fn guess_app(program: &Path, folders: &KnownFolders) -> Option<String> {
@@ -1136,7 +1161,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn dead_tasks_and_services_are_shown_never_prechecked() {
+    fn dead_tasks_and_services_confidence() {
         use crate::system::SERVICES_KEY;
         let (mut fs, apps) = fixture();
         let tasks = r"C:\Windows\System32\Tasks";
@@ -1156,6 +1181,20 @@ pub(crate) mod tests {
         .add_file_with_content(
             format!(r"{tasks}\VLC Helper"),
             task(r"C:\Program Files\VideoLAN\VLC\gone.exe"),
+            None,
+        )
+        // Folders left by removed programs: one untouched for 60 days,
+        // one changed 5 days ago.
+        .add_dir_modified(r"C:\Program Files\LongGone", now() - Days::days(60))
+        .add_dir_modified(r"C:\Program Files\JustGone", now() - Days::days(5))
+        .add_file_with_content(
+            format!(r"{tasks}\LongGone"),
+            task(r"C:\Program Files\LongGone\bin\agent.exe"),
+            None,
+        )
+        .add_file_with_content(
+            format!(r"{tasks}\JustGone"),
+            task(r"C:\Program Files\JustGone\agent.exe"),
             None,
         );
         let area = TestRegistryKey::new();
@@ -1198,12 +1237,20 @@ pub(crate) mod tests {
 
         let svc = find(LeftoverKind::Service, r"Services\OldSvc");
         assert_eq!(svc.guessed_app.as_deref(), Some("OldVendor"));
-        assert!(svc.reasons.iter().any(|r| r.contains("sc.exe delete")));
+        assert!(svc.reasons.iter().any(|r| r.contains("Jamais précoché")));
+        assert_eq!(svc.confidence, Confidence::Medium);
 
-        // Never prechecked; and they can be switched off.
+        // A task reaches High only after 30 days of absence.
+        let long = find(LeftoverKind::ScheduledTask, r"\LongGone");
+        assert_eq!(long.confidence, Confidence::High);
+        assert!(long.reasons.iter().any(|r| r.contains("60 jours")));
+        let just = find(LeftoverKind::ScheduledTask, r"\JustGone");
+        assert_eq!(just.confidence, Confidence::Medium);
+
+        // A service is never High, even long gone; and both can be switched off.
         assert!(items
             .iter()
-            .filter(|i| matches!(i.kind, LeftoverKind::ScheduledTask | LeftoverKind::Service))
+            .filter(|i| i.kind == LeftoverKind::Service)
             .all(|i| i.confidence != Confidence::High));
         let folders = KnownFolders::under(r"C:\");
         let rules = SafetyRules::new(&folders, &[]);

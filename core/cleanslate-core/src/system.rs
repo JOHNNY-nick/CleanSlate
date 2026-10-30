@@ -18,6 +18,7 @@ use crate::matcher::command_executable;
 use crate::model::LeftoverKind;
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
 use crate::safety::KnownFolders;
+use crate::tasks::{decode_xml, parse_actions, TaskAction};
 
 /// Key listing Windows services.
 pub const SERVICES_KEY: &str = r"SYSTEM\CurrentControlSet\Services";
@@ -84,20 +85,27 @@ fn walk_tasks(
         let Ok(bytes) = fs.read_file(&entry.path, MAX_TASK_LEN) else {
             continue;
         };
-        let programs: Vec<PathBuf> = task_commands(&decode_xml(&bytes))
+        let actions = parse_actions(&decode_xml(&bytes));
+        // Only `Exec` actions (never a COM handler), each with a program
+        // that can be judged; one present program keeps the task alive.
+        let programs: Option<Vec<PathBuf>> = actions
             .iter()
-            .filter_map(|c| program_path(c, folders))
+            .map(|a| match a {
+                TaskAction::Exec(command) => program_path(command, folders),
+                TaskAction::Other(_) => None,
+            })
             .collect();
-        // Every program must be missing; one present program keeps the task alive.
-        if let Some(program) = programs.first() {
-            if programs.iter().all(|p| !fs.exists(p)) {
-                found.push(DeadEntry {
-                    kind: LeftoverKind::ScheduledTask,
-                    name: format!(r"\{}", name.display()),
-                    location: entry.path.display().to_string(),
-                    program: program.clone(),
-                });
-            }
+        let Some(programs) = programs.filter(|p| !p.is_empty()) else {
+            continue;
+        };
+        if programs.iter().all(|p| !fs.exists(p)) {
+            let path = format!(r"\{}", name.display());
+            found.push(DeadEntry {
+                kind: LeftoverKind::ScheduledTask,
+                name: path.clone(),
+                location: path,
+                program: programs[0].clone(),
+            });
         }
     }
 }
@@ -143,7 +151,7 @@ pub fn dead_services(
 }
 
 /// Program of a service command line, quoted or not (`.exe` ends it).
-fn command_executable_raw(command: &str) -> Option<String> {
+pub(crate) fn command_executable_raw(command: &str) -> Option<String> {
     command_executable(command).or_else(|| {
         let command = command.trim();
         command
@@ -201,7 +209,7 @@ pub(crate) fn expand_known(text: &str, folders: &KnownFolders) -> String {
 /// Absolute program of a command, environment variables expanded with the
 /// folders of this machine; `None` when it cannot be judged (relative,
 /// unknown variable) or lies under `%WINDIR%`.
-fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
+pub(crate) fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
     let mut text = command.trim().trim_matches('"').to_owned();
     if let Some(rest) = text.strip_prefix(r"\??\") {
         text = rest.to_owned();
@@ -219,35 +227,6 @@ fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
         .to_ascii_lowercase()
         .starts_with(&format!(r"{}\", windir.to_ascii_lowercase()));
     (absolute && !under_windir).then(|| PathBuf::from(text))
-}
-
-/// Text of a task definition: UTF-16 LE with a byte order mark, else UTF-8.
-fn decode_xml(bytes: &[u8]) -> String {
-    match bytes {
-        [0xFF, 0xFE, rest @ ..] => {
-            // Pairs of bytes; an odd trailing byte is ignored.
-            let (pairs, _) = rest.as_chunks::<2>();
-            let units: Vec<u16> = pairs.iter().map(|&pair| u16::from_le_bytes(pair)).collect();
-            String::from_utf16_lossy(&units)
-        }
-        [0xEF, 0xBB, 0xBF, rest @ ..] => String::from_utf8_lossy(rest).into_owned(),
-        _ => String::from_utf8_lossy(bytes).into_owned(),
-    }
-}
-
-/// Contents of the `<Command>` elements of a task (its `Exec` actions).
-fn task_commands(xml: &str) -> Vec<String> {
-    xml.split("<Command>")
-        .skip(1)
-        .filter_map(|part| part.split("</Command>").next())
-        .map(|c| {
-            c.replace("&quot;", "\"")
-                .replace("&apos;", "'")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&amp;", "&")
-        })
-        .collect()
 }
 
 /// Executables of the services (`ImagePath`), read-only. Drivers (`.sys`)
@@ -411,6 +390,11 @@ mod tests {
             .add_file_with_content(tasks.join("Unknown"), task_xml(&[r"%NOPE%\gone.exe"]), None)
             .add_file_with_content(tasks.join("Com"), task_xml(&[]), None)
             .add_file_with_content(
+                tasks.join("WithCom"),
+                with_com_handler(r"C:\Fake\Gone\x.exe"),
+                None,
+            )
+            .add_file_with_content(
                 tasks.join("Entities"),
                 task_xml(&[r"C:\Fake\Old &amp; Co\run.exe"]),
                 None,
@@ -426,9 +410,18 @@ mod tests {
             Path::new(r"C:\Fake\Program Files\Vendor\upd.exe")
         );
         assert_eq!(found[1].kind, LeftoverKind::ScheduledTask);
-        assert!(found[1]
-            .location
-            .ends_with(r"System32\Tasks\Vendor\Updater"));
+        assert_eq!(found[1].location, r"\Vendor\Updater");
+    }
+
+    /// A dead `Exec` next to a COM handler: the task is never a candidate.
+    fn with_com_handler(command: &str) -> Vec<u8> {
+        let xml = format!(
+            "<Task><Actions><Exec><Command>{command}</Command></Exec>\
+             <ComHandler><ClassId>{{1}}</ClassId></ComHandler></Actions></Task>"
+        );
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend(xml.encode_utf16().flat_map(u16::to_le_bytes));
+        bytes
     }
 
     #[test]

@@ -162,6 +162,15 @@ impl FakeFileSystem {
         Self::default()
     }
 
+    /// Adds a folder whose modification time is `modified`.
+    pub fn add_dir_modified(
+        &mut self,
+        path: impl AsRef<Path>,
+        modified: DateTime<Utc>,
+    ) -> &mut Self {
+        self.insert(path.as_ref(), Self::dir_meta(false, Some(modified)));
+        self
+    }
     /// Adds a folder and all its missing parents.
     pub fn add_dir(&mut self, path: impl AsRef<Path>) -> &mut Self {
         self.insert(path.as_ref(), Self::dir_meta(false, None));

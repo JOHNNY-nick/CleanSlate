@@ -171,21 +171,18 @@ public sealed class OrphansViewModelTests
     }
 
     [Fact]
-    public void DeadTasksAndServices_CanNeverBeChecked()
+    public void DeadTasksAndServices_FollowTheirConfidence()
     {
+        // D47: the engine caps services at Medium (never prechecked) and lets a task
+        // long gone reach High; both can be checked by the user.
         var service = new LeftoverItemViewModel(new Leftover(
             "s1", LeftoverKind.Service, @"HKLM\SYSTEM\CurrentControlSet\Services\Old", 0, null, Confidence.Medium, ["Exécutable introuvable"], "Old"));
-        var task = new LeftoverItemViewModel(Item(@"C:\A\task", Confidence.High, 0) with { Kind = LeftoverKind.ScheduledTask });
-        var folder = new LeftoverItemViewModel(Item(@"C:\A\old", Confidence.Medium, 10));
+        var task = new LeftoverItemViewModel(Item(@"\Vendor\Updater", Confidence.High, 0) with { Kind = LeftoverKind.ScheduledTask });
 
-        service.IsChecked = true;
-        folder.IsChecked = true;
-
-        Assert.False(service.IsSelectable);
         Assert.False(service.IsChecked);
-        Assert.False(task.IsChecked);   // even if the engine ever said High
-        Assert.True(folder.IsSelectable);
-        Assert.True(folder.IsChecked);
+        Assert.True(task.IsChecked);
+        service.IsChecked = true;
+        Assert.True(service.IsChecked);
     }
 
     [Fact]

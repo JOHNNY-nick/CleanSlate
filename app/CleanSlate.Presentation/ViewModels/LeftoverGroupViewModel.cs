@@ -11,7 +11,7 @@ public sealed partial class LeftoverItemViewModel : ObservableObject
     public LeftoverItemViewModel(Leftover leftover)
     {
         Leftover = leftover;
-        _isChecked = leftover.Confidence == Confidence.High && IsSelectable;
+        _isChecked = leftover.Confidence == Confidence.High;
         SizeText = Formats.Size(leftover.SizeBytes);
         ReasonsText = string.Join(" · ", leftover.Reasons);
         AutomationName = $"{leftover.Location}, {SizeText}";
@@ -38,23 +38,9 @@ public sealed partial class LeftoverItemViewModel : ObservableObject
     /// <summary>Text read by Narrator for the checkbox.</summary>
     public string AutomationName { get; }
 
-    /// <summary>
-    /// Can be checked. Dead scheduled tasks and services are only shown (EF-07, V11 plan):
-    /// the user removes them in Windows, the engine refuses to quarantine them.
-    /// </summary>
-    public bool IsSelectable => Kind is not (LeftoverKind.ScheduledTask or LeftoverKind.Service);
-
-    /// <summary>Selected for quarantine; always false when not <see cref="IsSelectable"/>.</summary>
+    /// <summary>Selected for quarantine.</summary>
     [ObservableProperty]
     private bool _isChecked;
-
-    partial void OnIsCheckedChanged(bool value)
-    {
-        if (value && !IsSelectable)
-        {
-            IsChecked = false;
-        }
-    }
 
     /// <summary>Visible with the current confidence filter.</summary>
     [ObservableProperty]

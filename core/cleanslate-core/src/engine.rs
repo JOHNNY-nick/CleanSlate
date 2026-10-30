@@ -20,6 +20,8 @@ use crate::quarantine::{simulate, Quarantine};
 use crate::registry::{Registry, WinRegistry};
 use crate::safety::{KnownFolders, SafetyRules};
 use crate::scan::{scan_app_leftovers, scan_orphans, ScanEnv};
+use crate::services::{NoServiceControl, ScmServiceControl, ServiceControl};
+use crate::tasks::{ComTaskStore, NoTaskStore, TaskStore};
 use crate::uninstall::{
     build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
     ProcessRunner, RestorePoints, SystemRestorePoints, UNINSTALL_TIMEOUT,
@@ -97,6 +99,10 @@ pub struct Engine {
     runner: Box<dyn ProcessRunner>,
     /// Creates restore points (unavailable on a test engine).
     restore_points: Box<dyn RestorePoints>,
+    /// Scheduled tasks (refuses everything on a test engine).
+    tasks: Box<dyn TaskStore>,
+    /// Services (refuses everything on a test engine).
+    services: Box<dyn ServiceControl>,
     /// History database, opened on first use.
     history: Mutex<Option<History>>,
 }
@@ -131,6 +137,8 @@ impl Engine {
             removed_apps: Mutex::new(HashMap::new()),
             runner: Box::new(NoProcessRunner),
             restore_points: Box::new(NoRestorePoints),
+            tasks: Box::new(NoTaskStore),
+            services: Box::new(NoServiceControl),
         }
     }
 
@@ -148,6 +156,7 @@ impl Engine {
             crate::logging::init(&dir.join("logs"));
         }
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
+        engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
         engine
     }
 
@@ -285,7 +294,19 @@ impl Engine {
             fs: self.fs(),
             registry: self.registry(),
             rules: &self.rules,
+            tasks: self.tasks.as_ref(),
+            services: self.services.as_ref(),
         })
+    }
+
+    /// Replaces the task store and the service control (tests inject fakes).
+    pub fn set_system_backends(
+        &mut self,
+        tasks: Box<dyn TaskStore>,
+        services: Box<dyn ServiceControl>,
+    ) {
+        self.tasks = tasks;
+        self.services = services;
     }
 
     /// Replaces the process runner and restore points (tests inject fakes).

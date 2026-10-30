@@ -10,7 +10,10 @@ use std::path::{Component, Path, PathBuf};
 use crate::error::{CoreError, CoreResult};
 use crate::fs::FileSystem;
 use crate::model::LeftoverKind;
-use crate::registry::RegKeyPath;
+use crate::registry::{Hive, RegKeyPath};
+use crate::services::{is_builtin_account, ServiceState, DRIVER_TYPES, STATE_STOPPED, WIN32_TYPES};
+use crate::system::{command_executable_raw, program_path, SERVICES_KEY};
+use crate::tasks::{parse_actions, TaskAction};
 
 /// Folder names protected wherever they appear in a path (specs § 9.1).
 pub const PROTECTED_NAMES: [&str; 18] = [
@@ -275,6 +278,7 @@ pub struct SafetyRules {
     users: String,
     exclusions: Vec<String>,
     start_menu: Vec<String>,
+    folders: KnownFolders,
 }
 
 impl SafetyRules {
@@ -310,7 +314,113 @@ impl SafetyRules {
                 .filter(|e| !e.is_empty())
                 .collect(),
             start_menu: folders.start_menu.iter().map(|p| norm(p)).collect(),
+            folders: folders.clone(),
         }
+    }
+
+    /// D47, pure part (also before a restore): a task path outside
+    /// `\Microsoft\` (any case, anywhere in the path), with no empty, `.`
+    /// or `..` segment.
+    pub fn check_task_path(&self, path: &str) -> CoreResult<()> {
+        let refuse = || CoreError::Protected {
+            location: path.to_owned(),
+        };
+        let rest = path.strip_prefix('\\').ok_or_else(refuse)?;
+        let bad = rest.split('\\').any(|part| {
+            let name = part.trim_end_matches([' ', '.']).to_lowercase();
+            name.is_empty() || part == "." || part == ".." || name == "microsoft"
+        });
+        if bad {
+            return Err(refuse());
+        }
+        Ok(())
+    }
+
+    /// D47, right before acting on a scheduled task: its definition `xml`,
+    /// read just now, holds only `Exec` actions, each with a local absolute
+    /// program outside `%WINDIR%` that no longer exists. A COM handler, an
+    /// e-mail or message action, a relative command or an unresolved
+    /// variable refuses the task.
+    pub fn validate_task(&self, fs: &dyn FileSystem, path: &str, xml: &str) -> CoreResult<()> {
+        self.check_task_path(path)?;
+        let refuse = || CoreError::Protected {
+            location: path.to_owned(),
+        };
+        let actions = parse_actions(xml);
+        if actions.is_empty() {
+            return Err(refuse());
+        }
+        for action in actions {
+            let TaskAction::Exec(command) = action else {
+                return Err(refuse());
+            };
+            let program = program_path(&command, &self.folders).ok_or_else(refuse)?;
+            if fs.exists(&program) {
+                return Err(refuse());
+            }
+        }
+        Ok(())
+    }
+
+    /// D47, pure part: exactly `HKLM\SYSTEM\CurrentControlSet\Services\<name>`
+    /// for one well-formed service name; never the `Services` key itself nor
+    /// a sub-key of a service.
+    pub fn check_service_key(&self, key: &RegKeyPath, name: &str) -> CoreResult<()> {
+        let refuse = || CoreError::Protected {
+            location: key.to_string(),
+        };
+        let trimmed = name.trim_end_matches([' ', '.']);
+        if trimmed.is_empty() || name.contains(['\\', '/']) || name == "." || name == ".." {
+            return Err(refuse());
+        }
+        if !key
+            .to_string()
+            .eq_ignore_ascii_case(&format!(r"HKLM\{SERVICES_KEY}\{name}"))
+        {
+            return Err(refuse());
+        }
+        Ok(())
+    }
+
+    /// D47, right before acting on a service (`state` queried just now):
+    /// a stopped Win32 service (never a driver), whose program is a local
+    /// absolute path outside `%WINDIR%` that no longer exists, not hosted
+    /// by `svchost.exe` nor through a `ServiceDll`, on which no other
+    /// service depends, running under a built-in account (it must be
+    /// recreated identically, without a password).
+    pub fn validate_service(
+        &self,
+        fs: &dyn FileSystem,
+        state: &ServiceState,
+        service_dll: Option<&str>,
+    ) -> CoreResult<()> {
+        let config = &state.config;
+        let key = RegKeyPath::new(Hive::LocalMachine, SERVICES_KEY).join(&config.name);
+        self.check_service_key(&key, &config.name)?;
+        let refuse = || CoreError::Protected {
+            location: key.to_string(),
+        };
+        let raw = config.binary_path.to_ascii_lowercase();
+        let windows_text = ["svchost.exe", "%systemroot%", "%windir%", r"\systemroot\"]
+            .iter()
+            .any(|t| raw.contains(t));
+        if config.service_type & DRIVER_TYPES != 0
+            || config.service_type & WIN32_TYPES == 0
+            || state.current_state != STATE_STOPPED
+            || windows_text
+            || service_dll.is_some()
+            || !state.dependents.is_empty()
+            || !is_builtin_account(config.account.as_deref())
+        {
+            return Err(refuse());
+        }
+        let program = command_executable_raw(&config.binary_path)
+            .and_then(|c| program_path(&c, &self.folders))
+            .ok_or_else(refuse)?;
+        if fs.exists(&program) {
+            return Err(refuse());
+        }
+        Ok(())
     }
 
     /// Refuses a path with `.` or `..` segments or that is not absolute.
@@ -888,6 +998,236 @@ mod tests {
                 Path::new(r"C:\Users\Ana\Desktop\x.lnk")
             )
             .is_ok());
+    }
+
+    fn exec(command: &str) -> String {
+        format!("<Task><Actions><Exec><Command>{command}</Command></Exec></Actions></Task>")
+    }
+
+    /// D47 tasks: the allowed shapes.
+    #[test]
+    fn dead_tasks_allowed() {
+        let fs = FakeFileSystem::new();
+        for (path, xml) in [
+            (r"\OldUpdater", exec(r"C:\Program Files\Gone\upd.exe")),
+            (r"\Vendor\Updater", exec(r#""%ProgramFiles%\Gone\upd.exe""#)),
+            (
+                r"\Vendor\Two",
+                "<Task><Actions><Exec><Command>C:\\Gone\\a.exe</Command></Exec>\
+                     <Exec><Command>C:\\Gone\\b.exe</Command></Exec></Actions></Task>"
+                    .to_owned(),
+            ),
+            (r"\Microsoft Office Old\Updater", exec(r"C:\Gone\upd.exe")),
+        ] {
+            rules()
+                .validate_task(&fs, path, &xml)
+                .unwrap_or_else(|e| panic!("{path}: {e}"));
+        }
+    }
+
+    /// D47 tasks: each neighbouring case stays refused.
+    #[test]
+    fn task_neighbours_refused() {
+        let mut fs = FakeFileSystem::new();
+        fs.add_file(r"C:\Program Files\Alive\a.exe", 1, None);
+        let dead = exec(r"C:\Gone\upd.exe");
+        let cases = [
+            (r"\Microsoft\Windows\Defrag\ScheduledDefrag", dead.clone()),
+            (r"\microsoft\Office\Old", dead.clone()),
+            (r"\Vendor\MICROSOFT\Old", dead.clone()),
+            (r"\Vendor\Microsoft.\Old", dead.clone()),
+            (r"Vendor\Old", dead.clone()),
+            (r"\Vendor\..\Microsoft\Old", dead.clone()),
+            (r"\Vendor\\Old", dead.clone()),
+            (r"\", dead.clone()),
+            (
+                r"\Vendor\Com",
+                "<Task><Actions><ComHandler><ClassId>{1}</ClassId></ComHandler></Actions></Task>"
+                    .to_owned(),
+            ),
+            (
+                r"\Vendor\Mixed",
+                "<Task><Actions><Exec><Command>C:\\Gone\\a.exe</Command></Exec>\
+                 <ComHandler><ClassId>{1}</ClassId></ComHandler></Actions></Task>"
+                    .to_owned(),
+            ),
+            (r"\Vendor\Mail", "<Task><Actions><SendEmail /></Actions></Task>".to_owned()),
+            (r"\Vendor\NoAction", "<Task />".to_owned()),
+            (r"\Vendor\Alive", exec(r"C:\Program Files\Alive\a.exe")),
+            (
+                r"\Vendor\HalfAlive",
+                "<Task><Actions><Exec><Command>C:\\Gone\\a.exe</Command></Exec>\
+                     <Exec><Command>C:\\Program Files\\Alive\\a.exe</Command></Exec></Actions></Task>".to_owned(),
+            ),
+            (r"\Vendor\Windir", exec(r"C:\Windows\System32\gone.exe")),
+            (r"\Vendor\WindirVar", exec(r"%windir%\gone.exe")),
+            (r"\Vendor\Relative", exec("gone.exe")),
+            (r"\Vendor\Unknown", exec(r"%TOOLS%\gone.exe")),
+            (r"\Vendor\Network", exec(r"\\server\share\gone.exe")),
+        ];
+        for (path, xml) in &cases {
+            let err = rules().validate_task(&fs, path, xml).expect_err(path);
+            assert_eq!(err.code(), "PROTECTED", "{path}");
+        }
+    }
+
+    fn service(name: &str, binary: &str) -> ServiceState {
+        ServiceState {
+            config: crate::services::ServiceConfig {
+                name: name.into(),
+                display_name: name.into(),
+                service_type: 0x10,
+                start_type: 2,
+                binary_path: binary.into(),
+                account: Some(r"NT AUTHORITY\LocalService".into()),
+                ..Default::default()
+            },
+            current_state: STATE_STOPPED,
+            dependents: Vec::new(),
+        }
+    }
+
+    /// D47 services: the allowed shapes.
+    #[test]
+    fn dead_services_allowed() {
+        let fs = FakeFileSystem::new();
+        for state in [
+            service("OldSvc", r#""C:\Program Files\Gone\svc.exe" -run"#),
+            service("OldSvc2", r"C:\Program Files\Old App\svc.exe /x"),
+            ServiceState {
+                config: crate::services::ServiceConfig {
+                    service_type: 0x20,
+                    account: None,
+                    ..service("Shared", r"C:\Gone\shared.exe").config
+                },
+                ..service("Shared", r"C:\Gone\shared.exe")
+            },
+        ] {
+            rules()
+                .validate_service(&fs, &state, None)
+                .unwrap_or_else(|e| panic!("{}: {e}", state.config.name));
+        }
+        let key = RegKeyPath::new(Hive::LocalMachine, SERVICES_KEY).join("OldSvc");
+        rules().check_service_key(&key, "OldSvc").unwrap();
+        rules()
+            .check_service_key(&key, "oldsvc")
+            .expect("case-insensitive");
+    }
+
+    /// D47 services: each neighbouring case stays refused, and the general
+    /// blacklist still refuses `HKLM\SYSTEM`.
+    #[test]
+    fn service_neighbours_refused() {
+        let mut fs = FakeFileSystem::new();
+        fs.add_file(r"C:\Program Files\Alive\svc.exe", 1, None);
+        let base = || service("OldSvc", r"C:\Gone\svc.exe");
+        let with = |f: &dyn Fn(&mut ServiceState)| {
+            let mut s = base();
+            f(&mut s);
+            s
+        };
+        let cases: Vec<(&str, ServiceState, Option<&str>)> = vec![
+            (
+                "kernel driver",
+                with(&|s| s.config.service_type = 0x1),
+                None,
+            ),
+            (
+                "file system driver",
+                with(&|s| s.config.service_type = 0x2),
+                None,
+            ),
+            (
+                "driver + win32",
+                with(&|s| s.config.service_type = 0x11),
+                None,
+            ),
+            ("not win32", with(&|s| s.config.service_type = 0x100), None),
+            ("running", with(&|s| s.current_state = 4), None),
+            ("stop pending", with(&|s| s.current_state = 3), None),
+            (
+                "svchost",
+                with(&|s| s.config.binary_path = r"C:\Gone\svchost.exe -k x".into()),
+                None,
+            ),
+            (
+                "systemroot text",
+                with(&|s| s.config.binary_path = r"%SystemRoot%\gone.exe".into()),
+                None,
+            ),
+            (
+                "windir",
+                with(&|s| s.config.binary_path = r"C:\Windows\System32\gone.exe".into()),
+                None,
+            ),
+            (
+                "\\SystemRoot\\",
+                with(&|s| s.config.binary_path = r"\SystemRoot\gone.exe".into()),
+                None,
+            ),
+            ("service dll", base(), Some(r"C:\Gone\svc.dll")),
+            (
+                "dependent",
+                with(&|s| s.dependents = vec!["Other".into()]),
+                None,
+            ),
+            (
+                "user account",
+                with(&|s| s.config.account = Some(r".\Ana".into())),
+                None,
+            ),
+            (
+                "present program",
+                with(&|s| s.config.binary_path = r"C:\Program Files\Alive\svc.exe".into()),
+                None,
+            ),
+            (
+                "relative program",
+                with(&|s| s.config.binary_path = "svc.exe".into()),
+                None,
+            ),
+            (
+                "unknown variable",
+                with(&|s| s.config.binary_path = r"%TOOLS%\svc.exe".into()),
+                None,
+            ),
+            (
+                "name with separator",
+                with(&|s| s.config.name = r"Old\Sub".into()),
+                None,
+            ),
+            ("empty name", with(&|s| s.config.name = String::new()), None),
+            ("dot name", with(&|s| s.config.name = "..".into()), None),
+        ];
+        for (case, state, dll) in &cases {
+            let err = rules().validate_service(&fs, state, *dll).expect_err(case);
+            assert_eq!(err.code(), "PROTECTED", "{case}");
+        }
+        let services = RegKeyPath::new(Hive::LocalMachine, SERVICES_KEY);
+        for (key, name) in [
+            (services.clone(), "OldSvc"),                    // Services itself
+            (services.join(r"OldSvc\Parameters"), "OldSvc"), // a sub-key
+            (services.join("Other"), "OldSvc"),              // another service
+            (
+                RegKeyPath::new(Hive::LocalMachine, r"SYSTEM\ControlSet001\Services\OldSvc"),
+                "OldSvc",
+            ),
+            (
+                RegKeyPath::new(
+                    Hive::CurrentUser,
+                    r"SYSTEM\CurrentControlSet\Services\OldSvc",
+                ),
+                "OldSvc",
+            ),
+            (services.join(".."), ".."),
+        ] {
+            assert!(rules().check_service_key(&key, name).is_err(), "{key}");
+        }
+        let key = services.join("OldSvc");
+        assert!(
+            rules().validate_key(&key).is_err(),
+            "general rule unchanged"
+        );
     }
 
     #[test]

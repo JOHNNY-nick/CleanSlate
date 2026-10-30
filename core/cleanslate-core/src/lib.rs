@@ -17,8 +17,10 @@ pub mod quarantine;
 pub mod registry;
 pub mod safety;
 pub mod scan;
+pub mod services;
 pub mod shortcut;
 pub mod system;
+pub mod tasks;
 pub mod uninstall;
 
 pub use engine::{Engine, EngineConfig};

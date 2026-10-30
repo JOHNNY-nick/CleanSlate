@@ -79,8 +79,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox MinWidth="0" AutomationProperties.Name="{x:Bind AutomationName}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}"
-                                                IsEnabled="{x:Bind IsSelectable}" />
+                                            <CheckBox MinWidth="0" AutomationProperties.Name="{x:Bind AutomationName}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" />
                                             <StackPanel Grid.Column="1" Spacing="2">
                                                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind Kind, Converter={StaticResource ResourceString}, ConverterParameter=Kind}" />
                                                 <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Text="{x:Bind Location}" TextTrimming="CharacterEllipsis" />

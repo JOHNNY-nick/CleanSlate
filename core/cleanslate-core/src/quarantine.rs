@@ -23,6 +23,8 @@ use crate::model::{
 use crate::native::{self, Sha256};
 use crate::registry::{utf16_le_with_bom, KeySnapshot, RegKeyPath, Registry};
 use crate::safety::SafetyRules;
+use crate::services::{ServiceConfig, ServiceControl};
+use crate::tasks::TaskStore;
 
 /// Above this size, the user must type [`CONFIRMATION_WORD`] (specs § 9.2).
 pub const MAX_BYTES: u64 = 20 * 1024 * 1024 * 1024;
@@ -236,6 +238,25 @@ pub struct Quarantine<'a> {
     pub registry: &'a dyn Registry,
     /// Safety rules, checked right before every action.
     pub rules: &'a SafetyRules,
+    /// Scheduled tasks (export, delete, re-register).
+    pub tasks: &'a dyn TaskStore,
+    /// Services (query, delete, recreate).
+    pub services: &'a dyn ServiceControl,
+}
+
+/// What `services\<id>.json` holds: enough to recreate the service and
+/// put its key back identically (D47).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceBackup {
+    /// Configuration read from the Service Control Manager.
+    pub config: ServiceConfig,
+    /// `HKLM\SYSTEM\CurrentControlSet\Services\<name>` and everything below.
+    pub key: KeySnapshot,
+}
+
+/// Name of the service of a `…\Services\<name>` location.
+fn service_name(location: &str) -> &str {
+    location.rsplit('\\').next().unwrap_or_default()
 }
 
 impl Quarantine<'_> {
@@ -282,7 +303,12 @@ impl Quarantine<'_> {
         let bytes: u64 = items.iter().map(|i| i.size_bytes).sum();
         let files: u64 = items
             .iter()
-            .filter(|i| i.kind != LeftoverKind::RegistryKey)
+            .filter(|i| {
+                matches!(
+                    i.kind,
+                    LeftoverKind::Folder | LeftoverKind::File | LeftoverKind::Shortcut
+                )
+            })
             .map(|i| {
                 collect_files(Path::new(&i.location))
                     .map(|(f, _)| f.len() as u64)
@@ -378,6 +404,8 @@ impl Quarantine<'_> {
                 self.move_files(manifest, &mut item, &dir)
             }
             LeftoverKind::RegistryKey => self.move_key(manifest, &mut item, &dir),
+            LeftoverKind::ScheduledTask => self.move_task(manifest, &mut item, &dir),
+            LeftoverKind::Service => self.move_service(manifest, &mut item, &dir),
             _ => Err((
                 "UNSUPPORTED".into(),
                 "type d'élément non pris en charge".into(),
@@ -481,6 +509,86 @@ impl Quarantine<'_> {
         self.registry.delete_tree(&key).map_err(to_pair)
     }
 
+    /// Scheduled tasks: read the definition now, validate it (D47), save
+    /// the full XML and record it, then delete the task.
+    fn move_task(
+        &self,
+        manifest: &mut Manifest,
+        item: &mut QuarantinedItem,
+        dir: &Path,
+    ) -> Result<(), (String, String)> {
+        let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
+        let path = item.original_location.clone();
+        let xml = self.tasks.read(&path).map_err(to_pair)?;
+        // Last line of defence, right before acting (safety rule 3).
+        self.rules
+            .validate_task(self.fs, &path, &xml)
+            .map_err(to_pair)?;
+        let tasks_dir = dir.join("tasks");
+        fs::create_dir_all(&tasks_dir).map_err(|e| to_pair(CoreError::from_io(&tasks_dir, e)))?;
+        let file = tasks_dir.join(format!("{}.xml", item.id));
+        fs::write(&file, xml.as_bytes()).map_err(|e| to_pair(CoreError::from_io(&file, e)))?;
+        item.quarantine_path = file;
+        item.sha256 = Some(Sha256::of_bytes(xml.as_bytes()).map_err(to_pair)?);
+        item.size_bytes = xml.len() as u64;
+        item.status = QuarantineStatus::Quarantined;
+        manifest.pending = Some(item.id.clone());
+        replace_item(&mut manifest.session.items, item.clone());
+        self.save(manifest).map_err(to_pair)?;
+        self.tasks.delete(&path).map_err(to_pair)
+    }
+
+    /// Services: query the service now, validate it and its key (D47),
+    /// save its configuration and key (`.json` + `.reg`), record, then
+    /// `DeleteService`.
+    fn move_service(
+        &self,
+        manifest: &mut Manifest,
+        item: &mut QuarantinedItem,
+        dir: &Path,
+    ) -> Result<(), (String, String)> {
+        let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
+        let key = RegKeyPath::parse(&item.original_location)
+            .ok_or_else(|| ("INVALID_INPUT".to_owned(), "clé illisible".to_owned()))?;
+        let name = service_name(&item.original_location).to_owned();
+        self.rules.check_service_key(&key, &name).map_err(to_pair)?;
+        let state = self.services.query(&name).map_err(to_pair)?;
+        let dll = self
+            .registry
+            .values(&key.join("Parameters"))
+            .ok()
+            .and_then(|values| {
+                values
+                    .into_iter()
+                    .find(|(n, _)| n.eq_ignore_ascii_case("ServiceDll"))
+                    .and_then(|(_, v)| v.as_str().map(str::to_owned))
+            });
+        self.rules
+            .validate_service(self.fs, &state, dll.as_deref())
+            .map_err(to_pair)?;
+        let backup = ServiceBackup {
+            config: state.config,
+            key: KeySnapshot::read(self.registry, &key).map_err(to_pair)?,
+        };
+        let services_dir = dir.join("services");
+        fs::create_dir_all(&services_dir)
+            .map_err(|e| to_pair(CoreError::from_io(&services_dir, e)))?;
+        let json_path = services_dir.join(format!("{}.json", item.id));
+        let reg_path = services_dir.join(format!("{}.reg", item.id));
+        let json = serde_json::to_vec_pretty(&backup).map_err(|e| to_pair(e.into()))?;
+        fs::write(&json_path, &json).map_err(|e| to_pair(CoreError::from_io(&json_path, e)))?;
+        fs::write(&reg_path, utf16_le_with_bom(&backup.key.to_reg_file(&key)))
+            .map_err(|e| to_pair(CoreError::from_io(&reg_path, e)))?;
+        item.quarantine_path = json_path;
+        item.sha256 = Some(Sha256::of_bytes(&json).map_err(to_pair)?);
+        item.size_bytes = backup.key.size_bytes();
+        item.status = QuarantineStatus::Quarantined;
+        manifest.pending = Some(item.id.clone());
+        replace_item(&mut manifest.session.items, item.clone());
+        self.save(manifest).map_err(to_pair)?;
+        self.services.delete(&name).map_err(to_pair)
+    }
+
     /// Resumes a session interrupted in the middle of a move (crash).
     pub fn recover(&self, mut manifest: Manifest) -> CoreResult<Manifest> {
         let Some(pending) = manifest.pending.take() else {
@@ -490,6 +598,13 @@ impl Quarantine<'_> {
             let moved = match item.kind {
                 LeftoverKind::RegistryKey => RegKeyPath::parse(&item.original_location)
                     .is_some_and(|k| !self.registry.key_exists(&k)),
+                LeftoverKind::ScheduledTask => {
+                    item.quarantine_path.exists() && !self.tasks.exists(&item.original_location)
+                }
+                LeftoverKind::Service => {
+                    item.quarantine_path.exists()
+                        && !self.services.exists(service_name(&item.original_location))
+                }
                 _ => {
                     let original_there = fs::symlink_metadata(&item.original_location).is_ok();
                     let copy_there = fs::symlink_metadata(&item.quarantine_path).is_ok();
@@ -584,6 +699,33 @@ impl Quarantine<'_> {
                 "un élément existe déjà à cet emplacement".to_owned(),
             )
         };
+        if item.kind == LeftoverKind::ScheduledTask {
+            let path = &item.original_location;
+            self.rules.check_task_path(path).map_err(to_pair)?;
+            if self.tasks.exists(path) {
+                return Err(exists());
+            }
+            let xml = fs::read_to_string(&item.quarantine_path)
+                .map_err(|e| to_pair(CoreError::from_io(&item.quarantine_path, e)))?;
+            // Same folder, same name, same definition.
+            return self.tasks.register(path, &xml).map_err(to_pair);
+        }
+        if item.kind == LeftoverKind::Service {
+            let key = RegKeyPath::parse(&item.original_location)
+                .ok_or_else(|| ("INVALID_INPUT".to_owned(), "clé illisible".to_owned()))?;
+            let name = service_name(&item.original_location);
+            self.rules.check_service_key(&key, name).map_err(to_pair)?;
+            if self.services.exists(name) {
+                return Err(exists());
+            }
+            let bytes = fs::read(&item.quarantine_path)
+                .map_err(|e| to_pair(CoreError::from_io(&item.quarantine_path, e)))?;
+            let backup: ServiceBackup =
+                serde_json::from_slice(&bytes).map_err(|e| to_pair(e.into()))?;
+            self.services.create(&backup.config).map_err(to_pair)?;
+            // Then every value and sub-key of its key, as saved.
+            return backup.key.write(self.registry, &key).map_err(to_pair);
+        }
         if item.kind == LeftoverKind::RegistryKey {
             let key = RegKeyPath::parse(&item.original_location)
                 .ok_or_else(|| ("INVALID_INPUT".to_owned(), "clé illisible".to_owned()))?;
@@ -619,7 +761,7 @@ impl Quarantine<'_> {
                 continue;
             }
             let mut manifest = self.load(session.id)?;
-            for kind in ["files", "registry"] {
+            for kind in ["files", "registry", "tasks", "services"] {
                 let dir = self.session_dir(session.id).join(kind);
                 // Never outside the quarantine folder.
                 if dir.starts_with(self.root) && dir.exists() {
@@ -667,6 +809,8 @@ mod tests {
         rules: SafetyRules,
         quarantine: PathBuf,
         area: TestRegistryKey,
+        tasks: crate::tasks::FakeTaskStore,
+        services: crate::services::FakeServiceControl,
     }
 
     impl Lab {
@@ -683,6 +827,8 @@ mod tests {
                 rules,
                 quarantine,
                 area: TestRegistryKey::new(),
+                tasks: Default::default(),
+                services: Default::default(),
             }
         }
 
@@ -702,6 +848,8 @@ mod tests {
                 fs: &RealFileSystem,
                 registry: &registry,
                 rules: &self.rules,
+                tasks: &self.tasks,
+                services: &self.services,
             };
             f(&q)
         }
@@ -779,6 +927,145 @@ mod tests {
         );
         assert_eq!(fs::read(&shortcut).unwrap(), bytes);
         assert_eq!(mtime(&shortcut), before);
+    }
+
+    /// D47: a dead task leaves through the store with its full XML saved
+    /// first, and comes back identical (same path, same definition).
+    #[test]
+    fn task_round_trip_with_fake_store() {
+        let lab = Lab::new();
+        let xml = "<Task><RegistrationInfo><Author>Vendor</Author></RegistrationInfo>\
+                   <Actions><Exec><Command>C:\\Gone\\upd.exe</Command><Arguments>/q</Arguments></Exec></Actions></Task>";
+        lab.tasks.register(r"\Vendor\Updater", xml).unwrap();
+        lab.tasks
+            .register(r"\Microsoft\Windows\Old", &xml.replace("upd", "old"))
+            .unwrap();
+        let task = leftover(LeftoverKind::ScheduledTask, r"\Vendor\Updater", 0);
+        let microsoft = leftover(LeftoverKind::ScheduledTask, r"\Microsoft\Windows\Old", 0);
+
+        let session = lab.run(|q| {
+            q.clean(
+                Origin::Orphans,
+                &[task.clone(), microsoft.clone()],
+                None,
+                Utc::now(),
+            )
+            .unwrap()
+        });
+        assert_eq!(session.items[0].status, QuarantineStatus::Quarantined);
+        assert_eq!(session.items[1].status, QuarantineStatus::Failed);
+        assert!(!lab.tasks.exists(r"\Vendor\Updater"));
+        assert!(lab.tasks.exists(r"\Microsoft\Windows\Old"), "never touched");
+        assert_eq!(
+            fs::read_to_string(&session.items[0].quarantine_path).unwrap(),
+            xml
+        );
+
+        let restored = lab.run(|q| q.restore(session.id, None, Utc::now()).unwrap());
+        assert!(restored.errors.is_empty(), "{:?}", restored.errors);
+        assert_eq!(lab.tasks.read(r"\Vendor\Updater").unwrap(), xml);
+        // A task recreated meanwhile is never overwritten.
+        let again = lab.run(|q| {
+            q.clean(
+                Origin::Orphans,
+                std::slice::from_ref(&task),
+                None,
+                Utc::now(),
+            )
+            .unwrap()
+        });
+        lab.tasks.register(r"\Vendor\Updater", "<Task/>").unwrap();
+        let refused = lab.run(|q| q.restore(again.id, None, Utc::now()).unwrap());
+        assert_eq!(refused.errors[0].code, "DESTINATION_EXISTS");
+    }
+
+    /// D47: a dead service leaves with its configuration and key saved
+    /// first, and is recreated identically; neighbours stay in place.
+    #[test]
+    fn service_round_trip_with_fake_control() {
+        use crate::services::{tests::full_config, ServiceState, STATE_STOPPED};
+        use crate::system::SERVICES_KEY;
+        let lab = Lab::new();
+        let registry = lab.area.registry();
+        let services = RegKeyPath::new(Hive::LocalMachine, SERVICES_KEY);
+        let key = services.join("OldSvc");
+        let config = full_config("OldSvc", r#""C:\Gone\svc.exe" -run"#);
+        let k = lab.area.create(&key);
+        k.set_value("ImagePath", &config.binary_path.as_str())
+            .unwrap();
+        k.set_value("Type", &0x10u32).unwrap();
+        k.set_value("Start", &2u32).unwrap();
+        k.set_value("Description", &"Agent de mise à jour").unwrap();
+        lab.area
+            .create(&key.join("Parameters"))
+            .set_value("Channel", &"stable")
+            .unwrap();
+        let before = KeySnapshot::read(&registry, &key).unwrap();
+        let state = |config: crate::services::ServiceConfig,
+                     current_state: u32,
+                     dependents: Vec<String>| {
+            ServiceState {
+                config,
+                current_state,
+                dependents,
+            }
+        };
+        {
+            let mut all = lab.services.0.lock().unwrap();
+            all.insert(
+                "oldsvc".into(),
+                state(config.clone(), STATE_STOPPED, vec![]),
+            );
+            all.insert(
+                "running".into(),
+                state(full_config("Running", r"C:\Gone\r.exe"), 4, vec![]),
+            );
+            all.insert(
+                "needed".into(),
+                state(
+                    full_config("Needed", r"C:\Gone\n.exe"),
+                    STATE_STOPPED,
+                    vec!["Other".into()],
+                ),
+            );
+        }
+        let item =
+            |name: &str| leftover(LeftoverKind::Service, &services.join(name).to_string(), 0);
+
+        let session = lab.run(|q| {
+            q.clean(
+                Origin::Orphans,
+                &[item("OldSvc"), item("Running"), item("Needed")],
+                None,
+                Utc::now(),
+            )
+            .unwrap()
+        });
+        assert_eq!(
+            session.items[0].status,
+            QuarantineStatus::Quarantined,
+            "{:?}",
+            session.errors
+        );
+        assert_eq!(session.items[1].status, QuarantineStatus::Failed);
+        assert_eq!(session.items[2].status, QuarantineStatus::Failed);
+        assert!(!lab.services.exists("OldSvc"));
+        assert!(lab.services.exists("Running") && lab.services.exists("Needed"));
+        let saved: ServiceBackup =
+            serde_json::from_slice(&fs::read(&session.items[0].quarantine_path).unwrap()).unwrap();
+        assert_eq!(saved.config, config);
+        assert_eq!(saved.key, before);
+        assert!(session.items[0]
+            .quarantine_path
+            .with_extension("reg")
+            .exists());
+
+        // DeleteService removes the key: do it here, as the SCM would.
+        registry.delete_tree(&key).unwrap();
+        let restored = lab.run(|q| q.restore(session.id, None, Utc::now()).unwrap());
+        assert!(restored.errors.is_empty(), "{:?}", restored.errors);
+        assert_eq!(lab.services.query("OldSvc").unwrap().config, config);
+        assert_eq!(KeySnapshot::read(&registry, &key).unwrap(), before);
     }
 
     /// A shortcut-shaped item that is not a shortcut never uses D20.
@@ -913,7 +1200,7 @@ mod tests {
                 r"HKLM\SOFTWARE\Microsoft\Windows",
                 1,
             ),
-            leftover(LeftoverKind::Service, "Svc", 1),
+            leftover(LeftoverKind::RegistryValue, r"HKCU\Software\X\Value", 1),
         ];
         let session = lab
             .run(|q| q.clean(Origin::Orphans, &items, None, Utc::now()))
