@@ -105,6 +105,10 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 - Tests de ViewModels avec NSubstitute (IEngineService simulé).
 
 ## Façon de travailler
+- Au début de chaque session, lis docs/feuille-de-route.md et annonce la prochaine action.
+  Claude pilote le projet selon les « Règles de pilotage » de ce fichier : à la fin de chaque
+  réponse, la prochaine action (qui, commande exacte, dossier, durée, réponse attendue) ;
+  mettre à jour « Où en est-on ? » dès qu'une étape avance.
 - Commence chaque jalon par un plan court (fichiers, étapes, tests) et attends mon accord.
 - Avance par petites étapes qui compilent ; un commit par étape (Conventional Commits,
   ex. "feat(scan): parcours des racines AppData (EF-05)").
