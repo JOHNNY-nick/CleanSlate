@@ -166,7 +166,7 @@ impl Engine {
         );
         engine.probe_system = true;
         if let Some(dir) = engine.data_dir() {
-            crate::logging::init(&dir.join("logs"));
+            crate::logging::init(&crate::logging::log_dir(&dir.join("logs")));
         }
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));

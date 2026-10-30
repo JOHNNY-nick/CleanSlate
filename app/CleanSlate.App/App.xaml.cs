@@ -18,6 +18,11 @@ public partial class App : Application
     {
         InitializeComponent();
 
+        // Never close without a word (D56): log the full exception and show a message.
+        UnhandledException += (_, e) => CrashHandler.OnUiException(e);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashHandler.OnDomainException(e);
+        TaskScheduler.UnobservedTaskException += (_, e) => CrashHandler.OnUnobservedTask(e);
+
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {

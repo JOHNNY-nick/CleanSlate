@@ -37,23 +37,39 @@ $meta = @(
 
 if (-not (Test-Path $sandboxCli)) {
     Write-Report 'Compléments v1.0 — ARRÊTÉ' $meta @(
-        [pscustomobject]@{ Name = 'CLI de test présente'; Measure = "$sandboxCli absent : relancer prepare.ps1 -Scenario Complements"; Status = 'ko' }
+        [pscustomobject]@{ Name = 'CLI de test présente'; Measure = "$sandboxCli absent : relancer prepare.ps1 -Scenario Complements"; Status = 'script' }
     ) ([ordered]@{})
     Stop-Run
     exit 1
 }
 
-# Runs a CLI; stdout is JSON, stderr is appended to cli-progression.txt.
-function Cli([string] $program, [string[]] $arguments) {
+# Runs a CleanSlate CLI with separate arguments (Invoke-Program: each argument arrives whole,
+# spaces included) and returns its JSON output. stderr is appended to cli-progression.txt.
+# The function is not called "Cli": that name is a built-in alias of Clear-Item, and an alias
+# wins over a function (failure of 30 Oct. 2026: the CLI was never called).
+# Exit codes of "sandbox" (sandbox.rs): 0 done; 1 CleanSlate error and 4 nothing matched are
+# results of CleanSlate (returns $null); 2 usage and 3 guard refused are failures of the test
+# script (throws, so that the step is reported as « échec du script »).
+function Invoke-CleanSlateCli([string] $program, [string[]] $arguments) {
     $stdout = "$out\cli-out.json"; $stderr = "$out\cli-err.txt"
-    Write-Host "$([IO.Path]::GetFileName($program)) $($arguments -join ' ')"
-    $p = Start-Process $program -ArgumentList $arguments -NoNewWindow -Wait -PassThru `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-    Get-Content $stderr -ErrorAction SilentlyContinue | Add-Content "$out\cli-progression.txt"
-    if ($p.ExitCode -ne 0) { Write-Warning "code de sortie $($p.ExitCode)"; return $null }
-    Get-Content $stdout -Raw -Encoding utf8 | ConvertFrom-Json
+    Write-Host "$([IO.Path]::GetFileName($program)) $(Join-CommandLine $arguments)"
+    $code = Invoke-Program $program $arguments $stdout $stderr
+    $errors = @(Get-Content $stderr -Encoding utf8 -ErrorAction SilentlyContinue)
+    $errors | Add-Content "$out\cli-progression.txt" -Encoding utf8
+    $errors | Where-Object { $_ -notlike '{*' } | ForEach-Object { Write-Host "stderr : $_" }
+    Write-Host "code de sortie $code"
+    switch ($code) {
+        0 { return Get-Content $stdout -Raw -Encoding utf8 | ConvertFrom-Json }
+        { $_ -in 2, 3 } { throw "cleanslate-cli a refusé la commande (code $code) : $($errors -join ' ')" }
+        default { return $null }
+    }
 }
 
+# Status of a check: 'script' when the step of the test script failed, else ok / ko.
+function Status([bool] $ok, $step) {
+    if ($step -and $step.Failure) { return 'script' }
+    if ($ok) { 'ok' } else { 'ko' }
+}
 # State of files: relative path, size, modification time and SHA-256.
 function FileState([string] $path) {
     if (-not (Test-Path -LiteralPath $path)) { return '<absent>' }
@@ -83,18 +99,21 @@ function RegState([string] $key) {
 function RoundTrip([string] $case, [string] $match, [scriptblock] $state, [scriptblock] $isGone, [string] $note) {
     $ctx = @{ Before = (& $state); Session = $null; Gone = $false; After = $null }
     Invoke-Step "$case : mise en quarantaine" {
-        $ctx.Session = Cli $sandboxCli @('sandbox', 'quarantine', $match)
+        $ctx.Session = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'quarantine', $match)
         Start-Sleep -Seconds 2
         $ctx.Gone = [bool](& $isGone)
         Write-Host "retiré : $($ctx.Gone)"
     }
+    $quarantineStep = $Run.Steps[-1]
+    $restoreStep = $null
     if ($ctx.Session) {
         Invoke-Step "$case : restauration" {
-            $restored = Cli $sandboxCli @('sandbox', 'restore', $ctx.Session.id)
+            $restored = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'restore', $ctx.Session.id)
             if ($restored -and $restored.errors.Count) { Write-Warning ($restored.errors | ConvertTo-Json -Compress) }
             Start-Sleep -Seconds 2
             $ctx.After = & $state
         }
+        $restoreStep = $Run.Steps[-1]
     }
     $same = $ctx.Session -and ($ctx.Before -eq $ctx.After)
     if ($ctx.Session -and -not $same) {
@@ -102,11 +121,13 @@ function RoundTrip([string] $case, [string] $match, [scriptblock] $state, [scrip
         Set-Content "$out\$slug-avant.txt" $ctx.Before -Encoding utf8
         Set-Content "$out\$slug-apres.txt" $ctx.After -Encoding utf8
     }
-    $detail = if ($ctx.Session) { "$note ; session $($ctx.Session.id), $($ctx.Session.items.Count) élément(s)" } else { "$note ; non mis en quarantaine" }
-    $script:checks += [pscustomobject]@{ Name = "$case : retiré par la quarantaine"; Measure = $detail; Status = $(if ($ctx.Gone) { 'ok' } else { 'ko' }) }
-    $script:checks += [pscustomobject]@{ Name = "$case : restauré à l'identique"; Measure = $(if ($same) { 'état identique' } else { 'états différents (fichiers -avant / -apres)' }); Status = $(if ($same) { 'ok' } else { 'ko' }) }
+    $detail = if ($quarantineStep.Failure) { "échec du script : $($quarantineStep.Failure)" }
+    elseif ($ctx.Session) { "$note ; session $($ctx.Session.id), $($ctx.Session.items.Count) élément(s)" }
+    else { "$note ; CleanSlate n'a rien mis en quarantaine (voir cli-progression.txt)" }
+    $script:checks += [pscustomobject]@{ Name = "$case : retiré par la quarantaine"; Measure = $detail; Status = (Status $ctx.Gone $quarantineStep) }
+    $restoreMeasure = if ($quarantineStep.Failure -or ($restoreStep -and $restoreStep.Failure)) { 'non mesuré (échec du script)' } elseif ($same) { 'état identique' } else { 'états différents (fichiers -avant / -apres)' }
+    $script:checks += [pscustomobject]@{ Name = "$case : restauré à l'identique"; Measure = $restoreMeasure; Status = $(if ($quarantineStep.Failure) { 'script' } else { Status $same $restoreStep }) }
 }
-
 # A small program to point at (deleted afterwards).
 function DummyExe([string] $path) {
     New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
@@ -206,18 +227,19 @@ $package = Get-AppxPackage -Name 'CleanSlateTest.App'
 if ($package) {
     $store = @{ Listed = 0; Removed = $null; Percents = @() }
     Invoke-Step 'Paquet MSIX : liste puis désinstallation avec progression' {
-        $apps = Cli $cli @('apps', '--json')
+        $apps = Invoke-CleanSlateCli $cli @('apps', '--json')
         $store.Listed = @($apps | Where-Object { $_.kind -eq 'store' -and $_.package_family_name -eq $package.PackageFamilyName }).Count
-        $store.Removed = Cli $sandboxCli @('sandbox', 'uninstall', 'CleanSlate Test App')
+        $store.Removed = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'uninstall', 'CleanSlate Test App')
         $events = @(Get-Content "$out\cli-progression.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -like '{*"step"*' })
         $store.Percents = @($events | ForEach-Object { ($_ | ConvertFrom-Json).percent } | Where-Object { $_ -ne $null })
     }
+    $storeStep = $Run.Steps[-1]
     $still = [bool](Get-AppxPackage -Name 'CleanSlateTest.App')
-    $checks += [pscustomobject]@{ Name = 'Paquet MSIX : listé (badge Store)'; Measure = "famille $($package.PackageFamilyName)"; Status = $(if ($store.Listed -eq 1) { 'ok' } else { 'ko' }) }
-    $checks += [pscustomobject]@{ Name = "Paquet MSIX : désinstallé pour l'utilisateur, avec progression"; Measure = "$($store.Percents.Count) relevés de progression, dernier $($store.Percents | Select-Object -Last 1) %"; Status = $(if ($store.Removed -and -not $still -and $store.Percents.Count) { 'ok' } else { 'ko' }) }
+    $checks += [pscustomobject]@{ Name = 'Paquet MSIX : listé (badge Store)'; Measure = "famille $($package.PackageFamilyName)"; Status = (Status ($store.Listed -eq 1) $storeStep) }
+    $checks += [pscustomobject]@{ Name = "Paquet MSIX : désinstallé pour l'utilisateur, avec progression"; Measure = "$($store.Percents.Count) relevés de progression, dernier $($store.Percents | Select-Object -Last 1) %"; Status = (Status ($store.Removed -and -not $still -and $store.Percents.Count) $storeStep) }
 }
 else {
-    $checks += [pscustomobject]@{ Name = 'Paquet MSIX : installation'; Measure = 'Add-AppxPackage a échoué (voir journal.txt)'; Status = 'ko' }
+    $checks += [pscustomobject]@{ Name = 'Paquet MSIX : installation'; Measure = 'Add-AppxPackage a échoué (préparation du test, voir journal.txt)'; Status = 'script' }
 }
 
 # 5. Package leftover (D48).
@@ -236,7 +258,7 @@ RoundTrip 'Reste de paquet du Store (dossier + clé)' 'CleanSlateTest.Leftover' 
 # 6. VLC (MSI) and GIMP (Inno Setup) for the manual checks, from the verified installers.
 $installers = @(Test-Installer "$Repo\scripts\sandbox\manifeste.json" "$Repo\artifacts\sandbox\installers" 'complements')
 $bad = @($installers | Where-Object { -not $_.Ok })
-$checks += [pscustomobject]@{ Name = 'Installeurs VLC et GIMP conformes au manifeste'; Measure = "$($installers.Count - $bad.Count) / $($installers.Count) SHA-256"; Status = $(if ($installers.Count -and -not $bad.Count) { 'ok' } else { 'ko' }) }
+$checks += [pscustomobject]@{ Name = 'Installeurs VLC et GIMP conformes au manifeste'; Measure = "$($installers.Count - $bad.Count) / $($installers.Count) SHA-256"; Status = $(if ($installers.Count -and -not $bad.Count) { 'ok' } else { 'script' }) }
 if (-not $bad.Count) {
     foreach ($i in $installers) {
         Invoke-Step "Installation de $($i.Name) $($i.Version) (vérifications manuelles)" {
@@ -255,4 +277,5 @@ Write-Report 'Compléments v1.0 — résultats dans Windows Sandbox' $meta $chec
     })
 Stop-Run
 Start-Process "$out\rapport.html"
+Watch-Session
 exit 0

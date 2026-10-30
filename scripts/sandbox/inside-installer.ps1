@@ -42,7 +42,7 @@ $setup = Get-ChildItem "$Repo\artifacts\installer" -Filter 'CleanSlate-*-setup.e
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $expected = if ($setup) { $prepared.sha256."artifacts\installer\$($setup.Name)" } else { $null }
 $actual = if ($setup) { (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash } else { $null }
-$checks += [pscustomobject]@{ Name = 'Installeur identique à celui préparé sur l''hôte'; Measure = "$($setup.Name) SHA-256 $actual"; Status = $(if ($actual -and $actual -eq $expected) { 'ok' } else { 'ko' }) }
+$checks += [pscustomobject]@{ Name = 'Installeur identique à celui préparé sur l''hôte'; Measure = "$($setup.Name) SHA-256 $actual"; Status = $(if ($actual -and $actual -eq $expected) { 'ok' } else { 'script' }) }
 if (-not $actual -or $actual -ne $expected) {
     Write-Report 'Installeur — ARRÊTÉ' $meta $checks ([ordered]@{})
     Stop-Run
@@ -84,4 +84,5 @@ $checks += [pscustomobject]@{ Name = '%LOCALAPPDATA%\CleanSlate conservé (D43)'
 Write-Report 'Installeur — résultats dans Windows Sandbox' $meta $checks ([ordered]@{})
 Stop-Run
 Start-Process "$out\rapport.html"
+Watch-Session
 exit 0

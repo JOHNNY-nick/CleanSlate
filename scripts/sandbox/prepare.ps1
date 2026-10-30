@@ -17,7 +17,9 @@
        artifacts\sandbox\run\prepare.json (date, commit, SHA-256 of what is shared);
     5. writes artifacts\sandbox\CleanSlate-<Scenario>.wsb: the repository is shared
        read-only at C:\CleanSlate\repo, the only writable folder is
-       artifacts\sandbox\results (C:\CleanSlate\results), network off; the logon command
+       artifacts\sandbox\results (C:\CleanSlate\results), network off, virtual GPU off
+       (software rendering: the crash of 30 Oct. 2026 was a kernel bug check of the Sandbox,
+       D56), 8 GB of memory, no microphone, camera nor printer; the logon command
        sets CLEANSLATE_SANDBOX_RUN=<token> and starts scripts\sandbox\inside-*.ps1.
     Each preparation replaces the token: an older .wsb no longer passes the guard.
     Build first: pwsh scripts/build.ps1 -Configuration Release.
@@ -156,6 +158,11 @@ $wsb = Join-Path $out "CleanSlate-$Scenario.wsb"
 $($folders -join "`r`n")
   </MappedFolders>
   <Networking>Disable</Networking>
+  <vGPU>Disable</vGPU>
+  <MemoryInMB>8192</MemoryInMB>
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
   <LogonCommand>
     <Command>$command</Command>
   </LogonCommand>

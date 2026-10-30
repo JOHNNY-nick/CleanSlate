@@ -91,6 +91,7 @@ pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch
 - Ne pas cliquer dans les applications que le script ouvre (il les ferme lui-même après 15 à 90 s) ni fermer la console PowerShell du Sandbox.
 - Ne pas relancer `prepare.ps1` pendant qu'un Sandbox tourne : le jeton changerait (il refuse de toute façon).
 - Ne pas activer le réseau dans le `.wsb`, ni modifier `run\token.txt` ou le manifeste à la main.
+- Ne pas parcourir `C:\CleanSlate\repo` dans l'Explorateur du Sandbox : le dépôt partagé compte des dizaines de milliers de fichiers (`core\target`), et c'est en l'ouvrant que le Sandbox a planté le 30 oct. 2026 (D56). Pour lire les traces, ouvrir `C:\CleanSlate\results` : elles y sont déjà, et aussi sur le PC.
 - Ne jamais lancer `inside-*.ps1` ni `cleanslate-cli-sandbox.exe` sur le PC : ils refusent (codes 1 et 3), mais une garde ne se teste pas en lançant l'action réelle (D53).
 - Ne rien copier du Sandbox vers le PC autrement que par `C:\CleanSlate\results`.
 
@@ -98,8 +99,40 @@ pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch
 
 `artifacts\sandbox\results\<scénario>-<date>\` :
 
-- `rapport.html` et `rapport.md` : vérifications, mesures, étapes (début, durée, nombre de lignes ajoutées et retirées de l'inventaire, lien vers le diff) ;
-- `journal.txt` : transcription complète de la session (`Start-Transcript`), chaque étape horodatée ;
+- `rapport.html` et `rapport.md` : vérifications (« atteint », « NON atteint » = résultat de CleanSlate, « échec du script » = le test n'a pas pu s'exécuter, aucune conclusion sur CleanSlate, « à faire à la main »), mesures, étapes (début, durée, nombre de lignes ajoutées et retirées de l'inventaire, lien vers le diff) ;
+- `journal.txt` : chaque étape horodatée, avec toute la sortie de ses commandes ; écrit **ligne par ligne** sur le disque du PC, rien n'est perdu si le Sandbox se ferme brutalement ; une erreur du script y figure avec sa position et sa pile ;
+- `transcription.txt` : transcription PowerShell (`Start-Transcript`), complète seulement si le scénario va au bout ;
+- `cleanslate-logs\` : journaux de CleanSlate (moteur `cleanslate.<date>.log` et erreurs de l'interface `crash.<date>.log`, avec la pile d'appels complète), écrits directement ici grâce à `CLEANSLATE_LOG_DIR`, y compris pour CleanSlate lancé depuis le Bureau ;
+- `dumps\` : vidages de plantage de `CleanSlate.App.exe`, `cleanslate-cli.exe` et `cleanslate-cli-sandbox.exe` (Windows Error Reporting, clé `LocalDumps`) ;
+- `evenements.txt` : erreurs du journal Application (.NET Runtime, Application Error, Windows Error Reporting, Application Hang) depuis le début, recopiées après chaque étape puis toutes les 10 s pendant les vérifications à la main ;
 - `inventaires\NN-avant.json`, `NN-apres.json` : applications (clés Uninstall et paquets Appx), AppData, ProgramData, Program Files, menu Démarrer, `HKCU\Software`, `HKLM\SOFTWARE` (deux niveaux de dossiers ou de clés), tâches planifiées, services ;
 - `diffs\NN-<étape>.txt` : lignes ajoutées (`+`) et retirées (`-`) par catégorie pendant l'étape ;
 - les sorties de la CLI (`scan.json`, `apps.json`, `cli-progression.txt`…) et, pour 5 applications, `reference.txt` et `restes-reels.txt`.
+
+## En cas de plantage
+
+Après la fin du scénario, la console du Sandbox reste ouverte et **surveille** : toutes les 10 s, elle recopie les événements d'erreur et signale tout nouveau vidage ou `crash.*.log`. Les traces sont déjà sur le PC, dans `artifacts\sandbox\results\<scénario>-<date>\`, même si le Sandbox se ferme ensuite.
+
+**CleanSlate se ferme ou affiche « CleanSlate a rencontré une erreur inattendue »** : lire `cleanslate-logs\crash.<date>.log` (exception complète), puis `evenements.txt` et `dumps\` (un `.dmp` s'ouvre avec Visual Studio ou WinDbg). Une erreur de l'interface est désormais journalisée et affichée ; CleanSlate continue quand c'est possible (D56).
+
+**Le Sandbox entier se ferme d'un coup** : ce n'est ni CleanSlate ni les scripts. Aucun script n'arrête la session, et la console reste ouverte (`-NoExit`). Le 30 oct. 2026, c'était un **écran bleu du noyau du Sandbox**. Pour le savoir après coup, sur le PC :
+
+```powershell
+# Plantages du Sandbox : événement « ContainerCrashDump » ; P1 = code d'arrêt (59 = 0x3B), P2 = code d'exception
+Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'Windows Error Reporting'; StartTime = (Get-Date).AddHours(-4) } |
+    Where-Object Message -match 'ContainerCrashDump' | Format-List TimeCreated, Message
+# Machine virtuelle et conteneur (souvent vides) ; filtre des dossiers partagés
+Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Compute-Operational', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Containers-BindFlt/Operational' -MaxEvents 30 -ErrorAction SilentlyContinue |
+    Format-Table TimeCreated, Id, Message -Wrap
+```
+
+Le vidage du noyau du Sandbox est dans le rapport WER (`C:\ProgramData\Microsoft\Windows\WER\ReportArchive\Critical_59_*` ou `ReportQueue\Critical_59_*`), lisible seulement en administrateur. Pour l'analyser (PowerShell **administrateur**, débogueur du Windows SDK) :
+
+```powershell
+$dmp = Get-ChildItem 'C:\ProgramData\Microsoft\Windows\WER\Report*\Critical_59_*' -Recurse -Filter *.dmp | Sort-Object LastWriteTime | Select-Object -Last 1
+& "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\kd.exe" -z $dmp.FullName -c '!analyze -v; q'
+```
+
+La ligne `MODULE_NAME` / `IMAGE_NAME` de `!analyze` désigne le pilote fautif : `bindflt.sys` ou `wcifs.sys` (dossiers partagés), un pilote graphique (vGPU), etc.
+
+Réglages du `.wsb` qui limitent le risque (D56) : vGPU désactivé (rendu logiciel), 8 Go de mémoire, pas de micro, caméra ni imprimante. Un manque de mémoire ralentit ou fait échouer des programmes, il ne provoque pas d'écran bleu 0x3B.

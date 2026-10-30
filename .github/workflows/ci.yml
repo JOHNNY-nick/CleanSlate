@@ -70,6 +70,18 @@ jobs:
           pwsh -NoProfile -File ./scripts/check-release-cli.ps1 -Binary core/target/release/cleanslate-cli.exe -RunHelp
           exit $LASTEXITCODE
 
+      - name: Arguments of the Sandbox scripts, Windows PowerShell 5.1 (fake program, D56)
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/tests/sandbox-arguments.tests.ps1
+          exit $LASTEXITCODE
+
+      - name: Arguments of the Sandbox scripts, PowerShell 7 (fake program, D56)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/tests/sandbox-arguments.tests.ps1
+          exit $LASTEXITCODE
+
       - name: Exit codes of check-release-cli.ps1 (clean 0, feature 1, missing 2)
         shell: pwsh
         run: |

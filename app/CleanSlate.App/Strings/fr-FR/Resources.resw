@@ -588,4 +588,29 @@
   <data name="HiddenReason_Preinstalled" xml:space="preserve">
     <value>Préinstallée par Windows ou le fabricant du PC : CleanSlate ne la désinstalle pas.</value>
   </data>
+  <data name="HiddenReason_SystemComponent" xml:space="preserve">
+    <value>Composant système.</value>
+  </data>
+  <data name="HiddenReason_Update" xml:space="preserve">
+    <value>Mise à jour de Windows ou d'une application.</value>
+  </data>
+  <data name="Crash_Title" xml:space="preserve">
+    <value>CleanSlate a rencontré une erreur inattendue</value>
+  </data>
+  <data name="Crash_Message" xml:space="preserve">
+    <value>L'opération en cours a été interrompue ; rien n'a été supprimé en dehors des actions déjà confirmées.
+
+Détails enregistrés dans :
+{0}
+
+Joignez ce fichier si vous signalez le problème.</value>
+  </data>
+  <data name="Crash_MessageFatal" xml:space="preserve">
+    <value>CleanSlate doit se fermer.
+
+Détails enregistrés dans :
+{0}
+
+Joignez ce fichier si vous signalez le problème.</value>
+  </data>
 </root>

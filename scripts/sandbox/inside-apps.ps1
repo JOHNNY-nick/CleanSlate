@@ -72,7 +72,7 @@ Invoke-Step 'Vérification des installeurs (SHA-256 du manifeste)' {
 $verified = $script:installers | ForEach-Object { "$(if ($_.Ok) { 'conforme' } else { 'NON CONFORME' }) — $($_.Name) $($_.Version) — SHA-256 $($_.Actual) — $($_.Url)" }
 if (-not $script:installers.Count -or ($script:installers | Where-Object { -not $_.Ok })) {
     Write-Report 'Scénario des 5 applications — ARRÊTÉ' $meta @(
-        [pscustomobject]@{ Name = 'Installeurs conformes au manifeste'; Measure = 'SHA-256'; Status = 'ko' }
+        [pscustomobject]@{ Name = 'Installeurs conformes au manifeste'; Measure = 'SHA-256'; Status = 'script' }
     ) ([ordered]@{ 'Installeurs' = $verified })
     Stop-Run
     exit 1
@@ -162,16 +162,19 @@ $remaining | Set-Content "$out\restes-reels.txt" -Encoding utf8
 #    inventory diff shows that it changes nothing but CleanSlate's own logs.
 $script:scanCode = $null
 Invoke-Step 'Analyse CleanSlate (scan --dry-run, lecture seule)' {
-    $scan = Start-Process $cli -ArgumentList 'scan', '--dry-run', '--json' -NoNewWindow -Wait -PassThru `
-        -RedirectStandardOutput "$out\scan.json" -RedirectStandardError "$out\scan-progression.txt"
-    $script:scanCode = $scan.ExitCode
-    Start-Process $cli -ArgumentList 'apps', '--json' -NoNewWindow -Wait `
-        -RedirectStandardOutput "$out\apps.json" -RedirectStandardError "$out\apps-err.txt"
+    # Invoke-Program: separate arguments, raw JSON output, throws if the CLI cannot start.
+    $script:scanCode = Invoke-Program $cli @('scan', '--dry-run', '--json') "$out\scan.json" "$out\scan-progression.txt"
+    Write-Host "scan : code de sortie $($script:scanCode)"
+    $appsCode = Invoke-Program $cli @('apps', '--json') "$out\apps.json" "$out\apps-err.txt"
+    Write-Host "apps : code de sortie $appsCode"
 }
-# An empty analysis must never be reported as a measurement.
-if ($script:scanCode -ne 0 -or (Get-Item "$out\scan.json").Length -eq 0) {
+# An empty analysis must never be reported as a measurement. The CLI that could not start
+# is a failure of the test script; a CLI that ran and failed is a result of CleanSlate.
+$scanStep = $Run.Steps[-1]
+if ($scanStep.Failure -or $script:scanCode -ne 0 -or -not (Test-Path "$out\scan.json") -or (Get-Item "$out\scan.json").Length -eq 0) {
+    $measure = if ($scanStep.Failure) { "échec du script : $($scanStep.Failure)" } else { "cleanslate-cli : code de sortie $($script:scanCode), voir scan-progression.txt" }
     Write-Report 'Scénario des 5 applications — ÉCHEC' $meta @(
-        [pscustomobject]@{ Name = 'Analyse produite'; Measure = "cleanslate-cli : code de sortie $($script:scanCode), voir scan-progression.txt"; Status = 'ko' }
+        [pscustomobject]@{ Name = 'Analyse produite'; Measure = $measure; Status = $(if ($scanStep.Failure) { 'script' } else { 'ko' }) }
     ) ([ordered]@{ 'Installeurs vérifiés' = $verified })
     Stop-Run
     Start-Process "$out\rapport.html"
@@ -217,4 +220,5 @@ Write-Report 'Scénario des 5 applications — résultats' $meta @(
 
 Stop-Run
 Start-Process "$out\rapport.html"
+Watch-Session
 exit 0
