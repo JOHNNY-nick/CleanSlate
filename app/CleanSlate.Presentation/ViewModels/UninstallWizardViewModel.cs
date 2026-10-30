@@ -20,7 +20,11 @@ public sealed record UninstallStepItem(string Key, string TimeText);
 /// <param name="ElapsedText">Time since the start, e.g. « 00:01.295 ».</param>
 /// <param name="StepKey">Step name, turned into text by the view (<c>UninstallStep_{Key}</c>).</param>
 /// <param name="Detail">« 42 % — Suppression des fichiers — msiexec.exe (PID 4242) », or empty.</param>
-public sealed record UninstallProgressEntry(string TimeText, string ElapsedText, string StepKey, string Detail);
+public sealed record UninstallProgressEntry(string TimeText, string ElapsedText, string StepKey, string Detail)
+{
+    /// <summary>The detail line is shown (not empty).</summary>
+    public bool HasDetail => Detail.Length > 0;
+}
 
 /// <summary>
 /// Uninstall wizard (design § 4.2): 1 confirmation, 2 official uninstaller,

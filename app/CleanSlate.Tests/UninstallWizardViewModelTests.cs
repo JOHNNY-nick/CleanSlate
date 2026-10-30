@@ -274,6 +274,8 @@ public sealed class UninstallWizardViewModelTests
             ],
             vm.History.Select(h => (h.StepKey, h.ElapsedText, h.Detail)));
         Assert.All(vm.History, h => Assert.Matches(@"^\d\d:\d\d:\d\d$", h.TimeText));
+        // The view shows the detail line only when there is one.
+        Assert.Equal([false, true, true, true, true, false, false], vm.History.Select(h => h.HasDetail));
         Assert.Equal(8, vm.ProgressEventCount);
         Assert.Equal("100 %", vm.MaxPercentText);
         Assert.Equal("msiexec.exe", vm.ProcessNamesText);

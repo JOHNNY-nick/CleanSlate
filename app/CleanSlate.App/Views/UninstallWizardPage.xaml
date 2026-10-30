@@ -9,24 +9,32 @@
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />
         <conv:ConfidenceBrushConverter x:Key="ConfidenceBrush" />
-        <!-- One line of the progress history (D57): clock, elapsed time, step, detail. -->
+        <!--
+            One line of the progress history (D57): clock, elapsed time and step, then the detail
+            below. No Auto column: both lines wrap at any window width, nothing is cut.
+        -->
         <DataTemplate x:Key="ProgressEntryTemplate" x:DataType="vm:UninstallProgressEntry">
-            <Grid Padding="0,2" ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind TimeText}" />
-                <TextBlock Grid.Column="1" FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind ElapsedText}" />
-                <TextBlock Grid.Column="2" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind StepKey, Converter={StaticResource ResourceString}, ConverterParameter=UninstallStep}" />
-                <TextBlock Grid.Column="3" FontSize="13" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind Detail}" TextWrapping="Wrap" />
-            </Grid>
+            <StackPanel Padding="0,3" Spacing="1">
+                <TextBlock FontSize="13" TextWrapping="Wrap">
+                    <Run FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind TimeText}" />
+                    <Run Text="  " />
+                    <Run FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind ElapsedText}" />
+                    <Run Text="  " />
+                    <Run Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind StepKey, Converter={StaticResource ResourceString}, ConverterParameter=UninstallStep}" />
+                </TextBlock>
+                <TextBlock
+                    Margin="16,0,0,0"
+                    FontSize="13"
+                    Foreground="{ThemeResource TextSecondaryBrush}"
+                    Text="{x:Bind Detail}"
+                    TextWrapping="Wrap"
+                    Visibility="{x:Bind HasDetail}" />
+            </StackPanel>
         </DataTemplate>
     </Page.Resources>
 
-    <ScrollViewer>
+    <!-- Vertical scrolling only: every line wraps to the window width. -->
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource PageMargin}" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
             <StackPanel Spacing="2">
                 <TextBlock Style="{StaticResource TitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}">
@@ -98,7 +106,7 @@
                         TextWrapping="Wrap"
                         Visibility="{x:Bind ViewModel.HasAction, Mode=OneWay}" />
                     <TextBlock x:Uid="WizardStepsTitle" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" />
-                    <ScrollViewer MaxHeight="240">
+                    <ScrollViewer MaxHeight="240" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl x:Uid="WizardStepsList" ItemsSource="{x:Bind ViewModel.History}" ItemTemplate="{StaticResource ProgressEntryTemplate}" />
                     </ScrollViewer>
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.HasProcesses, Mode=OneWay}">
@@ -158,11 +166,12 @@
                     <TextBlock Visibility="{x:Bind ViewModel.StillInstalled, Mode=OneWay}" x:Uid="WizardStillInstalled" TextWrapping="Wrap" />
                     <TextBlock Visibility="{x:Bind ViewModel.WithoutUninstaller, Mode=OneWay}" x:Uid="WizardEntryKept" TextWrapping="Wrap" />
                     <TextBlock Visibility="{x:Bind ViewModel.NoLeftoverFound, Mode=OneWay}" x:Uid="WizardNoLeftover" TextWrapping="Wrap" />
+                    <!-- « la commande ci-dessous » : this line comes before the command. -->
+                    <TextBlock Visibility="{x:Bind ViewModel.WasSimulated, Mode=OneWay}" x:Uid="WizardSimulatedDone" TextWrapping="Wrap" />
                     <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ShowCommandLine, Mode=OneWay}">
                         <Run x:Uid="WizardCommand" />
                         <Run FontFamily="{StaticResource PathFontFamily}" Text="{x:Bind ViewModel.Result.Command, Mode=OneWay, FallbackValue=''}" />
                     </TextBlock>
-                    <TextBlock Visibility="{x:Bind ViewModel.WasSimulated, Mode=OneWay}" x:Uid="WizardSimulatedDone" TextWrapping="Wrap" />
                     <TextBlock TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ShowCleanedLine, Mode=OneWay}">
                         <Run Text="{x:Bind ViewModel.CleanedCount, Mode=OneWay}" />
                         <Run x:Uid="WizardCleaned" />
@@ -183,7 +192,7 @@
                             Style="{StaticResource SecondaryTextBlockStyle}"
                             Text="{x:Bind conv:Texts.Two('Format_ProgressSeen', ViewModel.MaxPercentText, ViewModel.ProcessNamesText), Mode=OneWay}"
                             TextWrapping="Wrap" />
-                        <ScrollViewer MaxHeight="260">
+                        <ScrollViewer MaxHeight="260" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl x:Uid="WizardHistoryList" ItemsSource="{x:Bind ViewModel.History}" ItemTemplate="{StaticResource ProgressEntryTemplate}" />
                         </ScrollViewer>
                     </StackPanel>
