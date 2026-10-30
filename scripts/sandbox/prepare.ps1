@@ -127,7 +127,7 @@ $bytes = New-Object byte[] 32
 $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
 [IO.File]::WriteAllText((Join-Path $runDir 'token.txt'), $token)
 $commit = (git -C $root rev-parse --short HEAD 2>$null)
-$dirty = [bool](git -C $root status --porcelain 2>$null)
+$dirty = @(git -C $root status --porcelain 2>$null | ForEach-Object { $_.Substring(3) })
 $shared = [ordered]@{}
 foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if ($Scenario -eq 'Complements') { $sandboxCli }) + @(if ($setup) { $setup.FullName })) {
     $shared[$f.Substring($root.Length + 1)] = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash
@@ -135,7 +135,7 @@ foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if 
 [ordered]@{
     scenario    = $Scenario
     prepare     = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-    commit      = if ($dirty) { "$commit (modifications non commitées)" } else { $commit }
+    commit      = if ($dirty.Count) { "$commit (modifications non commitées : $($dirty -join ', '))" } else { $commit }
     sha256      = $shared
     installeurs = @($checked | ForEach-Object { [ordered]@{ id = $_.Id; version = $_.Version; sha256 = $_.Actual } })
 } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $runDir 'prepare.json') -Encoding utf8
