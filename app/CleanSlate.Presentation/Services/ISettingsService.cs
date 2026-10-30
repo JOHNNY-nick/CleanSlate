@@ -37,6 +37,9 @@ public interface ISettingsService
     /// <summary>Folder of the log files (ENF-10).</summary>
     string LogsFolder { get; }
 
+    /// <summary>File holding these settings (exported with the logs).</summary>
+    string SettingsFile { get; }
+
     /// <summary>Raised after a setting changed.</summary>
     event EventHandler? Changed;
 }

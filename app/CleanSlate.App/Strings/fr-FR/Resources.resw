@@ -435,6 +435,21 @@
   <data name="SettingsLogsOpen.Content" xml:space="preserve">
     <value>Ouvrir le dossier des journaux</value>
   </data>
+  <data name="SettingsLogsExport.Content" xml:space="preserve">
+    <value>Exporter les journaux</value>
+  </data>
+  <data name="SettingsLogsExportHelp.Text" xml:space="preserve">
+    <value>Crée sur le Bureau un fichier .zip des journaux et des réglages, à joindre à un signalement. Votre dossier personnel, le nom de l&apos;ordinateur et celui du compte y sont remplacés. Rien n&apos;est envoyé.</value>
+  </data>
+  <data name="SettingsLogsExported.Title" xml:space="preserve">
+    <value>Journaux exportés</value>
+  </data>
+  <data name="SettingsLogsReveal.Content" xml:space="preserve">
+    <value>Afficher dans l&apos;Explorateur</value>
+  </data>
+  <data name="SettingsLogsExportFailed.Title" xml:space="preserve">
+    <value>L&apos;export a échoué</value>
+  </data>
   <data name="SettingsAboutTitle.Text" xml:space="preserve">
     <value>CleanSlate 0.1.0</value>
   </data>

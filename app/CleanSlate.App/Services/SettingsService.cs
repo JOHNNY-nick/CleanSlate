@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CleanSlate.Presentation;
 using CleanSlate.Presentation.Services;
 
 namespace CleanSlate.App.Services;
@@ -51,7 +52,10 @@ public sealed class SettingsService : ISettingsService
     public IReadOnlyList<string> Exclusions => _stored.Exclusions;
 
     /// <inheritdoc/>
-    public string LogsFolder => Path.Combine(Folder, "logs");
+    public string LogsFolder => CrashLog.CurrentDirectory();
+
+    /// <inheritdoc/>
+    public string SettingsFile => FilePath;
 
     /// <inheritdoc/>
     public void AddExclusion(string location)

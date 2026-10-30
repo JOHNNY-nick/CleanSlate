@@ -10,12 +10,14 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsService _settings;
     private readonly IEngineService? _engine;
+    private readonly ILogExportService? _logExport;
 
     /// <summary>Creates the ViewModel from the stored settings.</summary>
-    public SettingsViewModel(ISettingsService settings, IEngineService? engine = null)
+    public SettingsViewModel(ISettingsService settings, IEngineService? engine = null, ILogExportService? logExport = null)
     {
         _settings = settings;
         _engine = engine;
+        _logExport = logExport;
         _simulationMode = settings.SimulationMode;
         _quarantineDays = settings.QuarantineDays;
         _themeIndex = (int)settings.Theme;
@@ -42,6 +44,22 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Engine version shown in « À propos ».</summary>
     [ObservableProperty]
     private string _engineVersion = string.Empty;
+
+    /// <summary>Path of the last exported zip of the logs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasExport))]
+    private string _exportedPath = string.Empty;
+
+    /// <summary>The last export failed.</summary>
+    [ObservableProperty]
+    private bool _exportFailed;
+
+    /// <summary>Reason of the last failed export.</summary>
+    [ObservableProperty]
+    private string _exportError = string.Empty;
+
+    /// <summary>A zip of the logs was written.</summary>
+    public bool HasExport => ExportedPath.Length > 0;
 
     /// <summary>Folders and keys never proposed (EF-20).</summary>
     public ObservableCollection<string> Exclusions { get; }
@@ -73,6 +91,39 @@ public sealed partial class SettingsViewModel : ObservableObject
             {
                 EngineVersion = "?";
             }
+        }
+    }
+
+    /// <summary>Writes the zip of the logs and settings, to attach to a problem report.</summary>
+    [RelayCommand]
+    private async Task ExportLogsAsync(CancellationToken cancellationToken)
+    {
+        if (_logExport is null)
+        {
+            return;
+        }
+
+        ExportFailed = false;
+        ExportError = string.Empty;
+        try
+        {
+            ExportedPath = await _logExport.ExportAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ExportedPath = string.Empty;
+            ExportFailed = true;
+            ExportError = ex.Message;
+        }
+    }
+
+    /// <summary>Shows the exported zip in Explorer.</summary>
+    [RelayCommand]
+    private void RevealExport()
+    {
+        if (HasExport)
+        {
+            _logExport?.Reveal(ExportedPath);
         }
     }
 
