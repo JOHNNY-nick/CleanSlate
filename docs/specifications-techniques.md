@@ -264,7 +264,7 @@ pub struct EngineConfig {
 }
 
 // Scan (J3).
-pub struct ScanOptions { pub dry_run: bool, pub include_registry: bool, pub include_shortcuts: bool } // tous true par défaut
+pub struct ScanOptions { pub dry_run: bool, pub include_registry: bool, pub include_shortcuts: bool, pub include_tasks_and_services: bool } // tous true par défaut
 pub enum ScanPhase { Listing, Analyzing, Done }
 pub struct ScanProgress { pub phase: ScanPhase, pub current: u64, pub total: u64, pub path: String }
 ```
@@ -413,6 +413,7 @@ Le module `safety` est le dernier rempart : toute action destructive appelle `sa
 - **Noms de sous-dossiers** : `Microsoft`, `Windows`, `Windows Defender`, `Windows NT`, `Common Files`, `Packages` (Store), `WindowsApps`, `Temp`, `Microsoft.NET`, `dotnet`, `Intel`, `NVIDIA Corporation`, `AMD` (pilotes), `Package Cache`, `CleanSlate`.
 - **Registre** : `HKLM\SYSTEM`, `HKLM\SAM`, `HKLM\SECURITY`, `HKLM\HARDWARE`, toute clé `Microsoft`, `Classes`, `Policies`, `Clients`, `RegisteredApplications`, `Wow6432Node` elle-même, `Windows`, `Uninstall` d'une application encore présente, `CleanSlate` et `CleanSlateTest` (zone de test, D24).
 - **Raccourcis (EF-07)** : un `.lnk` sous un dossier protégé n'est pas proposé ; les raccourcis du menu Démarrer, rangés sous `…\Microsoft\Windows\Start Menu`, sont donc écartés et seuls ceux des Bureaux sont détectés (D20).
+- **Tâches planifiées et services (EF-07, v1.1)** : lus en lecture seule (`System32\Tasks`, `ImagePath` des services) et proposés quand leur programme a disparu ; tâches `\Microsoft\`, pilotes et programmes sous `%WINDIR%` écartés ; au plus « Moyenne », jamais cochables, refusés par la quarantaine (D47).
 
 ### 9.2 Règles d'exécution
 

@@ -4,7 +4,7 @@ Dernière mise à jour : 30 oct. 2026
 
 Chaque exigence du [cahier des charges](../cahier-des-charges.md) avec les fichiers qui la réalisent et les tests qui la vérifient. Les tests Rust sont dans le même fichier que le code (`core/cleanslate-core/src/`), les tests C# dans `app/CleanSlate.Tests/`. « Sandbox » renvoie aux procédures manuelles de [tests-acceptation.md](../tests-acceptation.md).
 
-État au 30 oct. 2026 : 166 tests du moteur, 14 tests FFI, 67 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **92,9 %** des lignes (ENF-12 : ≥ 80 %) ; build Release et installeur produits.
+État au 30 oct. 2026 : 170 tests du moteur, 14 tests FFI, 68 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **92,9 %** des lignes (ENF-12 : ≥ 80 %) ; build Release et installeur produits.
 
 Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ reporté.
 
@@ -18,7 +18,7 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | EF-04 Applications Microsoft Store | C | ⏭️ | — | Reportée en v1.1 (cahier § 6.5) |
 | EF-05 Scan des dossiers sans nom saisi | M | ✅ | `scan.rs` (`ScanRoots`), `OrphansViewModel.cs` | `fixture_finds_leftovers_and_never_installed_apps` ; Sandbox § 4 |
 | EF-06 Scan du registre | M | ✅ | `scan.rs`, `registry.rs` | `fixture_finds_leftovers_and_never_installed_apps` (ruche de test), `registry_value_sizes` |
-| EF-07 Raccourcis morts, tâches, services | S | ⚠️ | `scan.rs` (`.lnk` des Bureaux) | `shortcut_parsing`. **Partiel (D20, validé par le porteur)** : raccourcis du menu Démarrer non proposés (liste noire `Microsoft` inchangée), tâches planifiées et services non détectés |
+| EF-07 Raccourcis morts, tâches, services | S | ✅ | `scan.rs` (`.lnk` des Bureaux, `dead_entry_leftover`), `system.rs` (`dead_tasks`, `dead_services`) | `shortcut_parsing`, `dead_tasks_are_found_and_system_ones_ignored`, `dead_services_skip_drivers_and_windows`, `dead_tasks_and_services_are_shown_never_prechecked` ; `DeadTasksAndServices_CanNeverBeChecked`. Raccourcis du menu Démarrer non proposés (D20 validée) ; tâches et services détectés seulement, jamais mis en quarantaine (v1.1, D47) |
 | EF-08 Orphelin = ne correspond à aucune application installée | M | ✅ | `matcher.rs` | `attach_by_install_location_both_ways`, `attach_by_uninstaller_folder_and_executables`, `attach_by_similar_name_or_publisher`, `present_programs_attach_their_data` (D22) |
 | EF-09 Regroupement par application déduite | M | ✅ | `matcher.rs` (`group`), `OrphansPage.xaml` | `grouping_by_normalized_name_largest_first` |
 | EF-10 Confiance, seuls les « Élevée » précochés | M | ✅ | `matcher.rs`, `OrphansViewModel.cs` | `old_unrelated_folder_is_high`, `recent_or_generic_or_portable_is_lower`, `items_under_an_installed_publisher_are_at_most_medium` (D23), `personal_folders_are_never_high` ; `Scan_PrechecksOnlyHighConfidence` |
@@ -66,7 +66,7 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 
 ## Points ouverts
 
-1. **EF-07 partiel** (D20, validé par le porteur le 30 oct. 2026) : liste noire inchangée, les `.lnk` morts du menu Démarrer ne sont pas proposés ; tâches planifiées et services à étudier en v1.1.
+1. **EF-07** (D20 et D47, validées par le porteur le 30 oct. 2026) : liste noire inchangée, les `.lnk` morts du menu Démarrer ne sont pas proposés ; tâches planifiées et services détectés (v1.1), à supprimer à la main.
 2. **ACL d'origine** (D31, validé par le porteur le 30 oct. 2026) : enregistrée dans le manifeste, pas réappliquée après une copie entre deux volumes.
 3. **Signal « nom d'une application désinstallée par CleanSlate »** (+30, specs § 6.3) : reporté (D38).
 4. **Progression de `cs_uninstall`** : rappel réservé ; barre indéterminée dans l'assistant.
