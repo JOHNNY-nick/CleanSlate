@@ -5,26 +5,26 @@
 
 .DESCRIPTION
     Automates what does not need the interface, and measures criteria 2 and 3:
-    1. installs the applications silently from C:\CleanSlate\installers;
-    2. starts each one once so that it writes its data, then closes it;
-    3. records the reference (folders and keys of each application, § 4.1.3);
-    4. uninstalls the 5 applications with their own uninstaller (Firefox stays);
-    5. R = reference entries still present; scan with cleanslate-cli (read-only);
-    6. writes rapport.md: T / R and the prechecked (High) items that are wrong.
-    Criterion 4 (identical restore) stays manual, in the app copied to the Desktop.
-    Refuses to run outside the Sandbox: it installs and uninstalls software.
+    1. checks the SHA-256 of every installer against manifeste.json (stops on a mismatch);
+    2. installs the applications silently, one step each;
+    3. starts each one once so that it writes its data, then closes it;
+    4. records the reference (folders and keys of each application, § 4.1.3);
+    5. uninstalls the 5 applications with their own uninstaller (Firefox stays);
+    6. R = reference entries still present; scan with cleanslate-cli (read-only);
+    7. writes rapport.md and rapport.html: T / R and the prechecked (High) items that are wrong.
+    Every step is timestamped, with an inventory of the system before and after it and a
+    diff file. Criterion 4 (identical restore) stays manual, in the app copied to the Desktop.
+    Refuses to run outside the Sandbox prepared by prepare.ps1 (common.ps1, Assert-Sandbox).
 #>
 $ErrorActionPreference = 'Continue'
-if ($env:USERNAME -ne 'WDAGUtilityAccount') {
-    Write-Error 'Ce script ne tourne que dans Windows Sandbox (compte WDAGUtilityAccount).'
-    exit 1
-}
+. "$PSScriptRoot\common.ps1"
+Assert-Sandbox
+Start-Run 'apps'
 
-$base = 'C:\CleanSlate'
 $desktop = [Environment]::GetFolderPath('Desktop')
-$out = Join-Path "$base\results" (Get-Date -Format 'yyyyMMdd-HHmmss')
-New-Item -ItemType Directory -Force $out | Out-Null
-Start-Transcript -Path "$out\journal.txt" | Out-Null
+$out = $Run.Out
+$cli = "$Tools\cleanslate-cli.exe"
+$prepared = Get-Content "$Repo\artifacts\sandbox\run\prepare.json" -Raw -Encoding utf8 | ConvertFrom-Json
 
 # Applications of the scenario: name in the Uninstall keys, main program, data names (§ 4.1.3).
 $apps = @(
@@ -37,23 +37,9 @@ $apps = @(
 $witness = @{ Name = 'Firefox'; Main = 'Mozilla Firefox\firefox.exe'; Wait = 25 }
 $dataNames = 'vlc', 'VideoLAN', '7-Zip', 'Notepad++', 'Audacity', 'GIMP'
 
-function Step([string] $text) { Write-Host "`n=== $text ===" -ForegroundColor Cyan }
-
 # Start-Process refuses an empty argument list.
 function Run([string] $program, [string] $arguments) {
     if ($arguments) { Start-Process $program $arguments -Wait -PassThru } else { Start-Process $program -Wait -PassThru }
-}
-
-# Splits "C:\x\unins.exe" /a /b or C:\x\unins.exe /a into program and arguments (no shell).
-function Split-Command([string] $line) {
-    $line = $line.Trim()
-    if ($line.StartsWith('"')) {
-        $end = $line.IndexOf('"', 1)
-        return @($line.Substring(1, $end - 1), $line.Substring($end + 1).Trim())
-    }
-    $i = $line.ToLower().IndexOf('.exe')
-    if ($i -lt 0) { return @($line, '') }
-    return @($line.Substring(0, $i + 4), $line.Substring($i + 4).Trim())
 }
 
 function Uninstall-Entries {
@@ -71,108 +57,126 @@ function Normalize([string] $location) {
     ($l -replace '\\WOW6432Node\\', '\').TrimEnd('\').ToLowerInvariant()
 }
 
-# 1. CleanSlate on the Desktop for the manual steps (the shared folder is read-only).
-Step 'Copie de CleanSlate sur le Bureau'
-Copy-Item "$base\app" "$desktop\CleanSlate" -Recurse -Force
+$meta = @(
+    "Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')",
+    "Préparé le $($prepared.prepare), commit $($prepared.commit)",
+    "Dossier : $out"
+)
 
-# 2. Silent installation, from the winget manifest of each installer.
-Step 'Installation des applications'
-foreach ($dir in Get-ChildItem "$base\installers" -Directory) {
-    $yaml = Get-ChildItem $dir.FullName -Filter *.yaml | Select-Object -First 1
-    $file = Get-ChildItem $dir.FullName -File | Where-Object Extension -ne '.yaml' | Select-Object -First 1
-    if (-not $yaml -or -not $file) { Write-Warning "$($dir.Name) : installeur absent"; continue }
-    $text = Get-Content $yaml.FullName -Raw
-    $type = [regex]::Match($text, '(?m)^\s*-?\s*InstallerType:\s*(\S+)').Groups[1].Value
-    $silent = [regex]::Match($text, '(?m)^\s*Silent:\s*(.+)$').Groups[1].Value.Trim().Trim("'", '"')
-    if ($type -in 'msi', 'wix') {
-        $program = 'msiexec.exe'; $arguments = "/i `"$($file.FullName)`" /qn /norestart"
-    }
-    else {
-        $program = $file.FullName
-        # Scope of the manifest kept: GIMP is a per-user Inno Setup (no /ALLUSERS).
-        $arguments = if ($silent) { $silent } elseif ($type -eq 'inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } else { '/S' }
-    }
-    Write-Host "$($dir.Name) ($type) : $program $arguments"
-    $p = Run $program $arguments
-    Write-Host "  code $($p.ExitCode)"
-}
-
-# 3. One start each, so that the applications write their data, then a normal close.
-Step 'Premier lancement de chaque application'
-$programRoots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs"
-foreach ($a in $apps + $witness) {
-    $exe = $programRoots | ForEach-Object { Get-ChildItem (Join-Path $_ $a.Main) -ErrorAction SilentlyContinue } |
-        Where-Object Name -NotMatch 'console' | Select-Object -First 1
-    if (-not $exe) { Write-Warning "$($a.Name) : programme introuvable"; continue }
-    Write-Host "$($a.Name) : $($exe.FullName) ($($a.Wait) s)"
-    Start-Process $exe.FullName | Out-Null
-    Start-Sleep -Seconds $a.Wait
-    $name = [IO.Path]::GetFileNameWithoutExtension($exe.Name)
-    Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null }
-    Start-Sleep -Seconds 5
-    Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force
-}
-
-# 4. Reference: top-level folders and keys of each application (§ 4.1.3).
-Step 'Relevé de référence'
-$roots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:APPDATA, $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs", $env:ProgramData
-$reference = foreach ($r in $roots) {
-    Get-ChildItem $r -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $n = $_.Name; $dataNames | Where-Object { $n -like "*$_*" } } | ForEach-Object FullName
-}
-$reference += foreach ($k in 'HKCU:\Software', 'HKLM:\SOFTWARE', 'HKLM:\SOFTWARE\WOW6432Node') {
-    Get-ChildItem $k -ErrorAction SilentlyContinue |
-        Where-Object { $n = $_.PSChildName; $dataNames | Where-Object { $n -like "*$_*" } } | ForEach-Object Name
-}
-$reference = $reference | Sort-Object -Unique
-$reference | Set-Content "$out\reference.txt" -Encoding utf8
-Write-Host "$($reference.Count) entrées"
-
-# 5. Classic uninstall with each application's own uninstaller (Firefox is kept).
-Step 'Désinstallation classique'
-foreach ($a in $apps) {
-    foreach ($e in Uninstall-Entries | Where-Object DisplayName -Match $a.Pattern) {
-        if ($e.WindowsInstaller -eq 1 -or $e.UninstallString -match 'msiexec') {
-            $program = 'msiexec.exe'; $arguments = "/x $($e.PSChildName) /qn /norestart"
-        }
-        elseif ($e.QuietUninstallString) {
-            $program, $arguments = Split-Command $e.QuietUninstallString
-        }
-        else {
-            $program, $rest = Split-Command $e.UninstallString
-            $quiet = if ($program -match 'unins\d*\.exe$') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' } else { '/S' }
-            $arguments = "$rest $quiet".Trim()
-        }
-        Write-Host "$($e.DisplayName) : $program $arguments"
-        Run $program $arguments | Out-Null
-        # NSIS uninstallers copy themselves and return at once: wait for the entry to go.
-        for ($i = 0; $i -lt 60 -and (Uninstall-Entries | Where-Object PSChildName -EQ $e.PSChildName); $i++) { Start-Sleep -Seconds 2 }
-    }
-}
-Start-Sleep -Seconds 5
-
-# 6. R: reference entries still present after the classic uninstall.
-$remaining = $reference | Where-Object {
-    if ($_ -like 'HKEY_*') { Test-Path "Registry::$_" } else { Test-Path -LiteralPath $_ }
-}
-$remaining | Set-Content "$out\restes-reels.txt" -Encoding utf8
-
-# 7. Read-only scan with the engine (same as the « Analyser les restes » button).
-Step 'Analyse CleanSlate (lecture seule)'
-$cli = "$base\tools\cleanslate-cli.exe"
-$scan = Start-Process $cli -ArgumentList 'scan', '--dry-run', '--json' -NoNewWindow -Wait -PassThru `
-    -RedirectStandardOutput "$out\scan.json" -RedirectStandardError "$out\scan-progression.txt"
-# An empty analysis must never be reported as a measurement.
-if ($scan.ExitCode -ne 0 -or (Get-Item "$out\scan.json").Length -eq 0) {
-    $message = "# Scénario des 5 applications — ÉCHEC`n`ncleanslate-cli n'a rien produit (code de sortie $($scan.ExitCode)). Aucun critère n'est mesuré ; voir scan-progression.txt et journal.txt."
-    Set-Content "$out\rapport.md" $message -Encoding utf8
-    Write-Error $message
-    Stop-Transcript | Out-Null
-    Start-Process notepad.exe "$out\rapport.md"
+# 1. Installers against the manifest, before anything is installed.
+$script:installers = @()
+Invoke-Step 'Vérification des installeurs (SHA-256 du manifeste)' {
+    $script:installers = @(Test-Installer "$Repo\scripts\sandbox\manifeste.json" "$Repo\artifacts\sandbox\installers" 'apps')
+    $script:installers | ForEach-Object { "$(if ($_.Ok) { 'OK ' } else { 'KO ' }) $($_.Name) $($_.Version) $($_.Actual)" }
+} -NoInventory
+$verified = $script:installers | ForEach-Object { "$(if ($_.Ok) { 'conforme' } else { 'NON CONFORME' }) — $($_.Name) $($_.Version) — SHA-256 $($_.Actual) — $($_.Url)" }
+if (-not $script:installers.Count -or ($script:installers | Where-Object { -not $_.Ok })) {
+    Write-Report 'Scénario des 5 applications — ARRÊTÉ' $meta @(
+        [pscustomobject]@{ Name = 'Installeurs conformes au manifeste'; Measure = 'SHA-256'; Status = 'ko' }
+    ) ([ordered]@{ 'Installeurs' = $verified })
+    Stop-Run
     exit 1
 }
-Start-Process $cli -ArgumentList 'apps', '--json' -NoNewWindow -Wait `
-    -RedirectStandardOutput "$out\apps.json" -RedirectStandardError "$out\apps-err.txt"
+
+# 2. CleanSlate on the Desktop for the manual steps (the shared folder is read-only).
+Invoke-Step 'Copie de CleanSlate sur le Bureau' {
+    Copy-Item "$Repo\app\CleanSlate.App\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64" "$desktop\CleanSlate" -Recurse -Force
+}
+
+# 3. Silent installation, one step per application, with the command of the manifest.
+foreach ($i in $script:installers) {
+    Invoke-Step "Installation de $($i.Name) $($i.Version)" {
+        $line = $i.Install.Replace('<fichier>', "`"$($i.Path)`"")
+        $program, $arguments = Split-Command $line
+        Write-Host "$program $arguments"
+        $p = Run $program $arguments
+        Write-Host "code de sortie $($p.ExitCode)"
+    }
+}
+
+# 4. One start each, so that the applications write their data, then a normal close.
+$programRoots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs"
+foreach ($a in $apps + $witness) {
+    Invoke-Step "Premier lancement de $($a.Name)" {
+        $exe = $programRoots | ForEach-Object { Get-ChildItem (Join-Path $_ $a.Main) -ErrorAction SilentlyContinue } |
+            Where-Object Name -NotMatch 'console' | Select-Object -First 1
+        if (-not $exe) { throw "$($a.Name) : programme introuvable" }
+        Write-Host "$($exe.FullName) ($($a.Wait) s)"
+        Start-Process $exe.FullName | Out-Null
+        Start-Sleep -Seconds $a.Wait
+        $name = [IO.Path]::GetFileNameWithoutExtension($exe.Name)
+        Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null }
+        Start-Sleep -Seconds 5
+        Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force
+    }
+}
+
+# 5. Reference: top-level folders and keys of each application (§ 4.1.3).
+$script:reference = @()
+Invoke-Step 'Relevé de référence (§ 4.1.3)' {
+    $roots = $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:APPDATA, $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Programs", $env:ProgramData
+    $found = foreach ($r in $roots) {
+        Get-ChildItem $r -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $n = $_.Name; $dataNames | Where-Object { $n -like "*$_*" } } | ForEach-Object FullName
+    }
+    $found += foreach ($k in 'HKCU:\Software', 'HKLM:\SOFTWARE', 'HKLM:\SOFTWARE\WOW6432Node') {
+        Get-ChildItem $k -ErrorAction SilentlyContinue |
+            Where-Object { $n = $_.PSChildName; $dataNames | Where-Object { $n -like "*$_*" } } | ForEach-Object Name
+    }
+    $script:reference = @($found | Sort-Object -Unique)
+    $script:reference | Set-Content "$out\reference.txt" -Encoding utf8
+    Write-Host "$($script:reference.Count) entrées"
+} -NoInventory
+
+# 6. Classic uninstall with each application's own uninstaller (Firefox is kept).
+foreach ($a in $apps) {
+    Invoke-Step "Désinstallation classique de $($a.Name)" {
+        foreach ($e in Uninstall-Entries | Where-Object DisplayName -Match $a.Pattern) {
+            if ($e.WindowsInstaller -eq 1 -or $e.UninstallString -match 'msiexec') {
+                $program = 'msiexec.exe'; $arguments = "/x $($e.PSChildName) /qn /norestart"
+            }
+            elseif ($e.QuietUninstallString) {
+                $program, $arguments = Split-Command $e.QuietUninstallString
+            }
+            else {
+                $program, $rest = Split-Command $e.UninstallString
+                $quiet = if ($program -match 'unins\d*\.exe$') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' } else { '/S' }
+                $arguments = "$rest $quiet".Trim()
+            }
+            Write-Host "$($e.DisplayName) : $program $arguments"
+            Run $program $arguments | Out-Null
+            # NSIS uninstallers copy themselves and return at once: wait for the entry to go.
+            for ($w = 0; $w -lt 60 -and (Uninstall-Entries | Where-Object PSChildName -EQ $e.PSChildName); $w++) { Start-Sleep -Seconds 2 }
+        }
+        Start-Sleep -Seconds 3
+    }
+}
+
+# 7. R: reference entries still present after the classic uninstall.
+$remaining = @($script:reference | Where-Object {
+        if ($_ -like 'HKEY_*') { Test-Path "Registry::$_" } else { Test-Path -LiteralPath $_ }
+    })
+$remaining | Set-Content "$out\restes-reels.txt" -Encoding utf8
+
+# 8. Read-only scan with the engine (same as the « Analyser les restes » button). Its
+#    inventory diff shows that it changes nothing but CleanSlate's own logs.
+$script:scanCode = $null
+Invoke-Step 'Analyse CleanSlate (scan --dry-run, lecture seule)' {
+    $scan = Start-Process $cli -ArgumentList 'scan', '--dry-run', '--json' -NoNewWindow -Wait -PassThru `
+        -RedirectStandardOutput "$out\scan.json" -RedirectStandardError "$out\scan-progression.txt"
+    $script:scanCode = $scan.ExitCode
+    Start-Process $cli -ArgumentList 'apps', '--json' -NoNewWindow -Wait `
+        -RedirectStandardOutput "$out\apps.json" -RedirectStandardError "$out\apps-err.txt"
+}
+# An empty analysis must never be reported as a measurement.
+if ($script:scanCode -ne 0 -or (Get-Item "$out\scan.json").Length -eq 0) {
+    Write-Report 'Scénario des 5 applications — ÉCHEC' $meta @(
+        [pscustomobject]@{ Name = 'Analyse produite'; Measure = "cleanslate-cli : code de sortie $($script:scanCode), voir scan-progression.txt"; Status = 'ko' }
+    ) ([ordered]@{ 'Installeurs vérifiés' = $verified })
+    Stop-Run
+    Start-Process "$out\rapport.html"
+    exit 1
+}
 $report = Get-Content "$out\scan.json" -Raw -Encoding utf8 | ConvertFrom-Json
 $installed = Get-Content "$out\apps.json" -Raw -Encoding utf8 | ConvertFrom-Json
 $items = @($report.groups | ForEach-Object { $_.items })
@@ -196,30 +200,20 @@ $wrong = @($high | Where-Object {
     })
 
 $ratio = if ($remaining.Count) { [math]::Round(100.0 * $found.Count / $remaining.Count, 1) } else { 100 }
-$lines = @(
-    '# Scénario des 5 applications — résultats',
-    '',
-    "Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm') · durée de l'analyse : $([math]::Round($report.duration_ms / 1000, 1)) s · $($items.Count) éléments proposés, dont $($high.Count) précochés",
-    '',
-    '| Critère (cahier § 6.3) | Mesure | Résultat |',
-    '| --- | --- | --- |',
-    "| ≥ 90 % des restes retrouvés | T / R = $($found.Count) / $($remaining.Count) ($ratio %) | $(if ($ratio -ge 90) { 'atteint' } else { 'NON atteint' }) |",
-    "| Zéro élément d'une application installée ou du système précoché | $($wrong.Count) précoché(s) fautif(s) | $(if ($wrong.Count -eq 0) { 'atteint' } else { 'NON atteint' }) |",
-    '| Session restaurable à l''identique | étapes 4 à 7 de tests-acceptation.md § 4.2, dans CleanSlate (Bureau) | à faire à la main |',
-    '',
-    '## Restes réels manqués',
-    ''
-) + ($(if ($missed.Count) { $missed | ForEach-Object { "- ``$_``" } } else { '- aucun' })) + @(
-    '',
-    '## Éléments précochés fautifs',
-    ''
-) + ($(if ($wrong.Count) { $wrong | ForEach-Object { "- ``$($_.location)`` ($($_.guessed_app))" } } else { '- aucun' })) + @(
-    '',
-    '## Tous les éléments précochés (à relire)',
-    ''
-) + ($high | ForEach-Object { "- ``$($_.location)`` — $($_.reasons -join ' ; ')" })
-$lines | Set-Content "$out\rapport.md" -Encoding utf8
+$meta += "Analyse : $([math]::Round($report.duration_ms / 1000, 1)) s · $($items.Count) éléments proposés, dont $($high.Count) précochés"
+Write-Report 'Scénario des 5 applications — résultats' $meta @(
+    [pscustomobject]@{ Name = 'Installeurs conformes au manifeste'; Measure = "$($script:installers.Count) SHA-256 vérifiés avant installation"; Status = 'ok' },
+    [pscustomobject]@{ Name = '≥ 90 % des restes retrouvés (critère 2)'; Measure = "T / R = $($found.Count) / $($remaining.Count) ($ratio %)"; Status = $(if ($ratio -ge 90) { 'ok' } else { 'ko' }) },
+    [pscustomobject]@{ Name = "Zéro élément d'une application installée ou du système précoché (critère 3)"; Measure = "$($wrong.Count) précoché(s) fautif(s)"; Status = $(if ($wrong.Count -eq 0) { 'ok' } else { 'ko' }) },
+    [pscustomobject]@{ Name = 'Analyse sous 60 s (ENF-05)'; Measure = "$([math]::Round($report.duration_ms / 1000, 1)) s"; Status = $(if ($report.duration_ms -lt 60000) { 'ok' } else { 'ko' }) },
+    [pscustomobject]@{ Name = 'Session restaurable à l''identique (critère 4)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau)'; Status = 'manuel' }
+) ([ordered]@{
+        'Restes réels manqués'                = $missed
+        'Éléments précochés fautifs'          = @($wrong | ForEach-Object { "$($_.location) ($($_.guessed_app))" })
+        'Tous les éléments précochés (à relire)' = @($high | ForEach-Object { "$($_.location) — $($_.reasons -join ' ; ')" })
+        'Restes réels (R)'                    = $remaining
+        'Installeurs vérifiés'                = $verified
+    })
 
-Step "Terminé : $out\rapport.md"
-Stop-Transcript | Out-Null
-Start-Process notepad.exe "$out\rapport.md"
+Stop-Run
+Start-Process "$out\rapport.html"

@@ -9,19 +9,17 @@ Les opérations destructives (mise en quarantaine, désinstallation) ne se teste
 Une fois Windows Sandbox activé (§ 1, étape 2) et CleanSlate compilé en Release :
 
 ```powershell
-pwsh scripts/sandbox/prepare.ps1 -Launch                      # § 4 : scénario des 5 applications
-pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch  # § 5 : installeur (après scripts/package.ps1)
 pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch  # § 6 : compléments v1.0
+pwsh scripts/sandbox/prepare.ps1 -Scenario Apps -Launch         # § 4 : scénario des 5 applications
+pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch    # § 5 : installeur (après scripts/package.ps1)
 ```
 
-- `prepare.ps1` télécharge les installeurs avec `winget download` dans `artifacts\sandbox\installers` (rien n'est installé sur le PC), copie `cleanslate-cli.exe` et écrit `artifacts\sandbox\CleanSlate-<Scénario>.wsb`. Tout est partagé en lecture seule, sauf `artifacts\sandbox\results` ; le réseau du Sandbox est coupé.
-- Dans le Sandbox, `inside-apps.ps1` démarre seul :
-  1. il installe les 5 applications et Firefox (témoin) en silencieux ;
-  2. il lance chacune une fois, fait le relevé de référence (§ 4.1.3), puis les désinstalle avec leur propre désinstalleur ;
-  3. il analyse avec `cleanslate-cli scan --dry-run` ;
-  4. il écrit `results\<date>\rapport.md` : T / R (critère 2), éléments précochés fautifs (critère 3), restes manqués.
-- Le critère 4 (restauration à l'identique, § 4.2 étapes 4 à 7) se fait ensuite à la main avec la copie de CleanSlate posée sur le Bureau du Sandbox.
-- Les deux scripts `inside-*.ps1` refusent de tourner hors du Sandbox (compte `WDAGUtilityAccount`).
+Le détail (fichiers, ordre, durée, ce qu'il faut vérifier et ne pas faire, garde et ses limites) est dans [scripts/sandbox/README.md](../scripts/sandbox/README.md). En bref :
+
+- `prepare.ps1` télécharge les installeurs listés dans `scripts/sandbox/manifeste.json` depuis leur URL officielle et vérifie leur SHA-256 (rien n'est installé sur le PC), écrit un jeton aléatoire et `artifacts\sandbox\CleanSlate-<Scénario>.wsb`. Le dépôt est partagé en lecture seule, seul `artifacts\sandbox\results` est en écriture ; le réseau du Sandbox est coupé.
+- Dans le Sandbox, `inside-<scénario>.ps1` démarre seul, revérifie les SHA-256 avant d'installer quoi que ce soit, horodate chaque étape, inventorie le système avant et après chacune (fichier de différences) et écrit `results\<scénario>-<date>\rapport.html` et `rapport.md`, avec la transcription complète (`journal.txt`).
+- Pour § 4 : T / R (critère 2) et précochés fautifs (critère 3) sont mesurés ; le critère 4 (restauration à l'identique, § 4.2 étapes 4 à 7) se fait ensuite à la main avec la copie de CleanSlate posée sur le Bureau du Sandbox.
+- Les scripts `inside-*.ps1` et les commandes de test de la CLI refusent de tourner hors du Sandbox préparé (compte `WDAGUtilityAccount`, variable `CLEANSLATE_SANDBOX_RUN` et même jeton dans le fichier partagé, D53).
 
 ## 1. Préparer Windows Sandbox
 
@@ -157,7 +155,7 @@ Noter dans la colonne « Résultat » les éléments manqués ou précochés à 
 ## 5. Installeur (J6)
 
 1. Sur le PC de développement : `pwsh scripts/package.ps1` → `artifacts\installer\CleanSlate-0.1.0-setup.exe`.
-2. Dans une Sandbox neuve, partager `artifacts\installer` (lecture seule) au lieu du dossier `bin`, copier l'installeur sur le Bureau, le lancer.
+2. `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch` : dans un Sandbox neuf, `inside-installer.ps1` vérifie le SHA-256 de l'installeur, le copie sur le Bureau et le lance, contrôle l'installation, attend la désinstallation faite à la main, puis la contrôle (`rapport.html`).
 
 | # | Étape | Résultat attendu |
 | --- | --- | --- |
@@ -168,7 +166,7 @@ Noter dans la colonne « Résultat » les éléments manqués ou précochés à 
 
 ## 6. Compléments v1.0 : menu Démarrer, tâches, services, Store, progression
 
-Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch` (D50). Le script `inside-complements.ps1` construit chaque cas **dans le Sandbox**, relève son état, le met en quarantaine (`cleanslate-cli sandbox quarantine`), vérifie qu'il a disparu, le restaure (`cleanslate-cli sandbox restore`) et compare. Rapport : `artifacts\sandbox\results\complements-<date>\rapport-complements.md`.
+Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch` (D50). Le script `inside-complements.ps1` construit chaque cas **dans le Sandbox**, relève son état, le met en quarantaine (`cleanslate-cli-sandbox sandbox quarantine`, CLI compilée avec la feature `sandbox-tests`, D53), vérifie qu'il a disparu, le restaure (`… sandbox restore`) et compare. Rapport : `artifacts\sandbox\results\complements-<date>\rapport.html` (et `rapport.md`).
 
 | # | Cas | Construction | Comparé à l'identique |
 | --- | --- | --- | --- |
@@ -178,4 +176,4 @@ Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
 | 4 | Application du Store (EF-04, EF-21) | paquet MSIX `CleanSlateTest.App` construit avec `makeappx`, signé avec un certificat de test créé dans le Sandbox (`signtool`), installé par `Add-AppxPackage` | listé avec `kind: store` ; désinstallé pour l'utilisateur avec relevés de progression (pourcentage) |
 | 5 | Reste de paquet du Store (D48) | `%LOCALAPPDATA%\Packages\CleanSlateTest.Leftover_abcdefghjk123` et sa clé `AppContainer\Storage` | fichiers (SHA-256, dates) et export `.reg` |
 
-À faire ensuite à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».
+Le script installe ensuite VLC et GIMP depuis les installeurs vérifiés. À faire à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».

@@ -1,0 +1,103 @@
+{
+  "description": "Tout ce que les tests dans Windows Sandbox téléchargent ou installent. Les installeurs sont téléchargés sur l'hôte à l'avance par prepare.ps1 depuis l'URL officielle (version figée), vérifiés contre le SHA-256 ci-dessous sur l'hôte puis de nouveau dans le Sandbox avant installation ; le réseau du Sandbox est coupé. Un écart de SHA-256 arrête tout.",
+  "mis_a_jour": "2026-10-30",
+  "telechargements": [
+    {
+      "scenario": "apps, complements",
+      "id": "VideoLAN.VLC",
+      "nom": "VLC media player",
+      "version": "3.0.24",
+      "editeur": "VideoLAN",
+      "type": "msi (wix)",
+      "portee": "machine",
+      "url": "https://download.videolan.org/pub/videolan/vlc/3.0.24/win64/vlc-3.0.24-win64.msi",
+      "fichier": "VLC media player_3.0.24_Machine_X64_wix_en-US.msi",
+      "installation": "msiexec.exe /i <fichier> /qn /norestart",
+      "sha256": "22172095CE4C2D5F5B600BB4C142D78105DB29A77FA59A931941876F3B20F6D0"
+    },
+    {
+      "scenario": "apps",
+      "id": "7zip.7zip",
+      "nom": "7-Zip",
+      "version": "26.05",
+      "editeur": "Igor Pavlov",
+      "type": "msi (wix)",
+      "portee": "machine",
+      "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.msi",
+      "fichier": "7-Zip_26.05_Machine_X64_wix_en-US.msi",
+      "installation": "msiexec.exe /i <fichier> /qn /norestart",
+      "sha256": "3FE4AB99FA15629C652944309A2B2BC6E41FC933FC6B63F5DF1EBCF3AEA68263"
+    },
+    {
+      "scenario": "apps",
+      "id": "Notepad++.Notepad++",
+      "nom": "Notepad++",
+      "version": "8.9.8.1",
+      "editeur": "Notepad++ Team",
+      "type": "msi (wix)",
+      "portee": "machine",
+      "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.x64.msi",
+      "fichier": "Notepad++_8.9.8.1_Machine_X64_wix_en-US.msi",
+      "installation": "msiexec.exe /i <fichier> /qn /norestart",
+      "sha256": "0C4F4FE82BABD7688F5C1431B1357392491563AF6FFEDF4E37F5DE0BD71BABB4"
+    },
+    {
+      "scenario": "apps",
+      "id": "Audacity.Audacity",
+      "nom": "Audacity",
+      "version": "4.0.1.262721353",
+      "editeur": "Audacity",
+      "type": "msi (wix)",
+      "portee": "machine",
+      "url": "https://github.com/audacity/audacity/releases/download/Audacity-4.0.1/audacity-win-4.0.1-x86_64.msi",
+      "fichier": "Audacity_4.0.1.262721353_X64_wix_en-US.msi",
+      "installation": "msiexec.exe /i <fichier> /qn /norestart",
+      "sha256": "EFB652BF04168F5D4893F28B7CEFAAF5EF385D9251544540AC774E3BF54793A3"
+    },
+    {
+      "scenario": "apps, complements",
+      "id": "GIMP.GIMP.3",
+      "nom": "GIMP",
+      "version": "3.2.6.0",
+      "editeur": "The GIMP Team",
+      "type": "exe (Inno Setup)",
+      "portee": "utilisateur",
+      "url": "https://download.gimp.org/gimp/v3.2/windows/gimp-3.2.6-setup.exe",
+      "fichier": "GIMP_3.2.6.0_User_X64_inno_en-US.exe",
+      "installation": "<fichier> /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+      "sha256": "9337CCCBC01D4098EE7A3DAB215B3AFBE6ECE99C5287C92441D6F12CF541EBCA"
+    },
+    {
+      "scenario": "apps",
+      "id": "Mozilla.Firefox",
+      "nom": "Mozilla Firefox (témoin, gardé installé)",
+      "version": "157.0.1",
+      "editeur": "Mozilla",
+      "type": "exe (NSIS)",
+      "portee": "machine",
+      "url": "https://download-installer.cdn.mozilla.net/pub/firefox/releases/157.0.1/win64/en-US/Firefox%20Setup%20157.0.1.exe",
+      "fichier": "Mozilla Firefox (en-US)_157.0.1_Machine_X64_nullsoft_fr-FR.exe",
+      "installation": "<fichier> /S /PreventRebootRequired=true",
+      "sha256": "71DC620E7749BB65BE6DF67B99261A303805A804F9C787B76B81C095CFA7D9CA"
+    }
+  ],
+  "construits_dans_le_sandbox": [
+    {
+      "scenario": "complements",
+      "nom": "CleanSlateTest.App (paquet MSIX de test)",
+      "detail": "Construit avec makeappx et signé avec signtool (Windows SDK de l'hôte, dossier partagé en lecture seule), avec un certificat auto-signé « CN=CleanSlateTest » créé dans le Sandbox ; jamais créé ni installé sur l'hôte."
+    },
+    {
+      "scenario": "complements",
+      "nom": "Raccourci, tâche planifiée, service et reste de paquet de test",
+      "detail": "Créés par inside-complements.ps1 autour d'une copie de whoami.exe du Sandbox, puis supprimés et restaurés par CleanSlate."
+    }
+  ],
+  "fournis_par_l_hote": [
+    { "nom": "Dépôt CleanSlate", "partage": "C:\\CleanSlate\\repo, lecture seule", "detail": "Application, scripts, installeurs vérifiés, outils, jeton de la session." },
+    { "nom": "cleanslate-cli.exe", "partage": "dans le dépôt", "detail": "CLI publiée, lecture seule (analyse --dry-run)." },
+    { "nom": "cleanslate-cli-sandbox.exe", "partage": "dans le dépôt", "detail": "CLI compilée avec la feature sandbox-tests par prepare.ps1 ; refuse de tourner hors du Sandbox (D53)." },
+    { "nom": "Windows SDK (makeappx, signtool)", "partage": "C:\\CleanSlate\\sdk, lecture seule", "detail": "Scénario Complements seulement." },
+    { "nom": "Résultats", "partage": "C:\\CleanSlate\\results, seul dossier en écriture", "detail": "artifacts\\sandbox\\results sur l'hôte." }
+  ]
+}
