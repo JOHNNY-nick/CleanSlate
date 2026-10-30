@@ -11,6 +11,7 @@ Une fois Windows Sandbox activé (§ 1, étape 2) et CleanSlate compilé en Rele
 ```powershell
 pwsh scripts/sandbox/prepare.ps1 -Launch                      # § 4 : scénario des 5 applications
 pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch  # § 5 : installeur (après scripts/package.ps1)
+pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch  # § 6 : compléments v1.0
 ```
 
 - `prepare.ps1` télécharge les installeurs avec `winget download` dans `artifacts\sandbox\installers` (rien n'est installé sur le PC), copie `cleanslate-cli.exe` et écrit `artifacts\sandbox\CleanSlate-<Scénario>.wsb`. Tout est partagé en lecture seule, sauf `artifacts\sandbox\results` ; le réseau du Sandbox est coupé.
@@ -164,3 +165,17 @@ Noter dans la colonne « Résultat » les éléments manqués ou précochés à 
 | 2 | Terminer l'installation, cocher « Exécuter CleanSlate » | Installé dans `C:\Program Files\CleanSlate` ; raccourci dans le menu Démarrer ; l'application s'ouvre sans rien installer d'autre (.NET et Windows App SDK embarqués) |
 | 3 | Réglages → À propos | Icône CleanSlate, version 0.1.0 |
 | 4 | Faire une quarantaine (§ 2), puis désinstaller CleanSlate depuis Paramètres → Applications | `C:\Program Files\CleanSlate` supprimé ; `%LOCALAPPDATA%\CleanSlate` (quarantaine, historique) **conservé** (D43) |
+
+## 6. Compléments v1.0 : menu Démarrer, tâches, services, Store, progression
+
+Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch` (D50). Le script `inside-complements.ps1` construit chaque cas **dans le Sandbox**, relève son état, le met en quarantaine (`cleanslate-cli sandbox quarantine`), vérifie qu'il a disparu, le restaure (`cleanslate-cli sandbox restore`) et compare. Rapport : `artifacts\sandbox\results\complements-<date>\rapport-complements.md`.
+
+| # | Cas | Construction | Comparé à l'identique |
+| --- | --- | --- | --- |
+| 1 | Raccourci mort du menu Démarrer et son dossier (D20) | `%APPDATA%\…\Start Menu\Programs\CleanSlateTest Old Tool\Old Tool.lnk` vers un programme ensuite supprimé | contenu, taille, date et SHA-256 du `.lnk` ; dossier recréé |
+| 2 | Tâche planifiée orpheline (D47) | `schtasks /create /tn CleanSlateTest\Agent` vers un programme ensuite supprimé | XML complet (`schtasks /query /xml`) |
+| 3 | Service orphelin (D47) | `sc create CleanSlateTestSvc` (LocalService, description, actions de récupération, sous-clé `Parameters`), programme ensuite supprimé | `sc qc`, `sc qdescription`, `sc qfailure`, export `.reg` de la clé (valeurs triées par clé) |
+| 4 | Application du Store (EF-04, EF-21) | paquet MSIX `CleanSlateTest.App` construit avec `makeappx`, signé avec un certificat de test créé dans le Sandbox (`signtool`), installé par `Add-AppxPackage` | listé avec `kind: store` ; désinstallé pour l'utilisateur avec relevés de progression (pourcentage) |
+| 5 | Reste de paquet du Store (D48) | `%LOCALAPPDATA%\Packages\CleanSlateTest.Leftover_abcdefghjk123` et sa clé `AppContainer\Storage` | fichiers (SHA-256, dates) et export `.reg` |
+
+À faire ensuite à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».

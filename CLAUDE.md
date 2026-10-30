@@ -1,6 +1,6 @@
 # CleanSlate — consignes pour Claude Code
 
-Dernière mise à jour : 29 oct. 2026
+Dernière mise à jour : 30 oct. 2026
 
 ## Le projet
 CleanSlate est un utilitaire Windows qui (1) détecte les restes d'applications
@@ -20,7 +20,9 @@ demande-moi au lieu d'inventer. Cite l'ID d'exigence dans les commits et les tes
 ## Architecture
 - core/cleanslate-core : bibliothèque Rust, toute la logique métier
   (engine, error, model, fs, registry, native, system, inventory, scan, matcher,
-  safety, quarantine, history, uninstall, logging)
+  safety, quarantine, history, uninstall, logging, shortcut, tasks, services, store, msi) ;
+  les accès réels au système (Planificateur, services, paquets du Store, Windows Installer)
+  passent par des traits injectables qui refusent tout sur un moteur de test
 - core/cleanslate-ffi : cdylib, [lib] name = "cleanslate" -> cleanslate.dll,
   API C extern "C", JSON UTF-8, ByteBuffer libéré par cs_buffer_free
 - core/cleanslate-cli : binaire de debug
@@ -45,7 +47,8 @@ Toutes les commandes se lancent depuis la racine du dépôt.
 - Couverture Rust : cargo llvm-cov --manifest-path core/Cargo.toml --workspace
   (outil de dev, objectif ≥ 80 %, ENF-12)
 - CLI : cargo run --manifest-path core/Cargo.toml -p cleanslate-cli -- version --json
-  (scan --dry-run --json à partir de J3)
+  (scan --dry-run --json à partir de J3). Les commandes `sandbox` (actions réelles) refusent de tourner
+  hors de Windows Sandbox : ne jamais les lancer sur cette machine (D50)
 Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 
 ## Règles de sécurité (non négociables)
@@ -60,6 +63,9 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 3. Toute action destructive appelle safety::validate juste avant d'agir.
 4. Ne jamais affaiblir la liste noire de safety.rs. Toute modification de ce fichier
    doit être ajoutée avec des tests et signalée explicitement dans ton résumé.
+   Seules dérogations, décidées par le porteur : les exceptions étroites D20 (menu Démarrer),
+   D47 (tâches, services) et D48 (données de paquets du Store), chacune dans une fonction
+   dédiée de safety.rs ; les règles générales (check_path, validate_key) restent inchangées.
 5. dry_run vaut true par défaut dans tous les types et toutes les API.
 6. Ne jamais suivre de lien symbolique ni de point de jonction (reparse point).
 7. Jamais de suppression directe : tout passe par quarantine avec manifeste écrit

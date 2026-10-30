@@ -112,6 +112,7 @@ Toute la logique métier vit dans `cleanslate-core`, une bibliothèque Rust sans
 | Crate | Usage |
 | --- | --- |
 | `windows` | API Win32 : dossiers connus (`SHGetKnownFolderPath`), Job Objects, point de restauration, raccourcis |
+| `windows-future` | Types asynchrones WinRT (gestionnaire de progression de `RemovePackageAsync`, D48 ; même famille que `windows`, accord du porteur) |
 | `winreg` | Lecture, export et suppression de clés de registre, vues 32 et 64 bits |
 | `rayon` | Parallélisme du scan (le parcours récursif passe par le trait `FileSystem`, testable : `walkdir` n'est pas utilisé, D19) |
 | `serde` + `serde_json` | Sérialisation des échanges avec C# |
@@ -143,14 +144,14 @@ La frontière est volontairement étroite : une poignée opaque, une dizaine de 
 | `cs_engine_new(config, len, out_error)` | `EngineConfig` (longueur 0 : valeurs par défaut, donc simulation) ; `out_error: *mut *mut ByteBuffer` | pointeur opaque `*mut EngineHandle`. En cas d'échec : null, et `*out_error` reçoit l'enveloppe `{ ok: false, error }` (à libérer par `cs_buffer_free`) ; en cas de succès, `*out_error` vaut null. `out_error` peut être null si l'appelant ne veut pas le détail | J1 ✔ |
 | `cs_engine_free(engine)` | poignée (null ignoré) | — | J1 ✔ |
 | `cs_buffer_free(buf)` | `*mut ByteBuffer` (null ignoré) | libère toute réponse renvoyée par Rust | J1 ✔ |
-| `cs_list_apps(engine)` | — | `InstalledApp[]` (entrées masquées comprises) | J2 ✔ |
+| `cs_list_apps(engine)` | — | `InstalledApp[]` (entrées masquées comprises), puis les applications du Store de l'utilisateur courant (`kind: store`, `package_full_name`, `package_family_name`, D48) | J2 ✔, compléments ✔ |
 | `cs_scan_orphans(engine, opts, len, cb, ctx)` | `ScanOptions` (longueur 0 : défauts) ; rappel facultatif, appelable depuis un thread de travail, jamais après le retour | `ScanReport` (partiel et `cancelled: true` si annulé) | J3 ✔ |
 | `cs_cancel(engine)` | — | annule l'opération en cours (drapeau atomique, remis à zéro à l'opération suivante) | J3 ✔ |
 | `cs_clean(engine, plan, len, cb, ctx)` | `CleanPlan` (éléments du dernier scan uniquement ; rappel réservé) | `Session` (`simulated: true` si le moteur ou le plan est en simulation, D27) | J4 ✔ |
 | `cs_restore(engine, req, len)` | `RestoreRequest { session_id, item_ids?, dry_run }` | `Session` (`errors` = éléments non restaurés) | J4 ✔ |
 | `cs_list_sessions(engine)` | — | `Session[]` (sessions interrompues reprises au passage) | J4 ✔ |
 | `cs_purge_quarantine(engine, req, len)` | `PurgeRequest { older_than_days, dry_run }` | `PurgeResult { freed_bytes, simulated }` | J4 ✔ |
-| `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest { app_id, quiet, create_restore_point, dry_run }` | `UninstallResult` (commande, point de restauration, code de sortie, `still_installed`, `simulated`) ; `cs_cancel` arrête l'attente sans tuer le désinstalleur | J5 ✔ |
+| `cs_uninstall(engine, req, len, cb, ctx)` | `UninstallRequest { app_id, quiet, create_restore_point, dry_run }` | `UninstallResult` (commande, point de restauration, code de sortie, `still_installed`, `simulated`) ; le rappel reçoit un `UninstallProgress` JSON à chaque étape et au plus toutes les 250 ms (EF-21, D49) ; `cs_cancel` arrête l'attente d'un `.exe` sans le tuer, et demande à Windows Installer d'annuler (retour arrière) une désinstallation MSI | J5 ✔, compléments ✔ |
 | `cs_scan_app_leftovers(engine, req, len, cb, ctx)` | `AppLeftoversRequest { app_id, uninstaller_missing }` | `ScanReport` (vide si l'application est toujours installée ; avec `uninstaller_missing`, restes cherchés quand même et plafonnés à « Moyenne », refusé si le désinstalleur existe, D45) | J5 ✔ |
 
 Toutes les requêtes portent `dry_run`, vrai par défaut : une action réelle exige `EngineConfig.dry_run = false` **et** `dry_run = false` dans la requête (D27).
@@ -191,6 +192,7 @@ pub struct InstalledApp {
     pub kind: AppKind,           // Win32 | Store (lecture seule, v1.1)
     pub hidden_reason: Option<HiddenReason>, // masquée par défaut (EF-02) ; None = visible
     pub installer: InstallerKind,
+    pub package_full_name: Option<String>, pub package_family_name: Option<String>, // Store (EF-04)
 }
 
 // Le moteur renvoie toutes les entrées nommées ; le filtre « composants système » est côté ViewModel.
@@ -265,6 +267,9 @@ pub struct EngineConfig {
 
 // Scan (J3).
 pub struct ScanOptions { pub dry_run: bool, pub include_registry: bool, pub include_shortcuts: bool, pub include_tasks_and_services: bool } // tous true par défaut
+pub enum UninstallStep { RestorePoint, Launching, Waiting, Verifying, Done }
+pub struct JobProcess { pub pid: u32, pub name: String }
+pub struct UninstallProgress { pub step: UninstallStep, pub elapsed_ms: u64, pub percent: Option<f64>, pub action: Option<String>, pub processes: Vec<JobProcess> } // EF-21
 pub enum ScanPhase { Listing, Analyzing, Done }
 pub struct ScanProgress { pub phase: ScanPhase, pub current: u64, pub total: u64, pub path: String }
 ```
@@ -283,6 +288,12 @@ Un élément est orphelin s'il ne peut être rattaché à aucune application ins
 4. **Rapprocher** chaque candidat de l'ensemble connu (6.2). Rattaché → ignoré. Non rattaché → orphelin.
 5. **Noter** l'orphelin (6.3), calculer sa taille et sa date de dernière modification.
 6. **Regrouper** les orphelins par nom normalisé ou éditeur commun, en un `LeftoverGroup` par application déduite.
+
+Candidats ajoutés par les compléments de la v1.0 :
+
+- **Raccourcis** des Bureaux et des deux racines du menu Démarrer (D20) : morts seulement selon `shortcut::verdict` ; un sous-dossier du menu Démarrer qui ne contient que des raccourcis morts est proposé à part, en Moyenne.
+- **Tâches planifiées** (`%WINDIR%\System32\Tasks`, XML) et **services** (`ImagePath`) dont le programme a disparu (D47) : tâche Élevée seulement si le programme manque depuis plus de 30 jours (date du plus proche dossier parent encore présent), sinon Moyenne ; service plafonné à Moyenne ; Faible si le dossier appartient à une application installée.
+- **Données de paquets du Store** dont le paquet n'est plus installé (D48) : Moyenne ; après la désinstallation d'une application du Store par CleanSlate, ses données sont Élevées.
 
 ### 6.2 Rapprochement
 
@@ -329,8 +340,8 @@ Rien n'est jamais supprimé directement : chaque élément passe par la quaranta
 
 1. Capturer l'empreinte de l'application (6.4).
 2. Créer un point de restauration (`SRSetRestorePointW`) si la protection système est active ; un échec est signalé mais n'empêche pas de continuer après confirmation.
-3. Construire la commande : `msiexec.exe /x {ProductCode}` pour un MSI (D16), sinon `UninstallString` découpée proprement (exécutable entre guillemets + arguments, jamais passée à `cmd /c`). Mode silencieux : `QuietUninstallString` ou `/qn` pour MSI. Les noms nus (`MsiExec.exe`, `rundll32`) sont résolus dans `System32`, jamais par le `PATH` ; un chemin non guillemeté ambigu prend le premier candidat qui existe ; `MsiExec /I{GUID}` devient `/X{GUID}` ; `cmd`, PowerShell et les hôtes de scripts sont refusés (`UNSAFE_UNINSTALLER`, D34) ; programme absent → `NO_UNINSTALLER`.
-4. Lancer le processus (créé suspendu, puis placé dans un **Job Object**) et attendre que tous les processus du job soient terminés (certains désinstalleurs se copient dans `%TEMP%` et rendent la main immédiatement). Délai maximal : 30 min. Ni le délai ni l'annulation ne tuent le désinstalleur (D35).
+3. MSI : `MsiConfigureProductExW(INSTALLSTATE_ABSENT)` avec un gestionnaire d'interface externe (`MsiSetExternalUIRecord`, interface interne `NONE`, `REBOOT=ReallySuppress`) qui donne le pourcentage et l'action en cours (EF-21, D49) ; si l'API échoue, repli sur la commande ci-dessous. Store : `RemovePackageAsync` (utilisateur courant seulement, progression réelle, pas de point de restauration, D48). Construire la commande : `msiexec.exe /x {ProductCode}` pour un MSI (D16), sinon `UninstallString` découpée proprement (exécutable entre guillemets + arguments, jamais passée à `cmd /c`). Mode silencieux : `QuietUninstallString` ou `/qn` pour MSI. Les noms nus (`MsiExec.exe`, `rundll32`) sont résolus dans `System32`, jamais par le `PATH` ; un chemin non guillemeté ambigu prend le premier candidat qui existe ; `MsiExec /I{GUID}` devient `/X{GUID}` ; `cmd`, PowerShell et les hôtes de scripts sont refusés (`UNSAFE_UNINSTALLER`, D34) ; programme absent → `NO_UNINSTALLER`.
+4. Lancer le processus (créé suspendu, puis placé dans un **Job Object**) et attendre que tous les processus du job soient terminés (certains désinstalleurs se copient dans `%TEMP%` et rendent la main immédiatement). Délai maximal : 30 min. Ni le délai ni l'annulation ne tuent le désinstalleur (D35). Toutes les 250 ms, la liste des processus du job (`JobObjectBasicProcessIdList`, nom par `QueryFullProcessImageNameW`) est envoyée à l'interface ; aucun pourcentage n'est inventé pour un `.exe` (EF-21).
 5. Vérifier que l'entrée Uninstall a disparu. Si elle est toujours là : l'utilisateur a peut-être annulé → proposer de la retirer avec les restes (confiance Moyenne).
 6. Lancer `cs_scan_app_leftovers` et afficher le résultat.
 
@@ -338,11 +349,12 @@ Rien n'est jamais supprimé directement : chaque élément passe par la quaranta
 
 - **Fichiers et dossiers** : déplacés avec `MoveFileExW` vers `quarantine\<session>\files\<id>\` si même volume ; sinon copie vérifiée puis suppression de l'original.
 - **Clés de registre** : export récursif en `.reg` (format `regedit` UTF-16 LE, re-importable) avant suppression.
-- **Raccourcis, tâches, services** : raccourci déplacé comme un fichier ; tâche exportée en XML avant suppression ; service : configuration sauvegardée en JSON avant `DeleteService`.
+- **Raccourcis, tâches, services** : raccourci (Bureaux, menu Démarrer, D20) déplacé comme un fichier ; sous-dossier du menu Démarrer seulement une fois vide, traité après ses raccourcis et restauré avant eux. Tâche : XML complet lu par le Planificateur (`ITaskService`) et écrit dans `tasks\<id>.xml` avant `DeleteTask` ; restauration par `RegisterTask` (même chemin, même nom, `TASK_CREATE`). Service : `ServiceConfig` complète (type, démarrage et démarrage différé, contrôle d'erreur, chemin, groupe, dépendances, compte, nom, description, actions de récupération) et clé `HKLM\SYSTEM\CurrentControlSet\Services\<nom>` (`.json` + `.reg`) dans `services\<id>.json` avant `DeleteService` ; restauration par `CreateServiceW`, `ChangeServiceConfig2W` puis réimport de la clé (D47). Les trois passent par des traits injectables (`TaskStore`, `ServiceControl`, `PackageStore`) : un moteur de test refuse tout.
+- **Données d'un paquet du Store** : dossier `%LOCALAPPDATA%\Packages\<famille>` déplacé comme un dossier, clés `AppContainer\Storage\<pfn>` et `AppModel\SystemAppData\<pfn>` comme des clés, après validation contre la liste des paquets lue juste avant (D48).
 - **Manifeste** : `manifest.json` liste chaque élément sous forme de `QuarantinedItem` (§ 5 : chemin d'origine, chemin en quarantaine, taille, SHA-256, ACL d'origine en SDDL, horodatages, statut), plus, pour un dossier, l'empreinte SHA-256 détaillée de chacun de ses fichiers (chemin relatif, taille, SHA-256) ; la `Session` renvoyée à l'interface ne contient que l'empreinte globale. Il est écrit **avant** chaque déplacement et mis à jour après, pour survivre à un plantage.
 - **SHA-256** : calculé avec l'API Windows CNG (`BCryptHash`) via la crate `windows`, sans dépendance supplémentaire.
 - **Fichier verrouillé** : proposé à la suppression au prochain redémarrage (`MOVEFILE_DELAY_UNTIL_REBOOT`, droits administrateur), listé comme tel (statut `PendingReboot`).
-- **Refus** (élément laissé en place, erreur listée) : chemin ou clé protégés au moment d'agir, dossier contenant un lien ou une jonction (D29), type non pris en charge (tâches, services).
+- **Refus** (élément laissé en place, erreur listée) : chemin ou clé protégés au moment d'agir, dossier contenant un lien ou une jonction (D29), tâche ou service ne satisfaisant plus les règles de D47 au moment d'agir, type non pris en charge (valeur de registre seule).
 - **Clés** : la restauration réécrit l'instantané JSON (types exacts, D30) ; le `.reg` permet une restauration manuelle avec `regedit`.
 - **ACL** : enregistrée en SDDL ; conservée par un déplacement sur le même volume (D31).
 - **Reprise** : `manifest.json` porte l'élément en cours (`pending`) ; au prochain accès, il est marqué en quarantaine si le déplacement a eu lieu, sinon « Non déplacé » (copie partielle supprimée).
@@ -412,8 +424,18 @@ Le module `safety` est le dernier rempart : toute action destructive appelle `sa
 - **Racines de scan elles-mêmes** : chaque racine de EF-05 (`Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`) et de EF-06 (`HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`) est protégée en tant que telle ; seuls ses enfants sont candidats. Cela évite par exemple que `%LOCALAPPDATA%\Programs`, enfant direct de `%LOCALAPPDATA%`, soit proposé en bloc comme reste.
 - **Noms de sous-dossiers** : `Microsoft`, `Windows`, `Windows Defender`, `Windows NT`, `Common Files`, `Packages` (Store), `WindowsApps`, `Temp`, `Microsoft.NET`, `dotnet`, `Intel`, `NVIDIA Corporation`, `AMD` (pilotes), `Package Cache`, `CleanSlate`.
 - **Registre** : `HKLM\SYSTEM`, `HKLM\SAM`, `HKLM\SECURITY`, `HKLM\HARDWARE`, toute clé `Microsoft`, `Classes`, `Policies`, `Clients`, `RegisteredApplications`, `Wow6432Node` elle-même, `Windows`, `Uninstall` d'une application encore présente, `CleanSlate` et `CleanSlateTest` (zone de test, D24).
-- **Raccourcis (EF-07)** : un `.lnk` sous un dossier protégé n'est pas proposé ; les raccourcis du menu Démarrer, rangés sous `…\Microsoft\Windows\Start Menu`, sont donc écartés et seuls ceux des Bureaux sont détectés (D20).
-- **Tâches planifiées et services (EF-07, v1.1)** : lus en lecture seule (`System32\Tasks`, `ImagePath` des services) et proposés quand leur programme a disparu ; tâches `\Microsoft\`, pilotes et programmes sous `%WINDIR%` écartés ; au plus « Moyenne », jamais cochables, refusés par la quarantaine (D47).
+
+### 9.1 bis Exceptions étroites (décisions du porteur)
+
+La liste noire ci-dessus n'est ni modifiée ni contournée : `check_path` et `validate_key` refusent toujours ces emplacements. Chaque exception est une fonction de validation **dédiée** de `safety.rs`, propre à un type d'élément et à une forme exacte, appelée juste avant d'agir ; les règles générales sont appliquées en premier (`validate_item_path`). Un test par cas autorisé et un test par cas voisin refusé.
+
+| Exception | Fonctions | Autorisé exactement | Toujours refusé |
+| --- | --- | --- | --- |
+| Raccourci mort du menu Démarrer (D20) | `check/validate_start_menu_shortcut`, `check/validate_start_menu_folder` | fichier `.lnk` strictement sous `%APPDATA%` ou `%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs` ; sous-dossier seulement vide | racines, autres extensions, hors `Programs`, noms protégés et dossiers d'outils Windows (`WINDOWS_START_MENU_FOLDERS`), `..`, exclusions |
+| Raccourci « mort » (`shortcut.rs`) | `verdict` | cible locale absente sur un lecteur fixe présent | MSI annoncé (Darwin), AppUserModelID `Famille!App`, réseau (UNC, lecteur réseau), amovible, lettre absente, variable non résolue |
+| Tâche planifiée (D47) | `check_task_path`, `validate_task` | hors `\Microsoft\`, actions toutes `Exec`, chaque exécutable local absolu absent hors `%WINDIR%` | `\Microsoft\` (toute casse, partout), handler COM, courriel, message, commande relative, exécutable présent ou sous `%WINDIR%` |
+| Service (D47) | `check_service_key`, `validate_service` | Win32 arrêté, exécutable local absent hors `%WINDIR%`, sans dépendant, compte intégré ; clé `HKLM\SYSTEM\CurrentControlSet\Services\<nom>` exactement | pilotes, service en cours, `svchost.exe`, `ServiceDll`, `%SystemRoot%`, dépendants, compte utilisateur ; la clé `Services`, une sous-clé, une autre clé de `HKLM\SYSTEM` |
+| Données d'un paquet du Store (D48) | `check/validate_package_folder`, `check/validate_package_key` | `%LOCALAPPDATA%\Packages\<famille>` et `…\AppContainer\Storage\<pfn>`, `…\AppModel\SystemAppData\<pfn>` exactement, famille bien formée absente des paquets installés | `Packages` et les clés parentes, sous-dossiers et sous-clés, paquet installé, liste vide, familles `Microsoft*`, `Windows.*`, éditeur `cw5n1h2txyewy` |
 
 ### 9.2 Règles d'exécution
 

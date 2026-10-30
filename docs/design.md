@@ -80,9 +80,9 @@ Deux parcours portent l'essentiel de la valeur ; chacun se termine par une confi
 
 ### 4.2 Désinstaller complètement une application
 
-1. **Applications** : recherche, sélection d'une ligne, « Désinstaller complètement ».
-2. **Assistant, étape 1** : nom, éditeur, taille, case « Créer un point de restauration » (cochée), bouton « Lancer la désinstallation ».
-3. **Étape 2** : le désinstalleur officiel s'ouvre ; CleanSlate affiche « En attente du désinstalleur… » et ne permet pas de continuer avant sa fin.
+1. **Applications** : recherche, filtre « Toutes / Win32 / Store » (badge « Store » sur les applications du Microsoft Store, EF-04), sélection d'une ligne, « Désinstaller complètement ».
+2. **Assistant, étape 1** : nom, éditeur, taille, case « Créer un point de restauration » (cochée ; absente pour une application du Store), bouton « Lancer la désinstallation ».
+3. **Étape 2** : le désinstalleur officiel s'ouvre ; CleanSlate affiche « En attente du désinstalleur… », le temps écoulé et la liste horodatée des étapes (point de restauration, lancement, attente, vérification, recherche des restes). Pour un MSI ou une application du Store, la barre montre le pourcentage réel et l'action en cours ; pour un désinstalleur `.exe`, elle reste indéterminée et la liste des processus encore actifs (nom, PID) s'affiche à la place : aucun pourcentage n'est inventé (EF-21, maquette 04, planche complémentaire).
 4. **Étape 3** : résultat du désinstalleur + restes trouvés ; « Mettre les restes en quarantaine » ouvre la **Confirmation**.
 5. **Étape 4** : résumé (application retirée, restes déplacés, espace libéré) et lien vers l'Historique.
 
@@ -104,6 +104,8 @@ Chaque écran a un état vide, un état de chargement et un état d'erreur, écr
 | Mode simulation | « Simulation : 6 éléments auraient été mis en quarantaine (1,2 Go). » | Désactiver la simulation |
 | Historique vide | « Aucune session pour l'instant. » | Analyser les restes |
 | Lancé sans droits admin | « CleanSlate a besoin des droits administrateur pour analyser Program Files et le registre machine. » | Redémarrer en administrateur |
+| Désinstallation en cours (étape 2) | « Temps écoulé : 01:12 » ; étapes « 10:42:11 Lancement du désinstalleur » ; « Processus du désinstalleur encore actifs : unins000.exe (PID 4242) » | Ne plus attendre |
+| Tâche planifiée ou service orphelin | « Exécutable introuvable : C:\…\agent.exe » ; service : « Jamais précoché : configuration et clé enregistrées avant la suppression » | Cocher puis mettre en quarantaine |
 | Désinstalleur introuvable | « Le programme de désinstallation de cette application est introuvable. » | Rechercher ses restes quand même |
 | Confirmation renforcée (plus de 20 Go ou 50 000 fichiers) | « Vous allez mettre en quarantaine 23,4 Go (61 200 fichiers). Pour confirmer, tapez QUARANTAINE. » | Champ de saisie ; « Mettre en quarantaine » actif seulement quand le mot est exact |
 

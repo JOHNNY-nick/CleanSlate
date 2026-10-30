@@ -30,9 +30,9 @@ La version 1.0 cible un poste Windows personnel, un utilisateur averti mais non 
 
 | Inclus en v1.0 | Exclu de la v1.0 |
 | --- | --- |
-| Applications Win32 (MSI, EXE, installeurs Inno Setup, NSIS, InstallShield) | Applications Microsoft Store : ni désinstallées ni nettoyées ; leur liste en lecture seule (EF-04) est reportée en v1.1 |
+| Applications Win32 (MSI, EXE, installeurs Inno Setup, NSIS, InstallShield) et applications Microsoft Store de l'utilisateur courant (EF-04) | Applications du Store d'autres utilisateurs ou pour tous les utilisateurs ; applications intégrées à Windows (signées `System`) |
 | Inventaire des applications installées (registre Uninstall) | Pilotes, mises à jour Windows, composants système |
-| Scan des restes orphelins : dossiers, registre, raccourcis, tâches planifiées | Nettoyage généraliste du registre (« registry cleaner ») |
+| Scan des restes orphelins : dossiers, registre, raccourcis (Bureaux et menu Démarrer), tâches planifiées, services, données de paquets du Store | Nettoyage généraliste du registre (« registry cleaner ») |
 | Désinstallation complète : désinstalleur officiel puis restes | Surveillance en temps réel des installations |
 | Quarantaine et restauration des éléments supprimés | Gestion de plusieurs postes ou déploiement en entreprise |
 | Interface en français, prête pour l'anglais | Version portable sans installation (à envisager en v1.1) |
@@ -52,7 +52,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | EF-01 | Lister les applications installées depuis les trois clés Uninstall (HKLM 64 bits, HKLM WOW6432Node, HKCU) avec nom, éditeur, version, date d'installation, taille, dossier d'installation et commande de désinstallation. | M |
 | EF-02 | Masquer par défaut les composants système (`SystemComponent = 1`), les mises à jour et les entrées sans nom ; un filtre permet de les afficher. | M |
 | EF-03 | Rechercher par nom ou éditeur, trier par nom, taille ou date. | M |
-| EF-04 | Lister les applications Microsoft Store en lecture seule, avec un lien vers Paramètres pour les désinstaller. Reportée en v1.1. | C |
+| EF-04 | Lister les applications Microsoft Store de l'utilisateur courant (hors frameworks, ressources et applications système) avec un badge « Store » et un filtre « Win32 / Store / Toutes » ; les désinstaller pour l'utilisateur courant seulement, puis proposer leurs restes (`%LOCALAPPDATA%\Packages\<famille>` et ses clés). | S |
 
 ### 3.2 Recherche des restes orphelins
 
@@ -60,7 +60,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | --- | --- | --- |
 | EF-05 | Lancer un scan complet sans saisir de nom : dossiers de `Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`. | M |
 | EF-06 | Scanner le registre : `HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`. | M |
-| EF-07 | Scanner les raccourcis du menu Démarrer et du Bureau dont la cible n'existe plus, les tâches planifiées et services dont l'exécutable a disparu. | S |
+| EF-07 | Scanner les raccourcis du menu Démarrer et du Bureau dont la cible locale n'existe plus, les tâches planifiées et services dont l'exécutable a disparu ; les mettre en quarantaine de façon restaurable (raccourci déplacé, tâche exportée en XML, service sauvegardé en JSON et `.reg`). | S |
 | EF-08 | Considérer un élément comme orphelin s'il ne correspond à aucune application installée, en comparant noms, éditeurs, chemins d'installation et exécutables. | M |
 | EF-09 | Regrouper les restes par application déduite (ex. : « Probablement : Audacity »), avec taille totale et date de dernière modification. | M |
 | EF-10 | Attribuer à chaque élément un niveau de confiance (Élevée, Moyenne, Faible) ; seuls les éléments à confiance élevée sont précochés. | M |
@@ -74,6 +74,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | EF-13 | Après la désinstallation, scanner automatiquement les restes de cette application et les afficher pour validation. | M |
 | EF-14 | Proposer un mode silencieux (`QuietUninstallString`, ou `/qn` pour un MSI) quand il existe. | S |
 | EF-15 | Créer un point de restauration Windows avant la désinstallation, si la protection système est active. | S |
+| EF-21 | Afficher la progression réelle de la désinstallation : pourcentage et action en cours pour un MSI et une application du Store ; pour un désinstalleur `.exe`, étapes horodatées, temps écoulé et processus actifs, sans pourcentage inventé. | S |
 
 ### 3.4 Suppression et sécurité
 
@@ -147,7 +148,7 @@ Traçabilité des exigences vers les jalons :
 | J5 | EF-12 à EF-15 | ENF-07 |
 | J6 | EF-20 (exclusions dans les réglages) | ENF-08, ENF-10, ENF-11 (revue finale) |
 
-EF-04 (priorité C) est reportée en v1.1 (§ 6.5) et ne fait partie d'aucun jalon de la v1.0.
+Compléments de la v1.0 (30 oct. 2026) : EF-04 (remontée en S), EF-07 complète et EF-21, voir `docs/journal/v1.0-complements-plan.md`.
 
 ### 6.2 Livrables
 
@@ -176,5 +177,5 @@ EF-04 (priorité C) est reportée en v1.1 (§ 6.5) et ne fait partie d'aucun jal
 
 ### 6.5 Évolutions envisagées
 
-- **v1.1** : liste des applications Microsoft Store en lecture seule (EF-04) ; version portable sans installation.
+- **v1.1** : version portable sans installation.
 - **J6** : évaluation de la ligne Windows App SDK 2.x.

@@ -4,7 +4,7 @@ Dernière mise à jour : 30 oct. 2026
 
 Chaque exigence du [cahier des charges](../cahier-des-charges.md) avec les fichiers qui la réalisent et les tests qui la vérifient. Les tests Rust sont dans le même fichier que le code (`core/cleanslate-core/src/`), les tests C# dans `app/CleanSlate.Tests/`. « Sandbox » renvoie aux procédures manuelles de [tests-acceptation.md](../tests-acceptation.md).
 
-État au 30 oct. 2026 : 170 tests du moteur, 14 tests FFI, 68 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **92,9 %** des lignes (ENF-12 : ≥ 80 %) ; build Release et installeur produits.
+État au 30 oct. 2026 (compléments v1.0) : 209 tests du moteur, 14 tests FFI, 1 test CLI, 71 tests C# ; `cargo fmt` et `cargo clippy -D warnings` propres ; couverture du moteur **88,3 %** des lignes (les appels réels au Planificateur, au gestionnaire de services, au Store et à Windows Installer ne s'exécutent que dans Windows Sandbox) ; build Release et installeur produits.
 
 Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ reporté.
 
@@ -15,10 +15,10 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | EF-01 Inventaire des 3 clés Uninstall | M | ✅ | `inventory.rs`, `AppsViewModel.cs`, `AppsPage.xaml` | `list_apps_reads_the_three_views`, `inno_setup_entry`, `msi_entry`, `nsis_entry_with_unquoted_path`, `install_date_formats` ; `Load_SortsByNameAndHidesSystemComponents` |
 | EF-02 Masquer composants système, mises à jour, sans nom | M | ✅ | `inventory.rs` (`hidden_reason`), `AppsViewModel.cs` | `hidden_entries_are_flagged_not_dropped`, `nameless_entries_are_dropped`, `kb_detection_needs_a_real_reference` ; `ShowSystemComponents_RevealsHiddenEntries` |
 | EF-03 Recherche et tri | M | ✅ | `AppsViewModel.cs` | `Search_MatchesNameOrPublisher_IgnoringCaseAndAccents`, `Sort_BySizeAndDate_PutsUnknownLast` |
-| EF-04 Applications Microsoft Store | C | ⏭️ | — | Reportée en v1.1 (cahier § 6.5) |
+| EF-04 Applications Microsoft Store | S | ✅ | `store.rs`, `engine.rs` (`list_apps`, `uninstall_package`), `scan.rs` (`package_leftovers`), `safety.rs` (D48), `AppsViewModel.cs`, `AppsPage.xaml` | `listed_packages_exclude_frameworks_resources_stubs_and_system`, `package_becomes_a_store_application`, `family_names_are_checked`, `store_leftovers_allowed`, `store_neighbours_refused`, `store_application_full_cycle_with_fake_store` ; `KindFilter_ShowsWin32StoreOrAll_AndStoreAppsCanBeUninstalled` ; Sandbox § 6 (paquet MSIX signé localement) |
 | EF-05 Scan des dossiers sans nom saisi | M | ✅ | `scan.rs` (`ScanRoots`), `OrphansViewModel.cs` | `fixture_finds_leftovers_and_never_installed_apps` ; Sandbox § 4 |
 | EF-06 Scan du registre | M | ✅ | `scan.rs`, `registry.rs` | `fixture_finds_leftovers_and_never_installed_apps` (ruche de test), `registry_value_sizes` |
-| EF-07 Raccourcis morts, tâches, services | S | ✅ | `scan.rs` (`.lnk` des Bureaux, `dead_entry_leftover`), `system.rs` (`dead_tasks`, `dead_services`) | `shortcut_parsing`, `dead_tasks_are_found_and_system_ones_ignored`, `dead_services_skip_drivers_and_windows`, `dead_tasks_and_services_are_shown_never_prechecked` ; `DeadTasksAndServices_CanNeverBeChecked`. Raccourcis du menu Démarrer non proposés (D20 validée) ; tâches et services détectés seulement, jamais mis en quarantaine (v1.1, D47) |
+| EF-07 Raccourcis morts, tâches, services | S | ✅ | `shortcut.rs`, `scan.rs`, `system.rs`, `tasks.rs`, `services.rs`, `quarantine.rs`, `safety.rs` (D20, D47) | `shortcut::tests::*` (un test par cas « non mort »), `start_menu_*`, `dead_tasks_allowed`, `task_neighbours_refused`, `dead_services_allowed`, `service_neighbours_refused`, `start_menu_shortcut_and_folder_round_trip`, `task_round_trip_with_fake_store`, `service_round_trip_with_fake_control`, `dead_tasks_and_services_confidence` ; Sandbox § 6 |
 | EF-08 Orphelin = ne correspond à aucune application installée | M | ✅ | `matcher.rs` | `attach_by_install_location_both_ways`, `attach_by_uninstaller_folder_and_executables`, `attach_by_similar_name_or_publisher`, `present_programs_attach_their_data` (D22) |
 | EF-09 Regroupement par application déduite | M | ✅ | `matcher.rs` (`group`), `OrphansPage.xaml` | `grouping_by_normalized_name_largest_first` |
 | EF-10 Confiance, seuls les « Élevée » précochés | M | ✅ | `matcher.rs`, `OrphansViewModel.cs` | `old_unrelated_folder_is_high`, `recent_or_generic_or_portable_is_lower`, `items_under_an_installed_publisher_are_at_most_medium` (D23), `personal_folders_are_never_high` ; `Scan_PrechecksOnlyHighConfidence` |
@@ -27,6 +27,7 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | EF-13 Restes de l'application après désinstallation | M | ✅ | `scan.rs::scan_app_leftovers` | `leftovers_of_a_just_uninstalled_app`, `missing_uninstaller_leftovers_are_searched_but_never_high` (D45) ; `CancelledUninstaller_SkipsLeftovers`, `NoLeftover_SkipsStepThree`, `MissingUninstaller_SearchesLeftoversAnyway_NothingPrechecked` |
 | EF-14 Mode silencieux | S | ✅ | `uninstall.rs::build_command` | `build_command_for_msi_quiet_and_missing` ; `ClassicUninstall_StopsAfterTheUninstaller_AndQuietIsSent` |
 | EF-15 Point de restauration | S | ✅ | `uninstall.rs::SystemRestorePoints` | `uninstall_simulated_then_real_then_leftovers` (échec simulé, non bloquant) ; vrai point de restauration : Sandbox § 3 seulement |
+| EF-21 Progression détaillée de la désinstallation | S | ✅ | `msi.rs`, `uninstall.rs` (`job_processes`), `engine.rs::uninstall_with_progress`, `cleanslate-ffi` (`cs_uninstall`), `EngineClient.cs`, `UninstallWizardViewModel.cs`, `UninstallWizardPage.xaml` (D49) | `forward_progress_with_reports_and_action_data`, `backward_progress_and_ignored_action_data`, `msi_progress_through_the_api_or_msiexec_fallback`, `uninstall_simulated_then_real_then_leftovers` (étapes et processus) ; `Progress_ShowsTimedSteps_RealPercentOrJobProcesses` ; Sandbox § 6 |
 | EF-16 Récapitulatif et confirmation explicite | M | ✅ | `DialogService.cs`, `OrphansViewModel.cs` | `Quarantine_AlwaysAsksForConfirmation_AndStopsWhenCancelled`, `Quarantine_AboveCeiling_AsksForTheWord`, `ceiling_requires_the_confirmation_word` |
 | EF-17 Quarantaine, jamais de suppression directe | M | ✅ | `quarantine.rs`, `native.rs` | `quarantine_then_restore_identically`, `interrupted_session_is_recovered`, `snapshot_delete_and_restore_identically` |
 | EF-18 Restauration totale ou par élément | M | ✅ | `quarantine.rs::restore`, `HistoryPage.xaml` | `partial_restore_and_existing_destination` ; `History_LoadsRestoresCheckedItemsAndPurges` |
@@ -41,14 +42,14 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 | ENF-02 Confirmation et quarantaine obligatoires | ✅ | `quarantine.rs`, `DialogService.cs` | `Quarantine_AlwaysAsksForConfirmation_AndStopsWhenCancelled`, `quarantine_then_restore_identically` |
 | ENF-03 Jamais de lien symbolique ni de jonction | ✅ | `fs.rs`, `safety.rs::validate_path`, `quarantine.rs` (D29) | `trapped_junction_to_windows_is_refused` (vraie jonction), `reparse_point_on_the_way_is_refused`, `fake_refuses_to_walk_reparse_points` |
 | ENF-04 Mode simulation | ✅ | partout : `dry_run = true` par défaut, double verrou (D27) | `config_defaults_to_dry_run`, `clean_plan_defaults_to_dry_run`, `simulation_touches_nothing`, `engine_new_defaults_to_dry_run` ; `EngineConfig_DefaultsToDryRun`, `Simulate_ReportsWithoutTouchingAnything` |
-| ENF-05 Inventaire < 2 s ; scan < 60 s pour 500 000 fichiers | ✅ | `inventory.rs`, `scan.rs` | Mesuré : inventaire réel 25 à 68 ms (292 entrées), scan réel 7,6 s ; banc `benches/scan.rs` (`enf05/scan_500k_files`) : 554 ms |
+| ENF-05 Inventaire < 2 s ; scan < 60 s pour 500 000 fichiers | ✅ | `inventory.rs`, `store.rs`, `scan.rs` | Mesuré : inventaire réel Win32 + Store 0,2 à 0,7 s (98 + 136 applications, noms résolus en parallèle) ; scan réel 7,6 à 10 s ; banc `benches/scan.rs` (`enf05/scan_500k_files`) : 554 ms |
 | ENF-06 UI réactive, ≤ 1 événement / 250 ms | ✅ | `scan.rs` (`Reporter`), `EngineService.cs` (`Task.Run`) | `reporter_throttles_to_250_ms` ; annonces au Narrateur limitées à une toutes les 2 s |
 | ENF-07 Désinstallation complète en ≤ 5 clics | ✅ | `UninstallWizardViewModel.cs` | `FullUninstall_InFiveClicks` ; Sandbox § 3 étape 5 |
 | ENF-08 Thèmes, clavier, Narrateur | ⚠️ | `App.xaml` (clair, sombre, `HighContrast`, accent sarcelle), `SettingsPage.xaml` (thème), `AutomationProperties` dans les vues, `OrphansPage.xaml.cs` (`LiveRegionChanged`) | Vérifié à l'écran en sombre ; **Accessibility Insights et Narrateur non passés** : à faire par le porteur |
 | ENF-09 Une erreur n'arrête pas la session | ✅ | `scan.rs` (`Errors`), `quarantine.rs` | `protected_and_linked_items_are_refused_and_left_in_place` (session « Partielle ») |
 | ENF-10 Journal local, rotation quotidienne, 7 fichiers | ✅ | `logging.rs`, `engine.rs::with_system` | `daily_files_in_the_given_folder` |
 | ENF-11 Aucun envoi sur Internet | ✅ | `core/Cargo.toml`, `*.csproj` | Revue des dépendances : aucune crate ni paquet réseau ; aucune télémétrie |
-| ENF-12 Couverture ≥ 80 %, clippy, MVVM | ✅ | `.github/workflows/ci.yml` | `cargo llvm-cov` : 92,9 % ; clippy `-D warnings` ; ViewModels dans `CleanSlate.Presentation`, vues sans logique métier |
+| ENF-12 Couverture ≥ 80 %, clippy, MVVM | ✅ | `.github/workflows/ci.yml` | `cargo llvm-cov` : 88,3 % ; clippy `-D warnings` ; ViewModels dans `CleanSlate.Presentation`, vues sans logique métier |
 
 ## États de l'interface (design § 5)
 
@@ -66,10 +67,10 @@ Légende : ✅ fait et testé · ⚠️ partiel ou à vérifier · ⏭️ report
 
 ## Points ouverts
 
-1. **EF-07** (D20 et D47, validées par le porteur le 30 oct. 2026) : liste noire inchangée, les `.lnk` morts du menu Démarrer ne sont pas proposés ; tâches planifiées et services détectés (v1.1), à supprimer à la main.
+1. **EF-07** (D20 et D47 révisées par le porteur le 30 oct. 2026) : raccourcis du menu Démarrer, tâches et services mis en quarantaine par des exceptions étroites ; allers-retours réels à vérifier dans Windows Sandbox (§ 6).
 2. **ACL d'origine** (D31, validé par le porteur le 30 oct. 2026) : enregistrée dans le manifeste, pas réappliquée après une copie entre deux volumes.
 3. **Signal « nom d'une application désinstallée par CleanSlate »** (+30, specs § 6.3) : reporté (D38).
-4. **Progression de `cs_uninstall`** : rappel réservé ; barre indéterminée dans l'assistant.
+4. **Progression de `cs_uninstall`** : faite (EF-21, D49) ; la désinstallation MSI par l'API est silencieuse (la fenêtre du produit ne s'affiche plus).
 5. **ENF-08** : passer Accessibility Insights et le Narrateur sur les 5 écrans.
 6. **Critères du cahier § 6.3** (90 % des restes, zéro faux précochage, restauration à l'identique) : à mesurer dans Windows Sandbox ([tests-acceptation.md § 4](../tests-acceptation.md)). Ils ne peuvent pas être mesurés sur la machine de développement sans opération destructive. Les critères 2 et 3 sont mesurés automatiquement par `scripts/sandbox/` (D46) dès que Windows Sandbox est activé ; le critère 4 reste à la main.
 7. **Signature de code** : l'installeur n'est pas signé ; SmartScreen avertira à l'installation.
