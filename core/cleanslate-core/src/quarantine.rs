@@ -321,7 +321,13 @@ impl Quarantine<'_> {
             files: BTreeMap::new(),
         };
         self.save(&manifest)?;
-        for leftover in items {
+        // Start menu folders last: they are quarantined only once their dead
+        // shortcuts are gone (D20).
+        let mut ordered: Vec<&Leftover> = items.iter().collect();
+        ordered.sort_by_key(|i| {
+            i.kind == LeftoverKind::Folder && self.rules.is_below_start_menu(Path::new(&i.location))
+        });
+        for leftover in ordered {
             self.quarantine_one(&mut manifest, leftover, now)?;
         }
         let session = &mut manifest.session;
@@ -396,9 +402,10 @@ impl Quarantine<'_> {
     ) -> Result<(), (String, String)> {
         let original = PathBuf::from(&item.original_location);
         let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
-        // Last line of defence, right before acting (safety rule 3).
+        // Last line of defence, right before acting (safety rule 3); a Start
+        // menu shortcut or emptied folder passes only through D20.
         self.rules
-            .validate_path(self.fs, &original)
+            .validate_item_path(self.fs, item.kind, &original)
             .map_err(to_pair)?;
         let (files, has_link) = collect_files(&original).map_err(to_pair)?;
         if has_link {
@@ -524,7 +531,17 @@ impl Quarantine<'_> {
         let mut manifest = self.recover(self.load(id)?)?;
         let selected = |item: &QuarantinedItem| item_ids.is_none_or(|ids| ids.contains(&item.id));
         let mut errors = Vec::new();
-        for index in 0..manifest.session.items.len() {
+        // Reverse order of the quarantine: Start menu folders first, then
+        // the shortcuts that go back into them (D20).
+        let mut order: Vec<usize> = (0..manifest.session.items.len()).collect();
+        order.sort_by_key(|&i| {
+            let item = &manifest.session.items[i];
+            !(item.kind == LeftoverKind::Folder
+                && self
+                    .rules
+                    .is_below_start_menu(Path::new(&item.original_location)))
+        });
+        for index in order {
             let item = manifest.session.items[index].clone();
             let restorable = matches!(
                 item.status,
@@ -580,7 +597,9 @@ impl Quarantine<'_> {
             return snapshot.write(self.registry, &key).map_err(to_pair);
         }
         let original = PathBuf::from(&item.original_location);
-        self.rules.check_path(&original).map_err(to_pair)?;
+        self.rules
+            .check_item_path(item.kind, &original)
+            .map_err(to_pair)?;
         if fs::symlink_metadata(&original).is_ok() {
             return Err(exists());
         }
@@ -703,6 +722,84 @@ mod tests {
 
     fn mtime(path: &Path) -> SystemTime {
         fs::metadata(path).unwrap().modified().unwrap()
+    }
+
+    /// D20: a dead Start menu shortcut and its emptied folder go to
+    /// quarantine (folder last) and come back identically.
+    #[test]
+    fn start_menu_shortcut_and_folder_round_trip() {
+        let lab = Lab::new();
+        let menu = lab.roaming(r"Microsoft\Windows\Start Menu\Programs");
+        let folder = menu.join("OldTool");
+        let shortcut = folder.join("OldTool.lnk");
+        let bytes = crate::shortcut::tests::Lnk::local(r"C:\Gone\old.exe").build();
+        lab.write(&shortcut, &bytes);
+        let before = mtime(&shortcut);
+
+        // The folder alone is refused while it still holds the shortcut.
+        let folder_item = leftover(LeftoverKind::Folder, &folder.to_string_lossy(), 0);
+        let shortcut_item = leftover(LeftoverKind::Shortcut, &shortcut.to_string_lossy(), 10);
+        let alone = lab.run(|q| {
+            q.clean(
+                Origin::Orphans,
+                std::slice::from_ref(&folder_item),
+                None,
+                Utc::now(),
+            )
+            .unwrap()
+        });
+        assert_eq!(alone.items[0].status, QuarantineStatus::Failed);
+        assert!(shortcut.exists());
+
+        // Folder listed first: still processed after its shortcut.
+        let session = lab.run(|q| {
+            q.clean(
+                Origin::Orphans,
+                &[folder_item.clone(), shortcut_item.clone()],
+                None,
+                Utc::now(),
+            )
+            .unwrap()
+        });
+        assert_eq!(
+            session.status,
+            SessionStatus::Completed,
+            "{:?}",
+            session.errors
+        );
+        assert!(!folder.exists());
+        assert!(menu.exists(), "the Start menu root is never touched");
+
+        let restored = lab.run(|q| q.restore(session.id, None, Utc::now()).unwrap());
+        assert_eq!(
+            restored.status,
+            SessionStatus::Restored,
+            "{:?}",
+            restored.errors
+        );
+        assert_eq!(fs::read(&shortcut).unwrap(), bytes);
+        assert_eq!(mtime(&shortcut), before);
+    }
+
+    /// A shortcut-shaped item that is not a shortcut never uses D20.
+    #[test]
+    fn start_menu_exception_is_kind_bound() {
+        let lab = Lab::new();
+        let menu = lab.roaming(r"Microsoft\Windows\Start Menu\Programs");
+        let file = menu.join("Old.lnk");
+        lab.write(&file, b"x");
+        let as_file = leftover(LeftoverKind::File, &file.to_string_lossy(), 1);
+        let session = lab.run(|q| {
+            q.clean(Origin::Orphans, &[as_file], None, Utc::now())
+                .unwrap()
+        });
+        assert_eq!(session.items[0].status, QuarantineStatus::Failed);
+        assert!(file.exists());
+        let root = leftover(LeftoverKind::Folder, &menu.to_string_lossy(), 1);
+        fs::remove_file(&file).unwrap();
+        let session = lab.run(|q| q.clean(Origin::Orphans, &[root], None, Utc::now()).unwrap());
+        assert_eq!(session.items[0].status, QuarantineStatus::Failed);
+        assert!(menu.exists());
     }
 
     #[test]

@@ -9,6 +9,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::error::{CoreError, CoreResult};
 use crate::fs::FileSystem;
+use crate::model::LeftoverKind;
 use crate::registry::RegKeyPath;
 
 /// Folder names protected wherever they appear in a path (specs § 9.1).
@@ -62,6 +63,26 @@ pub const REGISTRY_SCAN_ROOTS: [&str; 3] = [
     r"HKLM\SOFTWARE\WOW6432Node",
 ];
 
+/// Folders of the Start menu holding Windows' own shortcuts: refused even
+/// below the Start menu roots (narrowest form of D20).
+pub const WINDOWS_START_MENU_FOLDERS: [&str; 12] = [
+    "accessibility",
+    "accessories",
+    "administrative tools",
+    "maintenance",
+    "system tools",
+    "windows accessories",
+    "windows administrative tools",
+    "windows ease of access",
+    "windows powershell",
+    "windows system",
+    "windows tools",
+    "windows kits",
+];
+
+/// Start menu programs folder, below `%APPDATA%` or `%PROGRAMDATA%`.
+const START_MENU_PROGRAMS: &str = r"Microsoft\Windows\Start Menu\Programs";
+
 /// Well-known folders of the machine. Injectable so that tests never depend
 /// on the real system.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +111,10 @@ pub struct KnownFolders {
     pub user_folders: Vec<PathBuf>,
     /// Start menu and desktop folders holding shortcuts (EF-07).
     pub shortcut_folders: Vec<PathBuf>,
+    /// The two Start menu roots (`%APPDATA%` and `%PROGRAMDATA%`
+    /// `\Microsoft\Windows\Start Menu\Programs`): protected themselves; only
+    /// the narrow exceptions of D20 apply below them.
+    pub start_menu: Vec<PathBuf>,
     /// `Documents` (scan root of EF-05).
     pub documents: PathBuf,
 }
@@ -118,6 +143,10 @@ impl KnownFolders {
                 d.join(r"Users\Public\Desktop"),
                 roaming.join(r"Microsoft\Windows\Start Menu\Programs"),
                 d.join(r"ProgramData\Microsoft\Windows\Start Menu\Programs"),
+            ],
+            start_menu: vec![
+                roaming.join(START_MENU_PROGRAMS),
+                d.join("ProgramData").join(START_MENU_PROGRAMS),
             ],
             local_low: profile.join(r"AppData\LocalLow"),
             local_programs: local.join("Programs"),
@@ -153,6 +182,10 @@ impl KnownFolders {
         }
         f.local_low = f.user_profile.join(r"AppData\LocalLow");
         f.local_programs = f.local.join("Programs");
+        f.start_menu = vec![
+            f.roaming.join(START_MENU_PROGRAMS),
+            f.program_data.join(START_MENU_PROGRAMS),
+        ];
         known::fill(&mut f);
         f
     }
@@ -241,6 +274,7 @@ pub struct SafetyRules {
     exact: Vec<String>,
     users: String,
     exclusions: Vec<String>,
+    start_menu: Vec<String>,
 }
 
 impl SafetyRules {
@@ -275,7 +309,160 @@ impl SafetyRules {
                 .map(|e| norm(Path::new(e)))
                 .filter(|e| !e.is_empty())
                 .collect(),
+            start_menu: folders.start_menu.iter().map(|p| norm(p)).collect(),
         }
+    }
+
+    /// Refuses a path with `.` or `..` segments or that is not absolute.
+    fn check_shape(path: &Path) -> CoreResult<()> {
+        let raw = path.to_string_lossy();
+        let bad_segment = raw
+            .split(['\\', '/'])
+            .any(|segment| segment == "." || segment == "..");
+        if !path.is_absolute() || bad_segment {
+            return Err(CoreError::Protected {
+                location: path.display().to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// On-disk part of a validation: no reparse point on the way (ENF-03)
+    /// and the final path equals the given one (no link escaping its root).
+    fn check_on_disk(fs: &dyn FileSystem, path: &Path) -> CoreResult<()> {
+        let refuse = || CoreError::Protected {
+            location: path.display().to_string(),
+        };
+        let ancestors: Vec<&Path> = path.ancestors().collect();
+        for step in ancestors.iter().rev() {
+            if step.parent().is_none() {
+                continue; // drive root
+            }
+            if fs.metadata(step)?.is_reparse_point {
+                return Err(refuse());
+            }
+        }
+        let canonical = fs.canonicalize(path)?;
+        if norm(&canonical) != norm(path) {
+            return Err(refuse());
+        }
+        Ok(())
+    }
+
+    /// Shared part of the Start menu exceptions (D20): `path` lies strictly
+    /// below one of the two roots, no component below the root is a
+    /// protected name or a folder of Windows tools, and no user exclusion
+    /// covers it. Returns the components below the root.
+    fn check_below_start_menu(&self, path: &Path) -> CoreResult<Vec<String>> {
+        let refuse = || CoreError::Protected {
+            location: path.display().to_string(),
+        };
+        Self::check_shape(path)?;
+        let text = norm(path);
+        let rest = self
+            .start_menu
+            .iter()
+            .find_map(|root| text.strip_prefix(&format!(r"{root}\")))
+            .ok_or_else(refuse)?;
+        let parts: Vec<String> = rest.split('\\').map(str::to_owned).collect();
+        let forbidden = |p: &String| {
+            // Windows ignores trailing spaces and dots in names.
+            let p = p.trim_end_matches([' ', '.']);
+            p.is_empty() || PROTECTED_NAMES.contains(&p) || WINDOWS_START_MENU_FOLDERS.contains(&p)
+        };
+        if parts.iter().any(forbidden) || self.exclusions.iter().any(|e| is_within(&text, e)) {
+            return Err(refuse());
+        }
+        Ok(parts)
+    }
+
+    /// D20, pure part (also checked before a restore): a `.lnk` file
+    /// strictly below a Start menu root.
+    pub fn check_start_menu_shortcut(&self, path: &Path) -> CoreResult<()> {
+        self.check_below_start_menu(path)?;
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("lnk"))
+        {
+            return Err(CoreError::Protected {
+                location: path.display().to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// D20, right before acting: [`Self::check_start_menu_shortcut`], the
+    /// item is a file, and no reparse point lies on the way.
+    pub fn validate_start_menu_shortcut(&self, fs: &dyn FileSystem, path: &Path) -> CoreResult<()> {
+        self.check_start_menu_shortcut(path)?;
+        if fs.metadata(path)?.is_dir {
+            return Err(CoreError::Protected {
+                location: path.display().to_string(),
+            });
+        }
+        Self::check_on_disk(fs, path)
+    }
+
+    /// D20, pure part: a folder strictly below a Start menu root (never a
+    /// root itself).
+    pub fn check_start_menu_folder(&self, path: &Path) -> CoreResult<()> {
+        self.check_below_start_menu(path).map(|_| ())
+    }
+
+    /// D20, right before acting: [`Self::check_start_menu_folder`], and the
+    /// folder is **empty** (its dead shortcuts already in quarantine).
+    pub fn validate_start_menu_folder(&self, fs: &dyn FileSystem, path: &Path) -> CoreResult<()> {
+        self.check_start_menu_folder(path)?;
+        let refuse = || CoreError::Protected {
+            location: path.display().to_string(),
+        };
+        if !fs.metadata(path)?.is_dir || !fs.read_dir(path)?.is_empty() {
+            return Err(refuse());
+        }
+        Self::check_on_disk(fs, path)
+    }
+
+    /// Validation right before acting on a file or folder item (rule 3):
+    /// the general rules first; only when they refuse an item lying below a
+    /// Start menu root does the single exception matching its kind decide
+    /// (D20). Never both relaxed at once.
+    pub fn validate_item_path(
+        &self,
+        fs: &dyn FileSystem,
+        kind: LeftoverKind,
+        path: &Path,
+    ) -> CoreResult<()> {
+        let general = self.validate_path(fs, path);
+        if general.is_ok() || !self.is_below_start_menu(path) {
+            return general;
+        }
+        match kind {
+            LeftoverKind::Shortcut => self.validate_start_menu_shortcut(fs, path),
+            LeftoverKind::Folder => self.validate_start_menu_folder(fs, path),
+            _ => general,
+        }
+    }
+
+    /// Pure counterpart of [`Self::validate_item_path`], checked before a
+    /// restore (the item is not on disk).
+    pub fn check_item_path(&self, kind: LeftoverKind, path: &Path) -> CoreResult<()> {
+        let general = self.check_path(path);
+        if general.is_ok() || !self.is_below_start_menu(path) {
+            return general;
+        }
+        match kind {
+            LeftoverKind::Shortcut => self.check_start_menu_shortcut(path),
+            LeftoverKind::Folder => self.check_start_menu_folder(path),
+            _ => general,
+        }
+    }
+
+    /// `true` if `path` lies strictly below a Start menu root.
+    pub fn is_below_start_menu(&self, path: &Path) -> bool {
+        let text = norm(path);
+        self.start_menu
+            .iter()
+            .any(|root| text.starts_with(&format!(r"{root}\")))
     }
 
     /// Checks a path against the blacklist and the exclusions, without
@@ -332,23 +519,7 @@ impl SafetyRules {
     /// must equal the given one (no link escaping its root).
     pub fn validate_path(&self, fs: &dyn FileSystem, path: &Path) -> CoreResult<()> {
         self.check_path(path)?;
-        let refuse = || CoreError::Protected {
-            location: path.display().to_string(),
-        };
-        let ancestors: Vec<&Path> = path.ancestors().collect();
-        for step in ancestors.iter().rev() {
-            if step.parent().is_none() {
-                continue; // drive root
-            }
-            if fs.metadata(step)?.is_reparse_point {
-                return Err(refuse());
-            }
-        }
-        let canonical = fs.canonicalize(path)?;
-        if norm(&canonical) != norm(path) {
-            return Err(refuse());
-        }
-        Ok(())
+        Self::check_on_disk(fs, path)
     }
 
     /// Checks a registry key against the blacklist and the exclusions.
@@ -558,6 +729,165 @@ mod tests {
                 .validate_key(&RegKeyPath::new(hive, path))
                 .unwrap_or_else(|e| panic!("{path}: {e}"));
         }
+    }
+
+    const USER_MENU: &str = r"C:\Users\Ana\AppData\Roaming\Microsoft\Windows\Start Menu\Programs";
+    const COMMON_MENU: &str = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs";
+
+    /// D20: every allowed shape of the Start menu exception.
+    #[test]
+    fn start_menu_shortcuts_allowed() {
+        for path in [
+            format!(r"{USER_MENU}\Old App.lnk"),
+            format!(r"{USER_MENU}\Vendor\Old App\Uninstall.LNK"),
+            format!(r"{COMMON_MENU}\Old App.lnk"),
+            format!(r"{COMMON_MENU}\Startup\Old Agent.lnk"),
+            format!(r"{COMMON_MENU}\Microsoft Office Tools\Old.lnk"),
+        ] {
+            rules()
+                .check_start_menu_shortcut(Path::new(&path))
+                .unwrap_or_else(|e| panic!("{path}: {e}"));
+        }
+        rules()
+            .check_start_menu_folder(Path::new(&format!(r"{USER_MENU}\Vendor")))
+            .unwrap();
+    }
+
+    /// D20: each neighbouring case stays refused by the exception, and the
+    /// general blacklist still refuses the Start menu.
+    #[test]
+    fn start_menu_neighbours_refused() {
+        let refused_shortcuts = [
+            USER_MENU.to_owned(),                // the root
+            COMMON_MENU.to_owned(),              // the root
+            format!(r"{USER_MENU}\Vendor"),      // a folder name
+            format!(r"{USER_MENU}\Old App.url"), // not a .lnk
+            format!(r"{USER_MENU}\Old App.exe"), // not a .lnk
+            format!(r"{USER_MENU}\desktop.ini"), // not a .lnk
+            r"C:\Users\Ana\AppData\Roaming\Microsoft\Windows\Start Menu\Old.lnk".to_owned(), // outside Programs
+            r"C:\Users\Ana\AppData\Roaming\Microsoft\Windows\Old.lnk".to_owned(),
+            r"C:\Users\Ana\Desktop\Old.lnk".to_owned(), // not the Start menu
+            r"C:\Users\Bob\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Old.lnk"
+                .to_owned(), // other user
+            format!(r"{USER_MENU}\Administrative Tools\Old.lnk"), // Windows tools
+            format!(r"{COMMON_MENU}\Windows Tools\Old.lnk"),
+            format!(r"{COMMON_MENU}\Accessibility\Old.lnk"),
+            format!(r"{COMMON_MENU}\Accessories\Old.lnk"),
+            format!(r"{COMMON_MENU}\System Tools\Old.lnk"),
+            format!(r"{COMMON_MENU}\Windows PowerShell\Old.lnk"),
+            format!(r"{COMMON_MENU}\Maintenance\Old.lnk"),
+            format!(r"{COMMON_MENU}\Microsoft\Old.lnk"), // protected name
+            format!(r"{COMMON_MENU}\Windows\Old.lnk"),
+            format!(r"{COMMON_MENU}\Microsoft.\Old.lnk"), // trailing dot
+            format!(r"{USER_MENU}\Vendor\..\..\Old.lnk"), // parent segment
+            format!(r"{USER_MENU}\.\Old.lnk"),
+            r"Microsoft\Windows\Start Menu\Programs\Old.lnk".to_owned(), // relative
+        ];
+        for path in &refused_shortcuts {
+            let err = rules()
+                .check_start_menu_shortcut(Path::new(path))
+                .expect_err(path);
+            assert_eq!(err.code(), "PROTECTED", "{path}");
+            // The general blacklist is unchanged: it still refuses the Start menu.
+            if path.contains("Start Menu") {
+                assert!(rules().check_path(Path::new(path)).is_err(), "{path}");
+            }
+        }
+        for folder in [
+            USER_MENU.to_owned(),
+            COMMON_MENU.to_owned(),
+            format!(r"{COMMON_MENU}\Administrative Tools"),
+            format!(r"{COMMON_MENU}\Microsoft"),
+            r"C:\Users\Ana\AppData\Roaming\Microsoft\Windows\Start Menu\Vendor".to_owned(),
+        ] {
+            assert!(
+                rules().check_start_menu_folder(Path::new(&folder)).is_err(),
+                "{folder}"
+            );
+        }
+        // A user exclusion still wins over the exception.
+        let excluded = SafetyRules::new(
+            &KnownFolders::under(r"C:\"),
+            &[format!(r"{USER_MENU}\Keep")],
+        );
+        assert!(excluded
+            .check_start_menu_shortcut(Path::new(&format!(r"{USER_MENU}\Keep\a.lnk")))
+            .is_err());
+    }
+
+    /// D20 on disk: the shortcut must be a file, the folder must be empty,
+    /// and no reparse point may lie on the way.
+    #[test]
+    fn start_menu_validation_on_disk() {
+        let mut fs = FakeFileSystem::new();
+        let lnk = format!(r"{USER_MENU}\Vendor\Old.lnk");
+        let dir_lnk = format!(r"{USER_MENU}\Folder.lnk");
+        let empty = format!(r"{USER_MENU}\Empty");
+        let linked = format!(r"{USER_MENU}\Linked");
+        fs.add_file(&lnk, 10, None)
+            .add_dir(&dir_lnk)
+            .add_dir(&empty)
+            .add_reparse_point(&linked);
+        let rules = rules();
+        rules
+            .validate_start_menu_shortcut(&fs, Path::new(&lnk))
+            .unwrap();
+        assert!(rules
+            .validate_start_menu_shortcut(&fs, Path::new(&dir_lnk))
+            .is_err());
+        rules
+            .validate_start_menu_folder(&fs, Path::new(&empty))
+            .unwrap();
+        // Not empty: still holds Old.lnk.
+        assert!(rules
+            .validate_start_menu_folder(&fs, Path::new(&format!(r"{USER_MENU}\Vendor")))
+            .is_err());
+        assert!(rules
+            .validate_start_menu_folder(&fs, Path::new(&linked))
+            .is_err());
+        // Missing shortcut: cannot be validated.
+        assert!(rules
+            .validate_start_menu_shortcut(&fs, Path::new(&format!(r"{USER_MENU}\Gone.lnk")))
+            .is_err());
+
+        // The dispatcher applies the exception of the item's kind only.
+        rules
+            .validate_item_path(&fs, LeftoverKind::Shortcut, Path::new(&lnk))
+            .unwrap();
+        rules
+            .validate_item_path(&fs, LeftoverKind::Folder, Path::new(&empty))
+            .unwrap();
+        for kind in [
+            LeftoverKind::File,
+            LeftoverKind::Folder,
+            LeftoverKind::RegistryKey,
+        ] {
+            assert!(rules
+                .validate_item_path(&fs, kind, Path::new(&lnk))
+                .is_err());
+        }
+        assert!(rules
+            .validate_item_path(&fs, LeftoverKind::Shortcut, Path::new(&empty))
+            .is_err());
+        assert!(rules
+            .check_item_path(LeftoverKind::Shortcut, Path::new(&lnk))
+            .is_ok());
+        assert!(rules
+            .check_item_path(LeftoverKind::File, Path::new(&lnk))
+            .is_err());
+        // Outside the Start menu, the general rules alone decide.
+        assert!(rules
+            .check_item_path(
+                LeftoverKind::Shortcut,
+                Path::new(r"C:\Users\Ana\AppData\Roaming\Microsoft\x.lnk")
+            )
+            .is_err());
+        assert!(rules
+            .check_item_path(
+                LeftoverKind::Shortcut,
+                Path::new(r"C:\Users\Ana\Desktop\x.lnk")
+            )
+            .is_ok());
     }
 
     #[test]

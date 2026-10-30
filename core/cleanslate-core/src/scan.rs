@@ -22,6 +22,7 @@ use crate::model::{
 };
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
 use crate::safety::{KnownFolders, SafetyRules};
+use crate::shortcut::{self, Verdict};
 use crate::system::{dead_services, dead_tasks, DeadEntry};
 
 /// Minimum delay between two progress events (ENF-06).
@@ -78,6 +79,8 @@ struct Candidate {
     in_program_files: bool,
     /// Target of a shortcut.
     target: Option<String>,
+    /// Sub-folder of the Start menu holding nothing but dead shortcuts (D20).
+    start_menu_folder: bool,
 }
 
 /// Emits throttled progress events (at most one per 250 ms).
@@ -174,8 +177,8 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
         }
     }
     if options.include_shortcuts {
-        for folder in &env.folders.shortcut_folders {
-            list_shortcuts(env, folder, 0, &mut candidates, &errors);
+        for folder in shortcut_roots(env.folders) {
+            list_shortcuts(env, &folder, 0, &mut candidates, &errors);
         }
     }
     candidates.sort_by_key(|c| c.location.to_lowercase());
@@ -277,6 +280,7 @@ fn folder_candidate(
         personal,
         in_program_files,
         target: None,
+        start_menu_folder: false,
     }
 }
 
@@ -386,62 +390,118 @@ fn key_candidate(key: RegKeyPath, name: &str, publisher: Option<String>) -> Cand
         personal: false,
         in_program_files: false,
         target: None,
+        start_menu_folder: false,
     }
 }
 
-/// Dead `.lnk` shortcuts below a shortcut folder (EF-07).
+/// Folders searched for dead shortcuts: the desktops and the two Start menu
+/// roots (D20), each once.
+fn shortcut_roots(folders: &KnownFolders) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for folder in folders.shortcut_folders.iter().chain(&folders.start_menu) {
+        let text = folder.to_string_lossy().to_lowercase();
+        if !roots
+            .iter()
+            .any(|r| r.to_string_lossy().to_lowercase() == text)
+        {
+            roots.push(folder.clone());
+        }
+    }
+    roots
+}
+
+/// Target of `path` if it is a dead shortcut ([`shortcut::verdict`]).
+fn dead_target(env: &ScanEnv, path: &Path) -> Option<String> {
+    let bytes = env.fs.read_file(path, MAX_SHORTCUT_LEN).ok()?;
+    match shortcut::verdict(&shortcut::parse(&bytes)?, env.fs, env.folders) {
+        Verdict::Dead(target) => Some(target),
+        Verdict::Alive | Verdict::NotJudged(_) => None,
+    }
+}
+
+/// Dead `.lnk` shortcuts below a shortcut folder (EF-07). Below a Start
+/// menu root only the narrow exception of D20 applies; a sub-folder there
+/// that holds nothing but dead shortcuts is proposed too, on its own.
+/// Returns `true` when `folder` holds nothing but dead shortcuts.
 fn list_shortcuts(
     env: &ScanEnv,
     folder: &Path,
     depth: usize,
     out: &mut Vec<Candidate>,
     errors: &Errors,
-) {
+) -> bool {
     if depth > SHORTCUT_DEPTH {
-        return;
+        return false;
     }
+    let mut only_dead = true;
     for entry in read_dir_or_record(env.fs, folder, errors) {
         if entry.metadata.is_reparse_point {
+            only_dead = false;
             continue;
         }
         if entry.metadata.is_dir {
-            list_shortcuts(env, &entry.path, depth + 1, out, errors);
+            if list_shortcuts(env, &entry.path, depth + 1, out, errors)
+                && env.rules.check_start_menu_folder(&entry.path).is_ok()
+            {
+                out.push(Candidate {
+                    start_menu_folder: true,
+                    ..folder_candidate(&entry.path, None, false, false)
+                });
+            }
+            // Its removal is a separate choice: the parent is not emptied by it.
+            only_dead = false;
             continue;
         }
         let is_lnk = entry
             .path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("lnk"));
-        if !is_lnk || env.rules.check_path(&entry.path).is_err() {
-            continue;
-        }
-        let Ok(bytes) = env.fs.read_file(&entry.path, MAX_SHORTCUT_LEN) else {
+        let allowed = env.rules.check_path(&entry.path).is_ok()
+            || env.rules.check_start_menu_shortcut(&entry.path).is_ok();
+        let target = (is_lnk && allowed)
+            .then(|| dead_target(env, &entry.path))
+            .flatten();
+        let Some(target) = target else {
+            only_dead = false;
             continue;
         };
-        let Some(target) = shortcut_target(&bytes) else {
-            continue;
-        };
-        let local = target.as_bytes().get(1) == Some(&b':');
-        if local && !env.fs.exists(Path::new(&target)) {
-            out.push(Candidate {
-                kind: LeftoverKind::Shortcut,
-                name: entry
-                    .path
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-                location: entry.path.display().to_string(),
-                path: Some(entry.path.clone()),
-                key: None,
-                publisher: None,
-                personal: false,
-                in_program_files: false,
-                target: Some(target.clone()),
-            });
-        }
+        out.push(Candidate {
+            kind: LeftoverKind::Shortcut,
+            name: entry
+                .path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            location: entry.path.display().to_string(),
+            path: Some(entry.path.clone()),
+            key: None,
+            publisher: None,
+            personal: false,
+            in_program_files: false,
+            target: Some(target),
+            start_menu_folder: false,
+        });
     }
+    only_dead
 }
 
+/// A Start menu sub-folder emptied of its dead shortcuts (D20): proposed
+/// on its own, at most Medium; it is quarantined only once empty.
+fn start_menu_folder_leftover(candidate: &Candidate) -> Leftover {
+    Leftover {
+        id: fnv1a_hex(&candidate.location.to_lowercase()),
+        kind: LeftoverKind::Folder,
+        location: candidate.location.clone(),
+        size_bytes: 0,
+        last_modified: None,
+        confidence: Confidence::Medium,
+        reasons: vec![
+            "Dossier du menu Démarrer qui ne contient que des raccourcis morts".to_owned(),
+            "Mis en quarantaine seulement une fois vide".to_owned(),
+        ],
+        guessed_app: Some(candidate.name.clone()),
+    }
+}
 /// Folder names too generic to name an application (`…\Vendor\App\bin\x.exe`).
 const GENERIC_FOLDERS: [&str; 6] = ["bin", "x64", "x86", "app", "current", "service"];
 
@@ -573,8 +633,8 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
     for root in registry_roots() {
         list_registry_root(env, &known, &root, &mut candidates, &errors);
     }
-    for folder in &env.folders.shortcut_folders {
-        list_shortcuts(env, folder, 0, &mut candidates, &errors);
+    for folder in shortcut_roots(env.folders) {
+        list_shortcuts(env, &folder, 0, &mut candidates, &errors);
     }
     if let Some(location) = &app.install_location {
         if env.fs.exists(location) && env.rules.check_path(location).is_ok() {
@@ -596,6 +656,11 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
             reporter.tick(ScanPhase::Analyzing, &c.location, true);
             if env.cancel.load(Ordering::Relaxed) {
                 return None;
+            }
+            if c.start_menu_folder {
+                let mut leftover = start_menu_folder_leftover(c);
+                leftover.guessed_app = Some(app.display_name.clone());
+                return Some((app.publisher.clone(), leftover));
             }
             let path_text = c.path.as_ref().map(|p| p.to_string_lossy().into_owned());
             let in_install = path_text.as_deref().is_some_and(within_install);
@@ -646,7 +711,7 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
             }
             let (size_bytes, last_modified) = match (&c.path, &c.key) {
                 (Some(path), _) => {
-                    env.rules.validate_path(env.fs, path).ok()?;
+                    env.rules.validate_item_path(env.fs, c.kind, path).ok()?;
                     let stats = measure(env, path, &reporter, &errors);
                     if known.attach(&c.name, None, &stats.executables).is_some() {
                         return None;
@@ -698,6 +763,9 @@ fn analyze(
     reporter: &Reporter,
     errors: &Errors,
 ) -> Option<Leftover> {
+    if candidate.start_menu_folder {
+        return Some(start_menu_folder_leftover(candidate));
+    }
     let path_text = candidate
         .path
         .as_ref()
@@ -719,8 +787,9 @@ fn analyze(
     };
     let size_bytes = match (&candidate.path, &candidate.key) {
         (Some(path), _) => {
-            // Final safety check before proposing (reparse points, canonical path).
-            if let Err(err) = env.rules.validate_path(env.fs, path) {
+            // Final safety check before proposing (reparse points, canonical
+            // path); a Start menu shortcut passes only through D20.
+            if let Err(err) = env.rules.validate_item_path(env.fs, candidate.kind, path) {
                 tracing::debug!(%err, "candidate refused by safety");
                 return None;
             }
@@ -823,50 +892,10 @@ fn measure(env: &ScanEnv, root: &Path, reporter: &Reporter, errors: &Errors) -> 
     stats
 }
 
-/// Target path of a Windows shortcut (MS-SHLLINK: `LinkInfo` →
-/// `LocalBasePath` + `CommonPathSuffix`). `None` for shortcuts without a
-/// local file target (URLs, shell items).
+/// Local target path of a Windows shortcut (`LinkInfo`), `None` for
+/// shortcuts without one (URLs, shell items). See [`shortcut::parse`].
 pub fn shortcut_target(bytes: &[u8]) -> Option<String> {
-    let u32_at = |offset: usize| -> Option<u32> {
-        bytes
-            .get(offset..offset + 4)
-            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-    };
-    let u16_at = |offset: usize| -> Option<u16> {
-        bytes
-            .get(offset..offset + 2)
-            .map(|b| u16::from_le_bytes([b[0], b[1]]))
-    };
-    let c_string = |start: usize| -> Option<String> {
-        let rest = bytes.get(start..)?;
-        let end = rest.iter().position(|&b| b == 0)?;
-        Some(rest[..end].iter().map(|&b| char::from(b)).collect())
-    };
-
-    if u32_at(0)? != 0x4C {
-        return None;
-    }
-    let flags = u32_at(0x14)?;
-    let mut offset = 0x4C;
-    if flags & 0x1 != 0 {
-        offset += 2 + usize::from(u16_at(offset)?); // LinkTargetIDList
-    }
-    if flags & 0x2 == 0 {
-        return None; // no LinkInfo
-    }
-    let info = offset;
-    let info_flags = u32_at(info + 8)?;
-    if info_flags & 0x1 == 0 {
-        return None; // no VolumeIDAndLocalBasePath (network target)
-    }
-    let base = c_string(info + usize::try_from(u32_at(info + 0x10)?).ok()?)?;
-    let suffix = c_string(info + usize::try_from(u32_at(info + 0x18)?).ok()?).unwrap_or_default();
-    let target = if suffix.is_empty() {
-        base
-    } else {
-        format!(r"{}\{suffix}", base.trim_end_matches('\\'))
-    };
-    (!target.is_empty()).then_some(target)
+    shortcut::parse(bytes)?.local_target
 }
 
 #[cfg(test)]
@@ -1034,6 +1063,76 @@ pub(crate) mod tests {
             .iter()
             .flat_map(|g| g.items.iter().map(|i| i.location.clone()))
             .collect()
+    }
+
+    /// D20: dead shortcuts of both Start menu roots, and the sub-folders
+    /// holding nothing else; Windows tools and not-judged shortcuts stay out.
+    #[test]
+    fn start_menu_dead_shortcuts_and_emptied_folders() {
+        use crate::shortcut::tests::Lnk;
+        let (mut fs, apps) = fixture();
+        let user = r"C:\Users\Ana\AppData\Roaming\Microsoft\Windows\Start Menu\Programs";
+        let common = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs";
+        let dead = Lnk::local(r"C:\Program Files\OldTool\old.exe").build();
+        let advertised = Lnk {
+            darwin: true,
+            ..Lnk::local(r"C:\Program Files\OldTool\old.exe")
+        }
+        .build();
+        fs.add_file_with_content(format!(r"{user}\OldTool\OldTool.lnk"), dead.clone(), None)
+            .add_file_with_content(format!(r"{user}\OldTool\Uninstall.lnk"), dead.clone(), None)
+            .add_file_with_content(format!(r"{user}\Mixed\Dead.lnk"), dead.clone(), None)
+            .add_file_with_content(
+                format!(r"{user}\Mixed\Alive.lnk"),
+                Lnk::local(r"C:\Program Files\7-Zip\7z.exe").build(),
+                None,
+            )
+            .add_file_with_content(format!(r"{user}\Advertised.lnk"), advertised, None)
+            .add_file_with_content(
+                format!(r"{common}\Administrative Tools\Old.lnk"),
+                dead.clone(),
+                None,
+            )
+            .add_file_with_content(format!(r"{common}\Old Common.lnk"), dead, None)
+            .add_dir(format!(r"{user}\Empty"));
+        let area = TestRegistryKey::new();
+        let report = run(
+            &fs,
+            &area.registry(),
+            &apps,
+            &AtomicBool::new(false),
+            &|_| {},
+        );
+        let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let at = |path: String| items.iter().find(|i| i.location == path).copied();
+
+        for path in [
+            format!(r"{user}\OldTool\OldTool.lnk"),
+            format!(r"{user}\OldTool\Uninstall.lnk"),
+            format!(r"{user}\Mixed\Dead.lnk"),
+            format!(r"{common}\Old Common.lnk"),
+        ] {
+            assert_eq!(
+                at(path.clone()).map(|i| i.kind),
+                Some(LeftoverKind::Shortcut),
+                "{path}"
+            );
+        }
+        for folder in [format!(r"{user}\OldTool"), format!(r"{user}\Empty")] {
+            let item = at(folder.clone()).unwrap_or_else(|| panic!("{folder}"));
+            assert_eq!(item.kind, LeftoverKind::Folder);
+            assert_eq!(item.confidence, Confidence::Medium);
+        }
+        for refused in [
+            format!(r"{user}\Mixed"),          // still holds a live shortcut
+            format!(r"{user}\Advertised.lnk"), // MSI advertised
+            format!(r"{common}\Administrative Tools\Old.lnk"),
+            format!(r"{common}\Administrative Tools"),
+            user.to_owned(),
+            common.to_owned(),
+        ] {
+            assert!(at(refused.clone()).is_none(), "{refused}");
+        }
     }
 
     #[test]

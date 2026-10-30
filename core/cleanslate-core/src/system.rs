@@ -153,21 +153,12 @@ fn command_executable_raw(command: &str) -> Option<String> {
     })
 }
 
-/// Absolute program of a command, environment variables expanded with the
-/// folders of this machine; `None` when it cannot be judged (relative,
-/// unknown variable) or lies under `%WINDIR%`.
-fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
-    let mut text = command.trim().trim_matches('"').to_owned();
-    if let Some(rest) = text.strip_prefix(r"\??\") {
-        text = rest.to_owned();
-    }
+/// Expands the environment variables of a path with the folders of this
+/// machine (`%ProgramFiles%`, `%APPDATA%`, `%windir%`…). Unknown variables
+/// are left as they are (`%` remains): such a path cannot be judged.
+pub(crate) fn expand_known(text: &str, folders: &KnownFolders) -> String {
+    let mut text = text.to_owned();
     let windir = folders.windir.to_string_lossy().into_owned();
-    if text
-        .get(..12)
-        .is_some_and(|p| p.eq_ignore_ascii_case(r"\SystemRoot\"))
-    {
-        text = format!(r"{windir}\{}", text.get(12..).unwrap_or_default());
-    }
     let drive = windir.get(..2).unwrap_or("C:").to_owned();
     let variables = [
         ("%SystemRoot%", windir.clone()),
@@ -204,6 +195,25 @@ fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
             text.replace_range(i..i + name.len(), value);
         }
     }
+    text
+}
+
+/// Absolute program of a command, environment variables expanded with the
+/// folders of this machine; `None` when it cannot be judged (relative,
+/// unknown variable) or lies under `%WINDIR%`.
+fn program_path(command: &str, folders: &KnownFolders) -> Option<PathBuf> {
+    let mut text = command.trim().trim_matches('"').to_owned();
+    if let Some(rest) = text.strip_prefix(r"\??\") {
+        text = rest.to_owned();
+    }
+    let windir = folders.windir.to_string_lossy().into_owned();
+    if text
+        .get(..12)
+        .is_some_and(|p| p.eq_ignore_ascii_case(r"\SystemRoot\"))
+    {
+        text = format!(r"{windir}\{}", text.get(12..).unwrap_or_default());
+    }
+    let text = expand_known(&text, folders);
     let absolute = text.as_bytes().get(1) == Some(&b':') && !text.contains('%');
     let under_windir = text
         .to_ascii_lowercase()
