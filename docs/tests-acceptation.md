@@ -259,4 +259,12 @@ Constats :
 | GIMP (Inno Setup) | 13 événements en 2,4 s, processus `unins000.exe` et `_unins.tmp`, aucun pourcentage | atteint |
 | GIMP : commande du mode silencieux (EF-14, D60) | `unins000.exe /VERYSILENT /NORESTART`, sans `/SUPPRESSMSGBOXES` | atteint |
 
-Un plantage de `msedge.exe` (02:32) est sans rapport avec CleanSlate. Les vérifications à la main sont en cours.
+Un plantage de `msedge.exe` (02:32) est sans rapport avec CleanSlate.
+
+**Vérifications à la main, faites par le porteur : tout est bon**, avec une seule réserve.
+
+- **Mode simulation désactivé** : fait.
+- **VLC par « Désinstaller complètement »** : avec progression (65 événements, pourcentages jusqu'à 100 %, étape « point de restauration » comprise).
+- **Export des journaux** : vérifié par le porteur. Le zip n'a pas été copié dans le dossier de résultats.
+- **Largeur minimale de la fenêtre** : vérifiée.
+- **Réserve, GIMP en mode silencieux** : la question de GIMP s'est bien affichée malgré `/VERYSILENT`. Le désinstalleur a duré 15 s, contre 2 s sans la question, et c'est le comportement attendu (D60). Le porteur a répondu Oui par erreur : GIMP a donc supprimé lui-même ses réglages. La seconde moitié, « réglages gardés → proposés comme restes », est déjà prouvée par le run `apps-20261030-234036` (`3.2` gardé, `Roaming\GIMP` retrouvé) : il n'y a pas lieu de refaire ce point.

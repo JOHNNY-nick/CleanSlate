@@ -2,11 +2,14 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A2. La partie automatique de Complements est atteinte (20 / 20, run `complements-20261031-022958`, `docs/tests-acceptation.md` § 7.5) ; les vérifications à la main restent à faire.
-- **Prochaine action** : faire les vérifications à la main dans le Sandbox encore ouvert. La liste à cocher est dans la dernière réponse de Claude ; elle reprend les points de A2 ci-dessous.
+- **Étape actuelle** : A3. A1 et A2 sont atteints. Correction demandée par le porteur : la durée de quarantaine se choisit maintenant au premier lancement (D62, commit `16ebb99`). Elle se vérifie avec l'installeur réel, dans le Sandbox, avant A4.
+- **Prochaine action** : scénario Installer dans le Sandbox, avec les vérifications à la main listées dans la dernière réponse de Claude.
 - **Qui la fait** : le porteur.
-- **Durée** : environ 15 min.
-- **Réponse attendue** : « tout OK », ou les cases qui ne vont pas et ce qui a été vu.
+- **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
+  `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`
+- **Durée** : environ 2 min de préparation, puis environ 15 min dans le Sandbox, en grande partie à la main.
+- **Réponse attendue** : « fait, tout OK », ou ce qui ne va pas.
+- **Question en attente pour le porteur** : proposer de désactiver la quarantaine ? Réponse par défaut : non (règle de sécurité n° 7), le délai minimal reste 1 jour.
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
@@ -33,7 +36,7 @@ Dernière mise à jour : 31 oct. 2026.
   - aucun « échec du script ».
 
   La ligne « Information (D60) » sur GIMP n'est pas un critère.
-- [ ] **A2. Porteur** : scénario Complements, puis vérifications à la main, mode simulation désactivé :
+- [x] **A2. Porteur** (atteint le 31 oct. 2026, run `complements-20261031-022958`, § 7.5) : scénario Complements, puis vérifications à la main, mode simulation désactivé :
   - VLC désinstallé avec des pourcentages ;
   - GIMP déjà lancé, puis désinstallé en mode silencieux : répondre Non, et vérifier que `%APPDATA%\GIMP` est proposé comme reste ;
   - export des journaux sans le nom d'utilisateur en clair ;
