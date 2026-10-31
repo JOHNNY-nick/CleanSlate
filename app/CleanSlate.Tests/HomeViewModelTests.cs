@@ -83,6 +83,5 @@ public sealed class HomeViewModelTests
         var viewModel = new HomeViewModel(Substitute.For<IEngineService>(), isElevated: false);
 
         Assert.True(viewModel.NeedsElevation);
-        Assert.True(viewModel.IsSimulationMode);
     }
 }

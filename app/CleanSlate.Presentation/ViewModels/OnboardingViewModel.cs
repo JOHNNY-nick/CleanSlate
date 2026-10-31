@@ -9,7 +9,7 @@ namespace CleanSlate.Presentation.ViewModels;
 /// First launch (D63), before the application: (1) welcome with the logo and what CleanSlate is,
 /// (2) how it works, in plain words, and acceptance, (3) basic settings: quarantine delay
 /// (EF-19), quarantine folder and export folder. Finishing creates the quarantine folder,
-/// saves the settings and opens the application; simulation mode stays on.
+/// saves the settings and opens the application. Immediate deletion (D66) is off by default.
 /// </summary>
 public sealed partial class OnboardingViewModel : ObservableObject
 {
@@ -51,6 +51,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SelectedDaysIndex))]
     private int _selectedDays;
 
+    /// <summary>« Supprimer définitivement, sans quarantaine » (D66), off by default.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(KeepsQuarantine))]
+    private bool _deleteImmediately;
+
     /// <summary>Quarantine folder typed or picked.</summary>
     [ObservableProperty]
     private string _quarantineFolder = string.Empty;
@@ -79,6 +84,9 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPrepareError))]
     private string _prepareError = string.Empty;
+
+    /// <summary>The quarantine delay applies (immediate deletion not chosen).</summary>
+    public bool KeepsQuarantine => !DeleteImmediately;
 
     /// <summary>Step 1: welcome.</summary>
     public bool IsStep1 => Step == 1;
@@ -172,6 +180,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
 
         PrepareError = string.Empty;
         _settings.QuarantineDays = SelectedDays;
+        _settings.DeleteImmediately = DeleteImmediately;
         _settings.QuarantineFolder = FolderRules.SamePath(quarantine, _folders.DefaultQuarantineFolder) ? null : quarantine;
         _settings.ExportFolder = FolderRules.SamePath(export, _folders.DefaultExportFolder) ? null : export;
         _settings.FirstRunDone = true;

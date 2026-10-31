@@ -63,8 +63,6 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>No session yet.</summary>
     public bool HasNoSession => RecentSessions.Count == 0;
 
-    /// <summary>Simulation banner (design § 2.3).</summary>
-    public bool IsSimulationMode => _settings?.SimulationMode ?? true;
 
     /// <summary>Started with administrator rights (design § 5).</summary>
     public bool IsElevated { get; }
@@ -105,7 +103,7 @@ public sealed partial class HomeViewModel : ObservableObject
             LastScanText = _orphans.ScanDateText;
         }
 
-        OnPropertyChanged(nameof(IsSimulationMode));
+
     }
 
     /// <summary>« Analyser les restes » (design § 4.1, step 1).</summary>

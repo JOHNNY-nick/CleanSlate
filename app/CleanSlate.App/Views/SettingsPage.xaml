@@ -16,14 +16,14 @@
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="8">
-                    <ToggleSwitch x:Uid="SettingsSimulation" IsOn="{x:Bind ViewModel.SimulationMode, Mode=TwoWay}" />
-                    <TextBlock x:Uid="SettingsSimulationHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                    <ToggleSwitch x:Uid="SettingsDeleteImmediately" IsOn="{x:Bind ViewModel.DeleteImmediately, Mode=TwoWay}" />
+                    <TextBlock x:Uid="SettingsDeleteImmediatelyHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="8">
-                    <NumberBox x:Uid="SettingsQuarantineDays" Maximum="365" Minimum="1" SpinButtonPlacementMode="Inline" Value="{x:Bind ViewModel.QuarantineDays, Mode=TwoWay}" />
+                    <NumberBox x:Uid="SettingsQuarantineDays" IsEnabled="{x:Bind ViewModel.KeepsQuarantine, Mode=OneWay}" Maximum="365" Minimum="1" SpinButtonPlacementMode="Inline" Value="{x:Bind ViewModel.QuarantineDays, Mode=TwoWay}" />
                     <TextBlock x:Uid="SettingsQuarantineHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>

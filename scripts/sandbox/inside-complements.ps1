@@ -274,7 +274,7 @@ if (-not $bad.Count) {
         Install-FromManifest $i 'vérifications manuelles'
     }
 }
-$checks += [pscustomobject]@{ Name = 'Dans CleanSlate (Bureau) : VLC et GIMP par « Désinstaller complètement », filtre « Store »'; Measure = 'd''abord Réglages → désactiver « Mode simulation » (sinon rien n''est lancé : l''étape 4 l''indique) ; puis comparer le « Déroulé de la désinstallation » de l''étape 4 avec progression-*.txt'; Status = 'manuel' }
+$checks += [pscustomobject]@{ Name = 'Dans CleanSlate (Bureau) : VLC et GIMP par « Désinstaller complètement », filtre « Store »'; Measure = 'après les écrans du premier lancement (D63), comparer le « Déroulé de la désinstallation » de l''étape 4 avec progression-*.txt'; Status = 'manuel' }
 $checks += [pscustomobject]@{ Name = 'GIMP déjà lancé, désinstallé en mode silencieux (EF-14, D60)'; Measure = 'lancer GIMP une fois et le fermer ; dans CleanSlate, cocher « mode silencieux » puis désinstaller : si GIMP demande de supprimer ses réglages, répondre Non ; à l''étape 3, %APPDATA%\GIMP doit être proposé comme reste'; Status = 'manuel' }
 
 Write-Report 'Compléments v1.0 — résultats dans Windows Sandbox' $meta $checks ([ordered]@{

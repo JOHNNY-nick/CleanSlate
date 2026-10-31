@@ -130,7 +130,7 @@ Toute la logique métier vit dans `cleanslate-core`, une bibliothèque Rust sans
 - Aucune panique ne doit traverser la frontière FFI : chaque fonction exportée est enveloppée dans `std::panic::catch_unwind`.
 - Chaque appel `unsafe` est isolé dans une fonction courte, commentée (`// SAFETY: …`).
 - Chemins manipulés en `PathBuf` / `OsString`, jamais en `String`, jusqu'à la sérialisation.
-- Le mode simulation est un paramètre explicite de chaque opération destructive, `true` par défaut.
+- Le mode simulation est un paramètre explicite de chaque opération destructive, `true` par défaut dans le moteur, la FFI et la CLI ; l'application passe `false` explicitement (D66).
 
 ## 4. Interface FFI (Rust ↔ C#)
 
@@ -384,7 +384,7 @@ Trois projets se partagent l'interface :
 | `OrphansPage` | `OrphansViewModel` | Scan sans nom, résultats groupés, cases à cocher, filtre par confiance |
 | `UninstallWizardPage` | `UninstallWizardViewModel` | Assistant en 4 étapes : confirmation, désinstallation, restes, résultat |
 | `HistoryPage` | `HistoryViewModel` | Sessions passées, restauration totale ou partielle, purge |
-| `SettingsPage` | `SettingsViewModel` | Exclusions, délai de quarantaine, thème, mode simulation, journaux |
+| `SettingsPage` | `SettingsViewModel` | Exclusions, délai de quarantaine, suppression immédiate (D66), emplacements (D63), thème, journaux |
 | `CleanConfirmDialog` | — | `ContentDialog` récapitulatif obligatoire avant suppression |
 
 Pages dans `CleanSlate.App/Views/`, ViewModels dans `CleanSlate.Presentation/ViewModels/`, textes dans `CleanSlate.App/Strings/fr-FR/Resources.resw`. Au J1, les cinq pages de navigation existent, mais seule `HomePage` est remplie. `UninstallWizardPage` arrive en J5 et `CleanConfirmDialog` en J4.
@@ -442,7 +442,7 @@ La liste noire ci-dessus n'est ni modifiée ni contournée : `check_path` et `va
 - Chemins canonisés (`GetFinalPathNameByHandleW`) puis comparés sans tenir compte de la casse ; un chemin qui sort de sa racine après canonisation est refusé.
 - `FILE_ATTRIBUTE_REPARSE_POINT` détecté → l'élément lui-même peut être traité, mais jamais traversé.
 - Plafond par session : au-delà de 20 Go ou 50 000 fichiers, confirmation supplémentaire avec saisie du mot « QUARANTAINE » (vocabulaire fixe de design § 5 : jamais « supprimer » tant que l'élément est restaurable).
-- Mode simulation actif par défaut au premier lancement, jusqu'à ce que l'utilisateur le désactive dans les réglages.
+- Pas de mode simulation dans l'application (D66) : le premier lancement explique CleanSlate et demande une acceptation (D63) ; chaque action passe par une liste à relire et une confirmation ; la quarantaine garde tout restaurable, sauf si l'utilisateur choisit la suppression immédiate (décochée par défaut).
 - Tests obligatoires : un test unitaire par entrée de la liste noire et par racine de scan, un test avec une jonction piégée vers `C:\Windows`, un test `../` dans un nom.
 
 ## 10. Tests, CI, compilation et packaging

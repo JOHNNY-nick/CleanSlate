@@ -308,7 +308,7 @@ public sealed record RestoreRequest(
     bool DryRun = true);
 
 /// <summary>Request of <c>cs_purge_quarantine</c>; simulation by default.</summary>
-public sealed record PurgeRequest(uint OlderThanDays, bool DryRun = true);
+public sealed record PurgeRequest(uint OlderThanDays, bool DryRun = true, Guid? SessionId = null);
 
 /// <summary>Result of <c>cs_purge_quarantine</c>.</summary>
 public sealed record PurgeResult(ulong FreedBytes, bool Simulated);

@@ -40,33 +40,41 @@ public sealed class QuarantineViewModelTests
         Assert.True(vm.QuarantineCommand.CanExecute(null));
         await vm.QuarantineCommand.ExecuteAsync(null);
 
-        await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.ItemCount == 2 && s.Simulation && s.QuarantineDays == 30));
+        await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.ItemCount == 2 && !s.DeleteImmediately && s.QuarantineDays == 30));
         await engine.DidNotReceive().CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Quarantine_InSimulation_SendsDryRunAndKeepsItems()
+    public async Task Quarantine_DeleteImmediately_PurgesThatSessionOnly()
     {
-        var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: true));
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(SessionOf(true));
+        // « Supprimer définitivement, sans quarantaine » (D66): the items go through the
+        // quarantine (manifest first), then that one session is purged at once.
+        var dialogs = OrphansViewModelTests.Dialogs();
+        var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings(deleteImmediately: true));
+        Session session = SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Quarantined));
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(session);
 
         await vm.QuarantineCommand.ExecuteAsync(null);
 
-        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => p.DryRun && p.ItemIds.Count == 2), Arg.Any<CancellationToken>());
-        Assert.True(vm.ShowSimulation);
-        Assert.Equal(2, vm.Groups[0].Items.Count);
+        await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.DeleteImmediately));
+        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<CancellationToken>());
+        await engine.Received(1).PurgeAsync(Arg.Is<PurgeRequest>(p => p.SessionId == session.Id && !p.DryRun), Arg.Any<CancellationToken>());
+        Assert.True(vm.DeletedForGood);
+        Assert.Equal(2, vm.CleanedCount);
     }
 
     [Fact]
     public async Task Quarantine_Real_RemovesMovedItemsAndReportsOutcome()
     {
-        var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: false));
+        var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings());
         engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
             .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Failed)));
 
         await vm.QuarantineCommand.ExecuteAsync(null);
 
         await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<CancellationToken>());
+        await engine.DidNotReceive().PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>());
+        Assert.False(vm.DeletedForGood);
         Assert.True(vm.ShowCleanResult);
         Assert.Equal(1, vm.CleanedCount);
         Assert.Equal(1, vm.CleanFailureCount);
@@ -78,7 +86,7 @@ public sealed class QuarantineViewModelTests
     public async Task Quarantine_AboveCeiling_AsksForTheWord()
     {
         var dialogs = OrphansViewModelTests.Dialogs(confirm: true, word: "QUARANTAINE");
-        var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings(simulation: false));
+        var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings());
         engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == null), Arg.Any<CancellationToken>())
             .Returns<Task<Session>>(_ => throw new EngineException("CONFIRMATION_REQUIRED", "too big"));
         engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == "QUARANTAINE"), Arg.Any<CancellationToken>())
@@ -99,7 +107,7 @@ public sealed class QuarantineViewModelTests
         engine.RestoreAsync(Arg.Any<RestoreRequest>(), Arg.Any<CancellationToken>())
             .Returns(session with { Items = [Moved(High, QuarantineStatus.Restored), Moved(Key, QuarantineStatus.Quarantined)] });
         engine.PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>()).Returns(new PurgeResult(2048, false));
-        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: false), Substitute.For<INavigationService>());
+        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(), Substitute.For<INavigationService>());
 
         await vm.LoadCommand.ExecuteAsync(null);
         Assert.False(vm.IsEmpty);
@@ -119,19 +127,20 @@ public sealed class QuarantineViewModelTests
     }
 
     [Fact]
-    public async Task History_RestoreAll_InSimulation()
+    public async Task History_RestoreAll_IsReal()
     {
+        // No simulation mode in the application any more (D66): restoring always acts.
         var engine = Substitute.For<IEngineService>();
         Session session = SessionOf(false, Moved(High, QuarantineStatus.Quarantined));
         engine.ListSessionsAsync(Arg.Any<CancellationToken>()).Returns([session]);
-        engine.RestoreAsync(Arg.Any<RestoreRequest>(), Arg.Any<CancellationToken>()).Returns(session with { Simulated = true });
-        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(simulation: true), Substitute.For<INavigationService>());
+        engine.RestoreAsync(Arg.Any<RestoreRequest>(), Arg.Any<CancellationToken>()).Returns(session with { Items = [Moved(High, QuarantineStatus.Restored)] });
+        var vm = new HistoryViewModel(engine, OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(), Substitute.For<INavigationService>());
         await vm.LoadCommand.ExecuteAsync(null);
 
         await vm.RestoreCommand.ExecuteAsync(vm.Sessions[0]);
 
-        await engine.Received(1).RestoreAsync(Arg.Is<RestoreRequest>(r => r.DryRun && r.ItemIds == null), Arg.Any<CancellationToken>());
-        Assert.True(vm.LastWasSimulated);
+        await engine.Received(1).RestoreAsync(Arg.Is<RestoreRequest>(r => !r.DryRun && r.ItemIds == null), Arg.Any<CancellationToken>());
+        Assert.False(vm.LastWasSimulated);
     }
 
     [Fact]
@@ -181,10 +190,10 @@ public sealed class QuarantineViewModelTests
         var settings = OrphansViewModelTests.Settings();
         var vm = new SettingsViewModel(settings);
 
-        vm.SimulationMode = false;
+        vm.DeleteImmediately = true;
         vm.QuarantineDays = 500;
 
-        settings.Received().SimulationMode = false;
+        settings.Received().DeleteImmediately = true;
         settings.Received().QuarantineDays = 365;
         Assert.Equal(365, vm.QuarantineDays);
     }

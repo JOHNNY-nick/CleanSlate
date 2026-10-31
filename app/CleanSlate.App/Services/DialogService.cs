@@ -25,18 +25,17 @@ public sealed class DialogService : IDialogService
         }
 
         panel.Children.Add(Text($"{Loader.GetString("ConfirmTotal")} {summary.ItemCount} · {summary.SizeText}", bold: true));
-        panel.Children.Add(Text(string.Format(Loader.GetString("ConfirmReminder"), summary.QuarantineDays)));
-        if (summary.Simulation)
-        {
-            panel.Children.Add(Text(Loader.GetString("ConfirmSimulation"), bold: true));
-        }
+        // Immediate deletion (D66): said plainly, never « quarantaine ».
+        panel.Children.Add(summary.DeleteImmediately
+            ? Text(Loader.GetString("ConfirmDeleteForGood"), bold: true)
+            : Text(string.Format(Loader.GetString("ConfirmReminder"), summary.QuarantineDays)));
 
         var dialog = new ContentDialog
         {
             XamlRoot = Window.Content.XamlRoot,
             Title = Loader.GetString("ConfirmTitle"),
             Content = panel,
-            PrimaryButtonText = Loader.GetString(summary.Simulation ? "ConfirmPrimarySimulation" : "ConfirmPrimary"),
+            PrimaryButtonText = Loader.GetString(summary.DeleteImmediately ? "ConfirmPrimaryDelete" : "ConfirmPrimary"),
             CloseButtonText = Loader.GetString("ConfirmCancel"),
             DefaultButton = ContentDialogButton.Close,
             PrimaryButtonStyle = DangerButtonStyle(),

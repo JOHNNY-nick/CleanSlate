@@ -444,6 +444,9 @@ pub struct RestoreRequest {
 pub struct PurgeRequest {
     /// Sessions older than this are deleted for good.
     pub older_than_days: u32,
+    /// Only this session, whatever its age (immediate deletion, D66).
+    #[serde(default)]
+    pub session_id: Option<Uuid>,
     /// Simulation (safety rule 5): `true` when absent.
     #[serde(default = "default_true")]
     pub dry_run: bool,
@@ -678,6 +681,30 @@ mod tests {
         assert!(plan.dry_run);
         assert!(CleanPlan::new(vec![], Origin::Orphans).dry_run);
         round_trip(&plan);
+    }
+
+    /// D66: the interface names the one session to delete at once; absent or null, the
+    /// purge works by age as before, and stays simulated by default (safety rule 5).
+    #[test]
+    fn purge_request_names_a_session_or_none() {
+        for json in [
+            r#"{"older_than_days":30}"#,
+            r#"{"older_than_days":30,"session_id":null}"#,
+        ] {
+            let request: PurgeRequest = serde_json::from_str(json).unwrap();
+            assert_eq!(request.session_id, None, "{json}");
+            assert!(request.dry_run, "{json}");
+        }
+        let request: PurgeRequest = serde_json::from_str(
+            r#"{"older_than_days":0,"dry_run":false,"session_id":"11111111-2222-3333-4444-555555555555"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            request.session_id,
+            Some(Uuid::parse_str("11111111-2222-3333-4444-555555555555").unwrap())
+        );
+        assert!(!request.dry_run);
+        round_trip(&request);
     }
 
     #[test]

@@ -83,6 +83,23 @@ public sealed class OnboardingViewModelTests
     }
 
     [Fact]
+    public void ImmediateDeletion_IsOffByDefault_AndSavedWhenChosen()
+    {
+        // D66: offered at the first launch, with the delay disabled while it is checked.
+        var (vm, settings, _) = Create();
+        Assert.False(vm.DeleteImmediately);
+        Assert.True(vm.KeepsQuarantine);
+        GoToSettings(vm);
+
+        vm.DeleteImmediately = true;
+        Assert.False(vm.KeepsQuarantine);
+        vm.FinishCommand.Execute(null);
+
+        settings.Received(1).DeleteImmediately = true;
+        settings.Received(1).FirstRunDone = true;
+    }
+
+    [Fact]
     public async Task ChosenFolders_AreSaved()
     {
         var (vm, settings, folders) = Create();

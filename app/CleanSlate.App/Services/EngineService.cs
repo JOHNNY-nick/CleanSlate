@@ -4,16 +4,16 @@ using CleanSlate.Presentation.Services;
 namespace CleanSlate.App.Services;
 
 /// <summary>
-/// <see cref="IEngineService"/> backed by <see cref="EngineClient"/>. The engine
-/// is created on first use with <c>dry_run</c> = the simulation setting, and
-/// recreated when that setting changes (a new scan is then needed).
+/// <see cref="IEngineService"/> backed by <see cref="EngineClient"/>. The engine is created on
+/// first use with <c>dry_run = false</c>, given explicitly: the application has no simulation
+/// mode (D66), while the engine, the CLI and the tests keep <c>dry_run = true</c> by default
+/// (safety rule 5). It is recreated when the exclusions or the data folder change.
 /// </summary>
 public sealed class EngineService : IEngineService, IDisposable
 {
     private readonly ISettingsService _settings;
     private readonly object _gate = new();
     private EngineClient? _client;
-    private bool _clientSimulation;
     private IReadOnlyList<string> _clientExclusions = [];
     private string? _clientDataDir;
 
@@ -29,14 +29,12 @@ public sealed class EngineService : IEngineService, IDisposable
         {
             lock (_gate)
             {
-                bool simulation = _settings.SimulationMode;
                 IReadOnlyList<string> exclusions = _settings.Exclusions;
                 string? dataDir = string.IsNullOrWhiteSpace(_settings.QuarantineFolder) ? null : _settings.QuarantineFolder; // null: %LOCALAPPDATA%\CleanSlate (D63)
-                if (_client is null || _clientSimulation != simulation || !_clientExclusions.SequenceEqual(exclusions) || _clientDataDir != dataDir)
+                if (_client is null || !_clientExclusions.SequenceEqual(exclusions) || _clientDataDir != dataDir)
                 {
                     _client?.Dispose();
-                    _client = new EngineClient(new EngineConfig(DryRun: simulation, DataDir: dataDir) { Exclusions = exclusions });
-                    _clientSimulation = simulation;
+                    _client = new EngineClient(new EngineConfig(DryRun: false, DataDir: dataDir) { Exclusions = exclusions });
                     _clientExclusions = exclusions.ToList();
                     _clientDataDir = dataDir;
                 }

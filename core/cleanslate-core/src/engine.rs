@@ -741,7 +741,7 @@ impl Engine {
         Ok(sessions)
     }
 
-    /// Deletes for good the sessions older than the given age (EF-19).
+    /// Deletes for good the sessions older than the given age (EF-19), or the one session named (D66).
     pub fn purge(&self, request: &PurgeRequest) -> CoreResult<PurgeResult> {
         let _guard = self.begin()?;
         if self.data_dir().is_none() {
@@ -755,9 +755,11 @@ impl Engine {
             let freed = self.with_quarantine(|q| {
                 Ok(q.sessions()
                     .iter()
-                    .filter(|s| {
-                        s.created_at <= limit && s.status != crate::model::SessionStatus::Purged
+                    .filter(|s| match request.session_id {
+                        Some(id) => s.id == id,
+                        None => s.created_at <= limit,
                     })
+                    .filter(|s| s.status != crate::model::SessionStatus::Purged)
                     .map(|s| s.freed_bytes)
                     .sum())
             })?;
@@ -766,7 +768,10 @@ impl Engine {
                 simulated: true,
             });
         }
-        let freed = self.with_quarantine(|q| q.purge(request.older_than_days, Utc::now()))?;
+        let freed = self.with_quarantine(|q| match request.session_id {
+            Some(id) => q.purge_session(id),
+            None => q.purge(request.older_than_days, Utc::now()),
+        })?;
         Ok(PurgeResult {
             freed_bytes: freed,
             simulated: false,
@@ -1011,6 +1016,7 @@ mod tests {
         let simulated = real
             .purge(&PurgeRequest {
                 older_than_days: 0,
+                session_id: None,
                 dry_run: true,
             })
             .unwrap();
@@ -1658,6 +1664,7 @@ mod tests {
             engine
                 .purge(&PurgeRequest {
                     older_than_days: 30,
+                    session_id: None,
                     dry_run: false
                 })
                 .unwrap()

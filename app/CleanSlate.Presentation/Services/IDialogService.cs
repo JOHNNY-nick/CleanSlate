@@ -7,14 +7,14 @@ namespace CleanSlate.Presentation.Services;
 /// <param name="SizeText">Total size, e.g. « 1,2 Go ».</param>
 /// <param name="CountByKind">Number of items per kind.</param>
 /// <param name="QuarantineDays">Days during which items stay restorable.</param>
-/// <param name="Simulation">Simulation mode: nothing will be moved.</param>
+/// <param name="DeleteImmediately">Deleted for good at once, nothing restorable (D66).</param>
 /// <param name="RequiresWord">Above 20 GB or 50 000 files: the user must type « QUARANTAINE ».</param>
 public sealed record CleanSummary(
     int ItemCount,
     string SizeText,
     IReadOnlyList<KeyValuePair<LeftoverKind, int>> CountByKind,
     int QuarantineDays,
-    bool Simulation,
+    bool DeleteImmediately,
     bool RequiresWord = false);
 
 /// <summary>Answer of the confirmation dialog.</summary>

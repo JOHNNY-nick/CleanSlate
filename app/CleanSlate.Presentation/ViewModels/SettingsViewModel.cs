@@ -22,15 +22,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         _folders = folders;
         _quarantineFolder = settings.QuarantineFolder is { Length: > 0 } quarantine ? quarantine : folders?.DefaultQuarantineFolder ?? string.Empty;
         _exportFolder = settings.ExportFolder is { Length: > 0 } export ? export : folders?.DefaultExportFolder ?? string.Empty;
-        _simulationMode = settings.SimulationMode;
+        _deleteImmediately = settings.DeleteImmediately;
         _quarantineDays = settings.QuarantineDays;
         _themeIndex = (int)settings.Theme;
         Exclusions = new ObservableCollection<string>(settings.Exclusions);
     }
 
-    /// <summary>Simulation mode (on by default): nothing is moved while it is on.</summary>
+    /// <summary>« Supprimer définitivement, sans quarantaine » (D66), off by default.</summary>
     [ObservableProperty]
-    private bool _simulationMode;
+    [NotifyPropertyChangedFor(nameof(KeepsQuarantine))]
+    private bool _deleteImmediately;
+
+    /// <summary>The quarantine delay applies (immediate deletion not chosen).</summary>
+    public bool KeepsQuarantine => !DeleteImmediately;
 
     /// <summary>Days before the quarantine is purged (1 to 365).</summary>
     [ObservableProperty]
@@ -270,7 +274,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private bool CanAddExclusion() => IsValidExclusion(NewExclusion);
 
-    partial void OnSimulationModeChanged(bool value) => _settings.SimulationMode = value;
+    partial void OnDeleteImmediatelyChanged(bool value) => _settings.DeleteImmediately = value;
 
     partial void OnThemeIndexChanged(int value) => _settings.Theme = Enum.IsDefined(typeof(AppTheme), value) ? (AppTheme)value : AppTheme.System;
 

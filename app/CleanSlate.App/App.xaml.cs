@@ -116,15 +116,10 @@ public partial class App : Application
         await PurgeOldSessionsAsync();
     }
 
-    /// <summary>Automatic purge at startup (EF-19); does nothing in simulation mode.</summary>
+    /// <summary>Automatic purge at startup (EF-19).</summary>
     private static async Task PurgeOldSessionsAsync()
     {
         var settings = GetService<ISettingsService>();
-        if (settings.SimulationMode)
-        {
-            return;
-        }
-
         try
         {
             var request = new Interop.PurgeRequest((uint)settings.QuarantineDays, DryRun: false);

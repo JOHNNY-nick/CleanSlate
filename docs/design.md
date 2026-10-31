@@ -8,7 +8,7 @@ Les huit planches sont dans [`docs/maquettes/`](maquettes/index.html) : ouvrir `
 
 | Planche | Fichier | Écran | Exigences couvertes |
 | --- | --- | --- | --- |
-| Accueil | `01-accueil.html` | Tableau de bord, bandeau « Mode simulation », dernières sessions | EF-20, ENF-04 |
+| Accueil | `01-accueil.html` | Tableau de bord, dernières sessions (bandeau « Mode simulation » retiré, D66) | EF-20, ENF-04 |
 | Applications | `02-applications.html` | Liste, recherche, tri, filtre système, barre d'action « Désinstaller complètement » | EF-01 à EF-03, EF-12 |
 | Restes orphelins | `03-restes-orphelins.html` | Groupes par application déduite, cases à cocher, badges de confiance, raisons, barre de sélection collante | EF-05 à EF-11 |
 | Assistant de désinstallation | `04-assistant.html` | 4 étapes, résultat du désinstalleur, restes de l'application | EF-12 à EF-15 |
@@ -23,7 +23,7 @@ L'interface doit rassurer avant tout : l'utilisateur supprime des choses qu'il n
 
 1. **Expliquer chaque proposition.** Chaque élément affiche son chemin complet et la raison pour laquelle il est proposé (« Aucune application de cet éditeur installée »).
 2. **Le rouge signale l'irréversible, et seulement lui.** La couleur danger est réservée aux boutons qui déplacent ou suppriment ; le reste utilise l'accent sarcelle.
-3. **Prudence par défaut.** Seule la confiance « Élevée » est précochée ; le mode simulation est actif au premier lancement et rappelé par un bandeau.
+3. **Prudence par défaut.** Seule la confiance « Élevée » est précochée ; le premier lancement explique CleanSlate et demande une acceptation (D63) ; la quarantaine est le choix par défaut, la suppression immédiate une option décochée (D66). Plus de mode simulation dans l'application (D66).
 4. **Toujours un retour possible.** Le dialogue de confirmation et l'Historique rappellent la quarantaine de 30 jours et la restauration.
 5. **Natif Windows 11.** Volet de navigation, matériau Mica, icônes Segoe Fluent, contrôles WinUI standards : pas de composants maison si WinUI en fournit un.
 
@@ -101,7 +101,7 @@ Chaque écran a un état vide, un état de chargement et un état d'erreur, écr
 | Analyse annulée | « Analyse interrompue : résultats partiels affichés. » | Relancer |
 | Fichier verrouillé | « 2 fichiers sont utilisés par un programme. Ils seront déplacés au prochain redémarrage. » | Voir les fichiers |
 | Accès refusé | « Accès refusé à 1 élément. Il a été ignoré. » | Détails |
-| Mode simulation | « Simulation : 6 éléments auraient été mis en quarantaine (1,2 Go). » | Désactiver la simulation |
+| Aperçu (« Simuler ») | « Simulation : 6 éléments auraient été mis en quarantaine (1,2 Go). » | — (le mode simulation est retiré, D66) |
 | Historique vide | « Aucune session pour l'instant. » | Analyser les restes |
 | Lancé sans droits admin | « CleanSlate a besoin des droits administrateur pour analyser Program Files et le registre machine. » | Redémarrer en administrateur |
 | Désinstallation en cours (étape 2) | « Temps écoulé : 01:12 » ; étapes « 10:42:11 Lancement du désinstalleur » ; « Processus du désinstalleur encore actifs : unins000.exe (PID 4242) » | Ne plus attendre |

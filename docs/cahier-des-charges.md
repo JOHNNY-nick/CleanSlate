@@ -81,7 +81,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | ID | Exigence | Priorité |
 | --- | --- | --- |
 | EF-16 | Afficher un récapitulatif avant toute suppression : nombre d'éléments, taille, chemins ; confirmation explicite obligatoire. | M |
-| EF-17 | Déplacer les fichiers et exporter les clés de registre vers une quarantaine avant suppression ; jamais de suppression définitive directe. | M |
+| EF-17 | Déplacer les fichiers et exporter les clés de registre vers une quarantaine avant suppression ; jamais de suppression définitive directe. Option « Supprimer définitivement, sans quarantaine », décochée par défaut : la session tout juste mise en quarantaine est purgée aussitôt, rien n'est restaurable (D66). | M |
 | EF-18 | Restaurer une session de nettoyage, en totalité ou élément par élément, depuis l'historique. | M |
 | EF-19 | Purger la quarantaine automatiquement après 30 jours (durée réglable) ou manuellement. Au premier lancement, l'utilisateur choisit ce délai (7, 14, 30 ou 90 jours, 30 recommandé), l'emplacement de la quarantaine et le dossier d'export des journaux, après un accueil qui explique CleanSlate et une acceptation ; tout se change ensuite dans Réglages (D62, D63). | S |
 
@@ -98,9 +98,9 @@ La sécurité prime sur tout le reste : un faux positif supprimé est bien plus 
 | ID | Domaine | Exigence | Mesure de vérification |
 | --- | --- | --- | --- |
 | ENF-01 | Sécurité | Liste noire non désactivable : `C:\Windows`, racines des lecteurs, dossiers utilisateur racines, `Microsoft`, `Windows`, `Common Files`, pilotes, clés `HKLM\SYSTEM`, `HKLM\SOFTWARE\Microsoft` et `\Classes`. | Tests unitaires sur chaque chemin protégé |
-| ENF-02 | Sécurité | Aucune suppression sans confirmation explicite ; aucune suppression définitive sans passage en quarantaine. | Tests d'intégration |
+| ENF-02 | Sécurité | Aucune suppression sans confirmation explicite ; aucune suppression définitive sans passage en quarantaine (même avec la suppression immédiate, D66). | Tests d'intégration |
 | ENF-03 | Sécurité | Ne jamais suivre les liens symboliques ni les points de jonction pendant le scan et la suppression. | Test avec jonction piégée vers `C:\Windows` |
-| ENF-04 | Sécurité | Mode « simulation » (dry run) qui produit la liste sans rien toucher. | Test : aucun fichier modifié |
+| ENF-04 | Sécurité | Mode « simulation » (dry run) qui produit la liste sans rien toucher : par défaut dans le moteur, la FFI et la CLI ; l'application n'a plus de mode simulation, mais garde l'aperçu « Simuler » des restes (D66). | Test : aucun fichier modifié |
 | ENF-05 | Performance | Inventaire des applications en moins de 2 s ; scan complet des restes en moins de 60 s sur SSD avec 500 000 fichiers. | Benchmark Criterion + chronométrage UI |
 | ENF-06 | Performance | Interface toujours réactive : tout travail long hors du thread UI. Le moteur n'envoie jamais plus d'un événement de progression par 250 ms, et en envoie au moins un toutes les 250 ms tant que le travail avance. | Revue de code + test manuel |
 | ENF-07 | Ergonomie | Une désinstallation complète en 5 clics maximum depuis l'écran Applications, confirmation comprise. | Test utilisateur |

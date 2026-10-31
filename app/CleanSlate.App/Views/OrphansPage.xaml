@@ -233,7 +233,7 @@
                     <InfoBar
                         IsClosable="False"
                         IsOpen="True"
-                        Message="{x:Bind conv:Texts.Two('Format_Cleaned', ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
+                        Message="{x:Bind conv:Texts.Two(ViewModel.CleanedFormatKey, ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
                         Severity="Success" />
                     <InfoBar
                         IsClosable="False"
@@ -256,11 +256,7 @@
                     IsClosable="False"
                     IsOpen="{x:Bind ViewModel.ShowSimulation, Mode=OneWay}"
                     Message="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.SimulatedCount, ViewModel.SimulatedSizeText), Mode=OneWay}"
-                    Severity="Success">
-                    <InfoBar.ActionButton>
-                        <Button x:Uid="OrphansDisableSimulation" Command="{x:Bind ViewModel.OpenSettingsCommand}" Visibility="{x:Bind ViewModel.IsSimulationMode}" />
-                    </InfoBar.ActionButton>
-                </InfoBar>
+                    Severity="Success" />
             </Grid>
         </Border>
     </Grid>

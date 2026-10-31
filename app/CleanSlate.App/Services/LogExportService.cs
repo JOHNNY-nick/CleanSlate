@@ -77,8 +77,7 @@ public sealed class LogExportService : ILogExportService
         text.AppendLine(CultureInfo.InvariantCulture, $"Windows : {RuntimeInformation.OSDescription}, {displayVersion}, {RuntimeInformation.OSArchitecture}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Langue : {CultureInfo.CurrentUICulture.Name}");
         text.AppendLine(CultureInfo.InvariantCulture, $".NET : {Environment.Version}");
-        text.AppendLine(CultureInfo.InvariantCulture, $"Mode simulation : {(_settings.SimulationMode ? "actif" : "désactivé")}");
-        text.AppendLine(CultureInfo.InvariantCulture, $"Quarantaine : {_settings.QuarantineDays} jours ; exclusions : {_settings.Exclusions.Count}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Quarantaine : {(_settings.DeleteImmediately ? "désactivée (suppression immédiate)" : $"{_settings.QuarantineDays} jours")} ; exclusions : {_settings.Exclusions.Count}");
         return text.ToString();
     }
 }

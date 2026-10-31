@@ -39,7 +39,6 @@
                         <TextBlock x:Uid="OnboardingHow4" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-                <InfoBar IsClosable="False" IsOpen="True" Severity="Informational" x:Uid="OnboardingSimulation" />
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel Spacing="12">
                         <TextBlock x:Uid="OnboardingSetup" TextWrapping="Wrap" />
@@ -62,12 +61,15 @@
                     <StackPanel Spacing="8">
                         <TextBlock x:Uid="OnboardingDaysTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock x:Uid="OnboardingDaysHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                        <RadioButtons SelectedIndex="{x:Bind ViewModel.SelectedDaysIndex, Mode=TwoWay}">
+                        <RadioButtons IsEnabled="{x:Bind ViewModel.KeepsQuarantine, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.SelectedDaysIndex, Mode=TwoWay}">
                             <RadioButton x:Uid="OnboardingDays7" />
                             <RadioButton x:Uid="OnboardingDays14" />
                             <RadioButton x:Uid="OnboardingDays30" />
                             <RadioButton x:Uid="OnboardingDays90" />
                         </RadioButtons>
+                        <!-- Immediate deletion (D66): off by default, consequence said before choosing. -->
+                        <CheckBox x:Uid="OnboardingDeleteImmediately" Margin="0,8,0,0" IsChecked="{x:Bind ViewModel.DeleteImmediately, Mode=TwoWay}" />
+                        <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.DeleteImmediately, Mode=OneWay}" Severity="Warning" x:Uid="OnboardingDeleteImmediatelyWarning" />
                     </StackPanel>
                 </Border>
 

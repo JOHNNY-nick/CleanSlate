@@ -5,8 +5,8 @@ using CleanSlate.Presentation.Services;
 namespace CleanSlate.App.Services;
 
 /// <summary>
-/// Settings stored in <c>%LOCALAPPDATA%\CleanSlate\settings.json</c>. Simulation
-/// mode is on until the user turns it off (specs § 9.2).
+/// Settings stored in <c>%LOCALAPPDATA%\CleanSlate\settings.json</c>. The application
+/// has no simulation mode (D66): the first-launch acceptance comes before any action.
 /// </summary>
 public sealed class SettingsService : ISettingsService
 {
@@ -28,10 +28,10 @@ public sealed class SettingsService : ISettingsService
     public event EventHandler? Changed;
 
     /// <inheritdoc/>
-    public bool SimulationMode
+    public bool DeleteImmediately
     {
-        get => _stored.SimulationMode;
-        set => Update(_stored with { SimulationMode = value });
+        get => _stored.DeleteImmediately;
+        set => Update(_stored with { DeleteImmediately = value });
     }
 
     /// <inheritdoc/>
@@ -124,7 +124,7 @@ public sealed class SettingsService : ISettingsService
     }
 
     private sealed record Stored(
-        bool SimulationMode = true,
+        bool DeleteImmediately = false,
         int QuarantineDays = 30,
         AppTheme Theme = AppTheme.System,
         bool FirstRunDone = false,
@@ -135,7 +135,7 @@ public sealed class SettingsService : ISettingsService
 
         public bool Equals(Stored? other) =>
             other is not null
-            && SimulationMode == other.SimulationMode
+            && DeleteImmediately == other.DeleteImmediately
             && QuarantineDays == other.QuarantineDays
             && Theme == other.Theme
             && FirstRunDone == other.FirstRunDone
@@ -143,6 +143,6 @@ public sealed class SettingsService : ISettingsService
             && ExportFolder == other.ExportFolder
             && Exclusions.SequenceEqual(other.Exclusions);
 
-        public override int GetHashCode() => HashCode.Combine(SimulationMode, QuarantineDays, Theme, FirstRunDone, QuarantineFolder, ExportFolder, Exclusions.Count);
+        public override int GetHashCode() => HashCode.Combine(DeleteImmediately, QuarantineDays, Theme, FirstRunDone, QuarantineFolder, ExportFolder, Exclusions.Count);
     }
 }

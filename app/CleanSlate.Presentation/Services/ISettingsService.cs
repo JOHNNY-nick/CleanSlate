@@ -16,8 +16,11 @@ public enum AppTheme
 /// <summary>User settings (Réglages page).</summary>
 public interface ISettingsService
 {
-    /// <summary>Simulation mode: nothing is moved. On by default (specs § 9.2).</summary>
-    bool SimulationMode { get; set; }
+    /// <summary>
+    /// « Supprimer définitivement, sans quarantaine » (D66): what is removed still goes through
+    /// the quarantine, then is deleted at once; nothing can be restored. Off by default.
+    /// </summary>
+    bool DeleteImmediately { get; set; }
 
     /// <summary>Days before the quarantine is purged (EF-19), 1 to 365, 30 by default.</summary>
     int QuarantineDays { get; set; }

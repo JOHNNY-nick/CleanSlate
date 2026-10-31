@@ -209,8 +209,13 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     /// <summary>The application has a silent uninstaller (EF-14).</summary>
     public bool CanQuiet => App?.App is { } a && (a.QuietUninstallString is not null || a.IsMsi);
 
-    /// <summary>Simulation mode of the settings.</summary>
-    public bool IsSimulationMode => _settings.SimulationMode;
+    /// <summary>The leftovers were deleted for good at once (D66).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CleanedFormatKey))]
+    private bool _deletedForGood;
+
+    /// <summary>Summary line of the leftovers: « mis en quarantaine » or « supprimés définitivement » (D66).</summary>
+    public string CleanedFormatKey => DeletedForGood ? "Format_Deleted" : "Format_Cleaned";
 
     /// <summary>Win32 application: a restore point is offered (not for a Store package).</summary>
     public bool IsWin32 => App?.App.Kind != AppKind.Store;
@@ -259,7 +264,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         ResetProgress();
         ClearGroups();
         OnPropertyChanged(nameof(CanQuiet));
-        OnPropertyChanged(nameof(IsSimulationMode));
+        DeletedForGood = false;
         OnPropertyChanged(nameof(IsWin32));
         OnPropertyChanged(nameof(StillInstalled));
         OnPropertyChanged(nameof(HasCaution));
@@ -281,7 +286,8 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         Step = 2;
         try
         {
-            var request = new UninstallRequest(App.App.Id, Quiet && CanQuiet, CreateRestorePoint && IsWin32, DryRun: _settings.SimulationMode);
+            // Always real: the application has no simulation mode (D66).
+            var request = new UninstallRequest(App.App.Id, Quiet && CanQuiet, CreateRestorePoint && IsWin32, DryRun: false);
             Result = await _engine.UninstallAsync(request, new UiProgress<UninstallProgress>(OnUninstallProgress), cancellationToken);
             if (Result.Simulated)
             {
@@ -462,17 +468,18 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
             SelectedSizeText,
             selected.GroupBy(i => i.Kind).Select(g => new KeyValuePair<LeftoverKind, int>(g.Key, g.Count())).ToList(),
             _settings.QuarantineDays,
-            _settings.SimulationMode);
+            _settings.DeleteImmediately);
         CleanDecision decision = await _dialogs.ConfirmCleanAsync(summary);
         if (!decision.Confirmed)
         {
             return;
         }
 
-        var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.ForApp(App.App.Id), DryRun: _settings.SimulationMode, Confirmation: decision.Word);
+        var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.ForApp(App.App.Id), DryRun: false, Confirmation: decision.Word);
         try
         {
             Session session = await _engine.CleanAsync(plan, CancellationToken.None);
+            DeletedForGood = await ImmediateDeletion.ApplyAsync(_engine, _settings, session, CancellationToken.None);
             CleanSimulated = session.Simulated;
             CleanedCount = session.Simulated
                 ? selected.Count

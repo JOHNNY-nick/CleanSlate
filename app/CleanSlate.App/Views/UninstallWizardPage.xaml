@@ -54,7 +54,6 @@
                     <Button x:Uid="WizardSearchAnyway" Command="{x:Bind ViewModel.SearchLeftoversAnywayCommand}" />
                 </InfoBar.ActionButton>
             </InfoBar>
-            <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.IsSimulationMode, Mode=OneWay}" Severity="Informational" x:Uid="WizardSimulationBanner" />
 
             <!-- Step 1: confirmation -->
             <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.IsStep1, Mode=OneWay}">
@@ -177,11 +176,11 @@
                         <Run x:Uid="WizardCommand" />
                         <Run FontFamily="{StaticResource PathFontFamily}" Text="{x:Bind ViewModel.Result.Command, Mode=OneWay, FallbackValue=''}" />
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ShowCleanedLine, Mode=OneWay}">
-                        <Run Text="{x:Bind ViewModel.CleanedCount, Mode=OneWay}" />
-                        <Run x:Uid="WizardCleaned" />
-                        <Run Text="{x:Bind ViewModel.CleanedSizeText, Mode=OneWay}" />
-                    </TextBlock>
+                    <!-- « mis en quarantaine » or « supprimés définitivement » (D66). -->
+                    <TextBlock
+                        Text="{x:Bind conv:Texts.Two(ViewModel.CleanedFormatKey, ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.ShowCleanedLine, Mode=OneWay}" />
                     <TextBlock
                         Text="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
                         TextWrapping="Wrap"

@@ -19,11 +19,11 @@ public sealed class UninstallWizardViewModelTests
 
     private static readonly Leftover Folder = new("l1", LeftoverKind.Folder, @"C:\Program Files\GIMP 2", 5_000, null, Confidence.High, ["Ancien dossier d'installation de l'application"], "GIMP 2.10.38");
 
-    private static (UninstallWizardViewModel Vm, IEngineService Engine, IDialogService Dialogs) Create(bool simulation = false)
+    private static (UninstallWizardViewModel Vm, IEngineService Engine, IDialogService Dialogs) Create(bool deleteImmediately = false)
     {
         var engine = Substitute.For<IEngineService>();
         var dialogs = OrphansViewModelTests.Dialogs();
-        var vm = new UninstallWizardViewModel(engine, dialogs, OrphansViewModelTests.Settings(simulation), Substitute.For<INavigationService>());
+        var vm = new UninstallWizardViewModel(engine, dialogs, OrphansViewModelTests.Settings(deleteImmediately), Substitute.For<INavigationService>());
         return (vm, engine, dialogs);
     }
 
@@ -101,9 +101,11 @@ public sealed class UninstallWizardViewModelTests
     }
 
     [Fact]
-    public async Task Simulation_OnlyReportsTheCommand()
+    public async Task AnEngineSimulation_OnlyReportsTheCommand()
     {
-        var (vm, engine, _) = Create(simulation: true);
+        // The application always asks for a real uninstall (D66); an engine that still
+        // answers « simulated » is reported as such, never as a finished uninstall.
+        var (vm, engine, _) = Create();
         engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
         vm.Start(Gimp, complete: true);
 
@@ -111,7 +113,7 @@ public sealed class UninstallWizardViewModelTests
 
         Assert.True(vm.IsStep4);
         Assert.False(vm.StillInstalled);
-        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.DryRun), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
+        await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => !r.DryRun), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -287,7 +289,7 @@ public sealed class UninstallWizardViewModelTests
     {
         // Complements scenario of 30 Oct. 2026: CleanSlate in simulation (default of a new
         // Sandbox), the summary came at once and looked like a finished uninstall.
-        var (vm, engine, _) = Create(simulation: true);
+        var (vm, engine, _) = Create();
         engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
         vm.Start(Gimp, complete: true);
 
@@ -306,7 +308,7 @@ public sealed class UninstallWizardViewModelTests
     [Fact]
     public async Task ANewUninstall_StartsAFreshHistory()
     {
-        var (vm, engine, _) = Create(simulation: true);
+        var (vm, engine, _) = Create();
         engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result(simulated: true, stillInstalled: true));
         vm.Start(Gimp, complete: true);
         await vm.LaunchCommand.ExecuteAsync(null);
@@ -315,6 +317,29 @@ public sealed class UninstallWizardViewModelTests
 
         Assert.False(vm.HasHistory);
         Assert.Equal(0, vm.ProgressEventCount);
+    }
+
+    [Fact]
+    public async Task DeleteImmediately_PurgesTheLeftoversSession()
+    {
+        var (vm, engine, dialogs) = Create(deleteImmediately: true);
+        engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result());
+        engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanReport([new LeftoverGroup("GIMP 2.10.38", "The GIMP Team", [Folder], 5_000)], [], 10, false));
+        var session = new Session(
+            Guid.NewGuid(), DateTimeOffset.Now, Origin.ForApp("g1"),
+            [new QuarantinedItem("l1", LeftoverKind.Folder, Folder.Location, @"C:\Q", 5_000, null, null, DateTimeOffset.Now, null, QuarantineStatus.Quarantined, null)],
+            5_000, [], SessionStatus.Completed, false);
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(session);
+        vm.Start(Gimp, complete: true);
+
+        await vm.LaunchCommand.ExecuteAsync(null);
+        await vm.QuarantineCommand.ExecuteAsync(null);
+
+        await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.DeleteImmediately));
+        await engine.Received(1).PurgeAsync(Arg.Is<PurgeRequest>(p => p.SessionId == session.Id && !p.DryRun), Arg.Any<CancellationToken>());
+        Assert.True(vm.DeletedForGood);
+        Assert.True(vm.IsStep4);
     }
 
     [Fact]

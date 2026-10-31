@@ -23,10 +23,10 @@ public sealed class OrphansViewModelTests
         DurationMs: 7_600,
         Cancelled: cancelled);
 
-    internal static ISettingsService Settings(bool simulation = true)
+    internal static ISettingsService Settings(bool deleteImmediately = false)
     {
         var settings = Substitute.For<ISettingsService>();
-        settings.SimulationMode.Returns(simulation);
+        settings.DeleteImmediately.Returns(deleteImmediately);
         settings.QuarantineDays.Returns(30);
         settings.Exclusions.Returns([]);
         return settings;
@@ -201,13 +201,11 @@ public sealed class OrphansViewModelTests
         vm.ToggleItemErrorsCommand.Execute(null);
         Assert.True(vm.ShowItemErrors);
 
-        // « Retour à l'accueil », « Voir les fichiers », « Désactiver la simulation ».
+        // « Retour à l'accueil », « Voir les fichiers ».
         vm.GoHomeCommand.Execute(null);
         vm.OpenHistoryCommand.Execute(null);
-        vm.OpenSettingsCommand.Execute(null);
         navigation.Received(1).OpenHome();
         navigation.Received(1).OpenHistory();
-        navigation.Received(1).OpenSettings();
 
         // « Relancer »: a new scan, details closed again.
         await vm.ScanCommand.ExecuteAsync(null);

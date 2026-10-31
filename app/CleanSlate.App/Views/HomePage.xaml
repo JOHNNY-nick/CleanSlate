@@ -27,7 +27,6 @@
                     <Button x:Uid="HomeRestartElevated" Click="OnRestartElevated" />
                 </InfoBar.ActionButton>
             </InfoBar>
-            <InfoBar x:Uid="HomeSimulationBanner" IsClosable="False" IsOpen="{x:Bind ViewModel.IsSimulationMode, Mode=OneWay}" Severity="Informational" />
             <InfoBar x:Uid="HomeEngineError" IsClosable="False" IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}" Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}" Severity="Error" />
 
             <Grid ColumnSpacing="16">

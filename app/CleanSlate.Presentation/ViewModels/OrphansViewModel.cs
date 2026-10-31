@@ -55,8 +55,13 @@ public sealed partial class OrphansViewModel : ObservableObject
     /// <summary>Some items were left in place.</summary>
     public bool HasCleanFailures => CleanFailureCount > 0;
 
-    /// <summary>Simulation mode of the settings (banner and button label).</summary>
-    public bool IsSimulationMode => _settings.SimulationMode;
+    /// <summary>The last quarantine was deleted for good at once (D66).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CleanedFormatKey))]
+    private bool _deletedForGood;
+
+    /// <summary>Result line: « mis en quarantaine » or « supprimés définitivement » (D66).</summary>
+    public string CleanedFormatKey => DeletedForGood ? "Format_Deleted" : "Format_Cleaned";
 
     /// <summary>Groups of the last scan, largest first.</summary>
     public ObservableCollection<LeftoverGroupViewModel> Groups { get; } = [];
@@ -211,14 +216,15 @@ public sealed partial class OrphansViewModel : ObservableObject
             SelectedSizeText,
             selected.GroupBy(i => i.Kind).Select(g => new KeyValuePair<LeftoverKind, int>(g.Key, g.Count())).ToList(),
             _settings.QuarantineDays,
-            _settings.SimulationMode);
+            _settings.DeleteImmediately);
         CleanDecision decision = await _dialogs.ConfirmCleanAsync(summary);
         if (!decision.Confirmed)
         {
             return;
         }
 
-        var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.Orphans, DryRun: _settings.SimulationMode);
+        // Always real: the application has no simulation mode (D66).
+        var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.Orphans, DryRun: false);
         try
         {
             Session session;
@@ -237,6 +243,7 @@ public sealed partial class OrphansViewModel : ObservableObject
                 session = await _engine.CleanAsync(plan with { Confirmation = again.Word }, cancellationToken);
             }
 
+            DeletedForGood = await ImmediateDeletion.ApplyAsync(_engine, _settings, session, cancellationToken);
             ShowCleanOutcome(session);
         }
         catch (EngineException ex)
@@ -256,9 +263,6 @@ public sealed partial class OrphansViewModel : ObservableObject
     [RelayCommand]
     private void OpenHistory() => _navigation.OpenHistory();
 
-    /// <summary>Simulation result: the switch is in Settings (design § 5).</summary>
-    [RelayCommand]
-    private void OpenSettings() => _navigation.OpenSettings();
 
     /// <summary>Shows or hides the ignored items (design § 5, « Détails »).</summary>
     [RelayCommand]

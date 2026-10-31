@@ -781,9 +781,20 @@ impl Quarantine<'_> {
     /// the quarantine folder. Returns the freed bytes.
     pub fn purge(&self, days: u32, now: DateTime<Utc>) -> CoreResult<u64> {
         let limit = now - Duration::days(i64::from(days));
+        self.purge_sessions(|s| s.created_at <= limit)
+    }
+
+    /// Deletes one session for good, whatever its age: the user chose
+    /// « Supprimer définitivement, sans quarantaine » (D66). The items went
+    /// through the quarantine (manifest written first, safety rule 7) just before.
+    pub fn purge_session(&self, id: Uuid) -> CoreResult<u64> {
+        self.purge_sessions(|s| s.id == id)
+    }
+
+    fn purge_sessions(&self, selected: impl Fn(&Session) -> bool) -> CoreResult<u64> {
         let mut freed = 0;
         for session in self.sessions() {
-            if session.created_at > limit || session.status == SessionStatus::Purged {
+            if !selected(&session) || session.status == SessionStatus::Purged {
                 continue;
             }
             let mut manifest = self.load(session.id)?;
@@ -1299,6 +1310,51 @@ mod tests {
         assert_eq!(item.error.as_ref().unwrap().code, "INTERRUPTED");
         assert!(kept.join("k").exists());
         assert!(lab.run(|q| q.load(session.id)).unwrap().pending.is_none());
+    }
+
+    #[test]
+    fn purge_session_removes_that_session_only_whatever_its_age() {
+        // « Supprimer définitivement, sans quarantaine » (D66): the session just created is
+        // purged at once; an older one, still inside its delay, stays restorable.
+        let lab = Lab::new();
+        let kept = lab.roaming("Kept");
+        lab.write(&kept.join("k"), b"kept");
+        let now = lab.roaming("Now");
+        lab.write(&now.join("n"), b"now!!");
+        let s1 = lab
+            .run(|q| {
+                q.clean(
+                    Origin::Orphans,
+                    &[leftover(LeftoverKind::Folder, &kept.to_string_lossy(), 4)],
+                    None,
+                    Utc::now() - Duration::days(2),
+                )
+            })
+            .unwrap();
+        let s2 = lab
+            .run(|q| {
+                q.clean(
+                    Origin::Orphans,
+                    &[leftover(LeftoverKind::Folder, &now.to_string_lossy(), 5)],
+                    None,
+                    Utc::now(),
+                )
+            })
+            .unwrap();
+
+        assert_eq!(lab.run(|q| q.purge_session(s2.id)).unwrap(), 5);
+        let sessions = lab.run(|q| q.sessions());
+        let status = |id: Uuid| sessions.iter().find(|s| s.id == id).unwrap().status;
+        assert_eq!(status(s2.id), SessionStatus::Purged);
+        assert_eq!(status(s1.id), SessionStatus::Completed);
+        assert!(!now.exists());
+        assert!(lab
+            .quarantine
+            .join(s1.id.to_string())
+            .join("files")
+            .exists());
+        // Purging it again frees nothing.
+        assert_eq!(lab.run(|q| q.purge_session(s2.id)).unwrap(), 0);
     }
 
     #[test]

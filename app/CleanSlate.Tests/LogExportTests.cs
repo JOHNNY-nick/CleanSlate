@@ -48,7 +48,7 @@ public sealed class LogExportTests : IDisposable
         File.WriteAllText(Path.Combine(logs, "crash.20261030.log"), "Process 12 on PC-SALON");
         File.WriteAllText(Path.Combine(logs, "notes.txt"), "not a log");
         string settings = Path.Combine(_work, "settings.json");
-        File.WriteAllText(settings, @"{""SimulationMode"":true,""Exclusions"":[""C:\\Users\\Ana Martin\\Documents\\Keep""]}");
+        File.WriteAllText(settings, @"{""DeleteImmediately"":false,""Exclusions"":[""C:\\Users\\Ana Martin\\Documents\\Keep""]}");
         string zipPath = Path.Combine(_work, "export.zip");
 
         // Today's log stays open by the engine while the export reads it.

@@ -276,18 +276,6 @@
   <data name="ItemStatus_Failed" xml:space="preserve">
     <value>Non déplacé</value>
   </data>
-  <data name="SettingsSimulation.Header" xml:space="preserve">
-    <value>Mode simulation</value>
-  </data>
-  <data name="SettingsSimulation.OnContent" xml:space="preserve">
-    <value>Activé : rien n'est déplacé</value>
-  </data>
-  <data name="SettingsSimulation.OffContent" xml:space="preserve">
-    <value>Désactivé : la mise en quarantaine est réelle</value>
-  </data>
-  <data name="SettingsSimulationHelp.Text" xml:space="preserve">
-    <value>Activé par défaut. Tant qu'il est actif, CleanSlate montre ce qu'il ferait sans rien déplacer. Après un changement, relancez l'analyse.</value>
-  </data>
   <data name="SettingsQuarantineDays.Header" xml:space="preserve">
     <value>Durée de conservation en quarantaine (jours)</value>
   </data>
@@ -306,14 +294,8 @@
   <data name="ConfirmReminder" xml:space="preserve">
     <value>Ils restent restaurables pendant {0} jours depuis l'Historique.</value>
   </data>
-  <data name="ConfirmSimulation" xml:space="preserve">
-    <value>Mode simulation : rien ne sera déplacé.</value>
-  </data>
   <data name="ConfirmPrimary" xml:space="preserve">
     <value>Mettre en quarantaine</value>
-  </data>
-  <data name="ConfirmPrimarySimulation" xml:space="preserve">
-    <value>Simuler</value>
   </data>
   <data name="ConfirmCancel" xml:space="preserve">
     <value>Annuler</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="WizardError.Title" xml:space="preserve">
     <value>La désinstallation n'a pas pu démarrer.</value>
-  </data>
-  <data name="WizardSimulationBanner.Title" xml:space="preserve">
-    <value>Mode simulation : aucun programme ne sera lancé, rien ne sera déplacé.</value>
   </data>
   <data name="WizardRestorePoint.Content" xml:space="preserve">
     <value>Créer un point de restauration</value>
@@ -389,9 +368,6 @@
   </data>
   <data name="WizardCommand.Text" xml:space="preserve">
     <value>Commande :</value>
-  </data>
-  <data name="WizardCleaned.Text" xml:space="preserve">
-    <value>reste(s) mis en quarantaine ·</value>
   </data>
   <data name="WizardOpenHistory.Content" xml:space="preserve">
     <value>Voir l'historique</value>
@@ -468,9 +444,6 @@
   <data name="HomeRestartElevated.Content" xml:space="preserve">
     <value>Redémarrer en administrateur</value>
   </data>
-  <data name="HomeSimulationBanner.Title" xml:space="preserve">
-    <value>Mode simulation actif : CleanSlate montre ce qu'il ferait sans rien déplacer. Désactivez-le dans les Réglages.</value>
-  </data>
   <data name="HomeAppsLabel.Text" xml:space="preserve">
     <value>Applications installées</value>
   </data>
@@ -503,9 +476,6 @@
   </data>
   <data name="OrphansSeeFiles.Content" xml:space="preserve">
     <value>Voir les fichiers</value>
-  </data>
-  <data name="OrphansDisableSimulation.Content" xml:space="preserve">
-    <value>Désactiver la simulation</value>
   </data>
   <data name="HistoryAnalyze.Content" xml:space="preserve">
     <value>Analyser les restes</value>
@@ -671,19 +641,13 @@ Joignez ce fichier si vous signalez le problème.</value>
     <value>2. Vous choisissez. Il vous montre ce qu&apos;il a trouvé, avec un niveau de confiance. Seuls les éléments très sûrs sont cochés d&apos;avance, et vous pouvez tout décocher.</value>
   </data>
   <data name="OnboardingHow3.Text" xml:space="preserve">
-    <value>3. Rien n&apos;est effacé tout de suite. Ce que vous validez part en quarantaine, une sorte de corbeille propre à CleanSlate, pendant le délai que vous choisirez.</value>
+    <value>3. Rien n&apos;est effacé tout de suite. Ce que vous validez part en quarantaine, une sorte de corbeille propre à CleanSlate, pendant le délai que vous choisirez, sauf si vous choisissez la suppression immédiate à l&apos;étape suivante.</value>
   </data>
   <data name="OnboardingHow4.Text" xml:space="preserve">
     <value>4. Vous pouvez revenir en arrière. Depuis Historique, chaque élément se remet à sa place, à l&apos;identique, tant qu&apos;il est en quarantaine. Ensuite, il est effacé pour de bon.</value>
   </data>
-  <data name="OnboardingSimulation.Title" xml:space="preserve">
-    <value>Mode simulation activé</value>
-  </data>
-  <data name="OnboardingSimulation.Message" xml:space="preserve">
-    <value>Pour commencer en toute sécurité, CleanSlate montre ce qu&apos;il ferait sans rien déplacer ni désinstaller. Vous le désactiverez dans Réglages quand vous serez prêt.</value>
-  </data>
   <data name="OnboardingSetup.Text" xml:space="preserve">
-    <value>En acceptant, vous autorisez CleanSlate à créer ses dossiers de travail : la quarantaine et son historique, à l&apos;emplacement choisi à l&apos;étape suivante, et ses journaux (un fichier par jour, gardés 7 jours, jamais envoyés sur Internet).</value>
+    <value>En acceptant, vous autorisez CleanSlate à agir pour de vrai : il lance les désinstalleurs que vous choisissez et retire les restes que vous validez, toujours après une confirmation. Il crée ses dossiers de travail : la quarantaine et son historique, à l&apos;emplacement choisi à l&apos;étape suivante, et ses journaux (un fichier par jour, gardés 7 jours, jamais envoyés sur Internet).</value>
   </data>
   <data name="OnboardingWarranty.Text" xml:space="preserve">
     <value>CleanSlate est un logiciel libre, fourni sans garantie. Relisez toujours la liste avant de valider : c&apos;est vous qui décidez de ce qui est retiré.</value>
@@ -834,5 +798,35 @@ Joignez ce fichier si vous signalez le problème.</value>
   </data>
   <data name="Caution_Microsoft" xml:space="preserve">
     <value>Cette application est éditée par Microsoft : Windows ou d&apos;autres programmes peuvent l&apos;utiliser. Désinstallez-la seulement si vous savez que vous n&apos;en avez pas besoin.</value>
+  </data>
+  <data name="Format_Deleted" xml:space="preserve">
+    <value>{0} élément(s) supprimé(s) définitivement ({1}).</value>
+  </data>
+  <data name="ConfirmDeleteForGood" xml:space="preserve">
+    <value>Ils seront supprimés définitivement : aucune restauration ne sera possible.</value>
+  </data>
+  <data name="ConfirmPrimaryDelete" xml:space="preserve">
+    <value>Supprimer définitivement</value>
+  </data>
+  <data name="SettingsDeleteImmediately.Header" xml:space="preserve">
+    <value>Suppression immédiate, sans quarantaine</value>
+  </data>
+  <data name="SettingsDeleteImmediately.OnContent" xml:space="preserve">
+    <value>Activée : rien n&apos;est restaurable</value>
+  </data>
+  <data name="SettingsDeleteImmediately.OffContent" xml:space="preserve">
+    <value>Désactivée : quarantaine</value>
+  </data>
+  <data name="SettingsDeleteImmediatelyHelp.Text" xml:space="preserve">
+    <value>Activée, ce que vous retirez est effacé aussitôt après la confirmation : la place est libérée tout de suite, mais plus rien ne peut être restauré depuis l&apos;Historique. Désactivée (recommandé), tout reste restaurable pendant le délai ci-dessous.</value>
+  </data>
+  <data name="OnboardingDeleteImmediately.Content" xml:space="preserve">
+    <value>Supprimer définitivement, sans quarantaine</value>
+  </data>
+  <data name="OnboardingDeleteImmediatelyWarning.Title" xml:space="preserve">
+    <value>Plus aucune restauration possible</value>
+  </data>
+  <data name="OnboardingDeleteImmediatelyWarning.Message" xml:space="preserve">
+    <value>Ce que vous retirez sera effacé aussitôt après la confirmation. En cas d&apos;erreur, rien ne pourra être remis en place. Recommandé : laissez cette case décochée.</value>
   </data>
 </root>

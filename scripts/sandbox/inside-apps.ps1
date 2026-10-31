@@ -270,7 +270,7 @@ Write-Report 'Scénario des 5 applications — résultats' $meta @(
     [pscustomobject]@{ Name = "Zéro élément d'une application installée ou du système précoché (critère 3)"; Measure = "$($wrong.Count) précoché(s) fautif(s)"; Status = $(if ($wrong.Count -eq 0) { 'ok' } else { 'ko' }) },
     [pscustomobject]@{ Name = 'Analyse sous 60 s (ENF-05)'; Measure = "$([math]::Round($report.duration_ms / 1000, 1)) s"; Status = $(if ($report.duration_ms -lt 60000) { 'ok' } else { 'ko' }) },
     [pscustomobject]@{ Name = 'Session restaurable à l''identique (critère 4)'; Measure = $measure4; Status = $criterion4 },
-    [pscustomobject]@{ Name = 'Critère 4 dans l''interface (facultatif)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau), mode simulation désactivé'; Status = 'manuel' },
+    [pscustomobject]@{ Name = 'Critère 4 dans l''interface (facultatif)'; Measure = 'tests-acceptation.md § 4.2, étapes 4 à 7, dans CleanSlate (Bureau), après les écrans du premier lancement'; Status = 'manuel' },
     [pscustomobject]@{ Name = 'Information (D60) : GIMP garde ses réglages avec /SUPPRESSMSGBOXES (désinstallation classique ; CleanSlate ne passe jamais cette option)'; Measure = $gimpMeasure; Status = $gimpStatus }
 ) ([ordered]@{
         'Restes réels manqués'                = $missed

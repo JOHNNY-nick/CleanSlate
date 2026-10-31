@@ -27,8 +27,12 @@ public sealed class SessionJsonTests
             """{"session_id":"11111111-2222-3333-4444-555555555555","dry_run":true}""",
             JsonSerializer.Serialize(new RestoreRequest(id), EngineJsonContext.Default.RestoreRequest));
         Assert.Equal(
-            """{"older_than_days":30,"dry_run":true}""",
+            """{"older_than_days":30,"dry_run":true,"session_id":null}""",
             JsonSerializer.Serialize(new PurgeRequest(30), EngineJsonContext.Default.PurgeRequest));
+        // Immediate deletion (D66): one session, named, whatever its age.
+        Assert.Equal(
+            """{"older_than_days":0,"dry_run":false,"session_id":"11111111-2222-3333-4444-555555555555"}""",
+            JsonSerializer.Serialize(new PurgeRequest(0, DryRun: false, SessionId: id), EngineJsonContext.Default.PurgeRequest));
     }
 
     [Fact]

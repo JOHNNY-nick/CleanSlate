@@ -59,7 +59,7 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
 ## Règles de sécurité (non négociables)
 1. Ne jamais exécuter d'opération destructive sur le vrai système de cette machine.
    Pas de suppression, déplacement ou écriture de registre hors des zones de test,
-   et jamais cleanslate-cli sans --dry-run ni l'application hors mode simulation,
+   et jamais cleanslate-cli sans --dry-run ni l'application (elle agit pour de vrai depuis D66),
    sauf si je le demande explicitement dans le message en cours.
    Incident du 30 oct. 2026 (D53), à ne jamais reproduire : Claude a lancé
    « cleanslate-cli sandbox quarantine » sur cette machine pour « vérifier la garde » ; l'outil
@@ -75,10 +75,16 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
    Seules dérogations, décidées par le porteur : les exceptions étroites D20 (menu Démarrer),
    D47 (tâches, services) et D48 (données de paquets du Store), chacune dans une fonction
    dédiée de safety.rs ; les règles générales (check_path, validate_key) restent inchangées.
-5. dry_run vaut true par défaut dans tous les types et toutes les API.
+5. dry_run vaut true par défaut dans tous les types et toutes les API du moteur, de la FFI
+   et de la CLI. Seule dérogation, décidée par le porteur (D66) : l'application n'a plus de
+   mode simulation ; elle passe dry_run = false explicitement à chaque appel, après
+   l'acceptation du premier lancement, une liste à relire et une confirmation.
 6. Ne jamais suivre de lien symbolique ni de point de jonction (reparse point).
 7. Jamais de suppression directe : tout passe par quarantine avec manifeste écrit
-   avant le déplacement.
+   avant le déplacement. Seule dérogation, décidée par le porteur (D66) : l'option
+   « Supprimer définitivement, sans quarantaine », décochée par défaut, purge aussitôt
+   la seule session qui vient d'être mise en quarantaine (avec ses garde-fous) ;
+   rien n'est alors restaurable, et l'interface le dit avant la confirmation.
 8. UninstallString : découpage exécutable + arguments, jamais via cmd /c ni un shell.
 
 ## Conventions Rust

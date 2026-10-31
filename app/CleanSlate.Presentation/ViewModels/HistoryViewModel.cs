@@ -185,7 +185,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         }
 
         List<string> ids = session.Items.Where(i => i.IsChecked && i.IsRestorable).Select(i => i.Item.Id).ToList();
-        var request = new RestoreRequest(session.Session.Id, ids.Count > 0 ? ids : null, DryRun: _settings.SimulationMode);
+        var request = new RestoreRequest(session.Session.Id, ids.Count > 0 ? ids : null, DryRun: false);
         try
         {
             Session result = await _engine.RestoreAsync(request, CancellationToken.None);
@@ -215,7 +215,7 @@ public sealed partial class HistoryViewModel : ObservableObject
 
         try
         {
-            var request = new PurgeRequest((uint)_settings.QuarantineDays, DryRun: _settings.SimulationMode);
+            var request = new PurgeRequest((uint)_settings.QuarantineDays, DryRun: false);
             PurgeResult result = await _engine.PurgeAsync(request, CancellationToken.None);
             PurgedText = Formats.Size(result.FreedBytes);
             LastWasSimulated = result.Simulated;
