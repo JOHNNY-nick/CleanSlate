@@ -222,17 +222,17 @@
                     <Run Text="·" />
                     <Run Text="{x:Bind ViewModel.SelectedSizeText, Mode=OneWay}" />
                 </TextBlock>
-                <Button x:Uid="OrphansSimulate" Grid.Column="1" Command="{x:Bind ViewModel.SimulateCommand}" />
+                <!-- The label says what will happen: quarantine or deletion for good (D67). -->
                 <Button
-                    x:Uid="OrphansQuarantine"
                     Grid.Column="2"
                     Background="{ThemeResource DangerBrush}"
                     Command="{x:Bind ViewModel.QuarantineCommand}"
+                    Content="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}"
                     Foreground="White" />
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.ShowCleanResult, Mode=OneWay}">
                     <InfoBar
                         IsClosable="False"
-                        IsOpen="True"
+                        IsOpen="{x:Bind ViewModel.HasCleaned, Mode=OneWay}"
                         Message="{x:Bind conv:Texts.Two(ViewModel.CleanedFormatKey, ViewModel.CleanedCount, ViewModel.CleanedSizeText), Mode=OneWay}"
                         Severity="Success" />
                     <InfoBar
@@ -250,13 +250,6 @@
                         Message="{x:Bind conv:Texts.One('Format_CleanFailures', ViewModel.CleanFailureCount), Mode=OneWay}"
                         Severity="Warning" />
                 </StackPanel>
-                <InfoBar
-                    Grid.Row="1"
-                    Grid.ColumnSpan="3"
-                    IsClosable="False"
-                    IsOpen="{x:Bind ViewModel.ShowSimulation, Mode=OneWay}"
-                    Message="{x:Bind conv:Texts.Two('Format_Simulation', ViewModel.SimulatedCount, ViewModel.SimulatedSizeText), Mode=OneWay}"
-                    Severity="Success" />
             </Grid>
         </Border>
     </Grid>

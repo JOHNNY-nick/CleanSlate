@@ -334,6 +334,7 @@ public sealed class UninstallWizardViewModelTests
         vm.Start(Gimp, complete: true);
 
         await vm.LaunchCommand.ExecuteAsync(null);
+        Assert.Equal("DeleteForGood", vm.ActionKey);
         await vm.QuarantineCommand.ExecuteAsync(null);
 
         await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.DeleteImmediately));

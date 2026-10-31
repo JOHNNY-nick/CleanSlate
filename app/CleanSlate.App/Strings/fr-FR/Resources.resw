@@ -171,12 +171,6 @@
   <data name="OrphansSelected.Text" xml:space="preserve">
     <value>élément(s) sélectionné(s)</value>
   </data>
-  <data name="OrphansSimulate.Content" xml:space="preserve">
-    <value>Simuler</value>
-  </data>
-  <data name="OrphansQuarantine.Content" xml:space="preserve">
-    <value>Mettre en quarantaine</value>
-  </data>
   <data name="Kind_Folder" xml:space="preserve">
     <value>Dossier</value>
   </data>
@@ -357,9 +351,6 @@
   <data name="WizardSkipLeftovers.Content" xml:space="preserve">
     <value>Ignorer les restes</value>
   </data>
-  <data name="WizardQuarantine.Content" xml:space="preserve">
-    <value>Mettre les restes en quarantaine</value>
-  </data>
   <data name="WizardDone.Text" xml:space="preserve">
     <value>Terminé</value>
   </data>
@@ -508,7 +499,7 @@
     <value>{0} fichier(s) utilisé(s) par un programme. Ils seront déplacés au prochain redémarrage.</value>
   </data>
   <data name="Format_CleanFailures" xml:space="preserve">
-    <value>{0} élément(s) laissé(s) en place (protégé, utilisé ou inaccessible).</value>
+    <value>{0} élément(s) laissé(s) en place : CleanSlate n&apos;y a pas touché (élément de Windows protégé, fichier utilisé par un programme ou accès refusé). Il(s) reste(nt) dans la liste.</value>
   </data>
   <data name="Format_Simulation" xml:space="preserve">
     <value>Simulation : {0} élément(s) auraient été mis en quarantaine ({1}).</value>
@@ -782,10 +773,7 @@ Joignez ce fichier si vous signalez le problème.</value>
     <value>Le dossier n&apos;a pas pu être utilisé</value>
   </data>
   <data name="WizardCaution.Title" xml:space="preserve">
-    <value>Application importante</value>
-  </data>
-  <data name="WizardCautionAcknowledge.Content" xml:space="preserve">
-    <value>Je comprends, désinstaller quand même</value>
+    <value>À savoir avant de désinstaller</value>
   </data>
   <data name="Caution_Security" xml:space="preserve">
     <value>C&apos;est un antivirus ou un logiciel de sécurité : sans lui, votre PC peut rester sans protection. Vérifiez que Microsoft Defender ou un autre antivirus prendra le relais.</value>
@@ -828,5 +816,14 @@ Joignez ce fichier si vous signalez le problème.</value>
   </data>
   <data name="OnboardingDeleteImmediatelyWarning.Message" xml:space="preserve">
     <value>Ce que vous retirez sera effacé aussitôt après la confirmation. En cas d&apos;erreur, rien ne pourra être remis en place. Recommandé : laissez cette case décochée.</value>
+  </data>
+  <data name="Action_Quarantine" xml:space="preserve">
+    <value>Mettre en quarantaine</value>
+  </data>
+  <data name="Action_QuarantineLeftovers" xml:space="preserve">
+    <value>Mettre les restes en quarantaine</value>
+  </data>
+  <data name="Action_DeleteForGood" xml:space="preserve">
+    <value>Supprimer définitivement</value>
   </data>
 </root>

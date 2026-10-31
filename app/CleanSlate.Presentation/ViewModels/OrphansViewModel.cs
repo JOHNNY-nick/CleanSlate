@@ -8,8 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace CleanSlate.Presentation.ViewModels;
 
 /// <summary>
-/// Scan of orphan leftovers without a name (EF-05 to EF-11). In J3 the
-/// action only simulates: nothing is moved (ENF-04).
+/// Scan of orphan leftovers without a name (EF-05 to EF-11), then quarantine
+/// or immediate deletion of the checked items (EF-16, EF-17, D66).
 /// </summary>
 public sealed partial class OrphansViewModel : ObservableObject
 {
@@ -25,7 +25,14 @@ public sealed partial class OrphansViewModel : ObservableObject
         _dialogs = dialogs;
         _settings = settings;
         _navigation = navigation;
+        _settings.Changed += (_, _) => OnPropertyChanged(nameof(ActionKey));
     }
+
+    /// <summary>Label of the action button: « Mettre en quarantaine » or « Supprimer définitivement » (D67).</summary>
+    public string ActionKey => _settings.DeleteImmediately ? "DeleteForGood" : "Quarantine";
+
+    /// <summary>Something was really moved: the success line is shown (D67).</summary>
+    public bool HasCleaned => CleanedCount > 0;
 
     /// <summary>Result of the last quarantine is shown.</summary>
     [ObservableProperty]
@@ -33,6 +40,7 @@ public sealed partial class OrphansViewModel : ObservableObject
 
     /// <summary>Items moved to quarantine by the last session.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCleaned))]
     private int _cleanedCount;
 
     /// <summary>Size moved to quarantine by the last session.</summary>
@@ -139,24 +147,13 @@ public sealed partial class OrphansViewModel : ObservableObject
 
     /// <summary>Number of checked items.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SimulateCommand), nameof(QuarantineCommand))]
+    [NotifyCanExecuteChangedFor(nameof(QuarantineCommand))]
     private int _selectedCount;
 
     /// <summary>Size of the checked items.</summary>
     [ObservableProperty]
     private string _selectedSizeText = Formats.Size(0);
 
-    /// <summary>Simulation result shown under the list (design § 5).</summary>
-    [ObservableProperty]
-    private bool _showSimulation;
-
-    /// <summary>Number of items of the last simulation.</summary>
-    [ObservableProperty]
-    private int _simulatedCount;
-
-    /// <summary>Size of the last simulation.</summary>
-    [ObservableProperty]
-    private string _simulatedSizeText = string.Empty;
 
     /// <summary>Number of groups.</summary>
     public int GroupCount => Groups.Count;
@@ -175,7 +172,6 @@ public sealed partial class OrphansViewModel : ObservableObject
         IsProgressIndeterminate = true;
         ProgressPercent = 0;
         ProgressPath = string.Empty;
-        ShowSimulation = false;
         HasError = false;
         var progress = new Progress<ScanProgress>(OnProgress);
         try
@@ -194,18 +190,10 @@ public sealed partial class OrphansViewModel : ObservableObject
         }
     }
 
-    /// <summary>Shows what would be quarantined, without touching anything (ENF-04).</summary>
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Simulate()
-    {
-        SimulatedCount = SelectedCount;
-        SimulatedSizeText = SelectedSizeText;
-        ShowSimulation = true;
-    }
 
     /// <summary>
     /// Moves the checked items to quarantine after the mandatory confirmation
-    /// (EF-16, EF-17); in simulation mode, only reports what would be done.
+    /// (EF-16, EF-17), or deletes them for good when the user chose it (D66).
     /// </summary>
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task QuarantineAsync(CancellationToken cancellationToken)
@@ -272,8 +260,7 @@ public sealed partial class OrphansViewModel : ObservableObject
     {
         if (session.Simulated)
         {
-            Simulate();
-            return;
+            return; // nothing was moved (the application never asks for a simulation, D66)
         }
 
         var moved = session.Items
@@ -393,6 +380,5 @@ public sealed partial class OrphansViewModel : ObservableObject
         var checkedItems = Groups.SelectMany(g => g.Items).Where(i => i.IsChecked).ToList();
         SelectedCount = checkedItems.Count;
         SelectedSizeText = Formats.Size(checkedItems.Aggregate(0UL, (sum, i) => sum + i.Leftover.SizeBytes));
-        ShowSimulation = false;
     }
 }

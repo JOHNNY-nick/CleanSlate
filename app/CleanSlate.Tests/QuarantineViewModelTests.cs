@@ -83,6 +83,23 @@ public sealed class QuarantineViewModelTests
     }
 
     [Fact]
+    public async Task NothingMoved_ShowsNoSuccessLine()
+    {
+        // Installer run of 31 Oct. 2026 (D67): « 0 élément mis en quarantaine… restaurables »
+        // was shown next to « 1 élément laissé en place ».
+        var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(deleteImmediately: true));
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
+            .Returns(SessionOf(false, Moved(High, QuarantineStatus.Failed)));
+
+        await vm.QuarantineCommand.ExecuteAsync(null);
+
+        Assert.True(vm.ShowCleanResult);
+        Assert.False(vm.HasCleaned);
+        Assert.Equal(1, vm.CleanFailureCount);
+        await engine.DidNotReceive().PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Quarantine_AboveCeiling_AsksForTheWord()
     {
         var dialogs = OrphansViewModelTests.Dialogs(confirm: true, word: "QUARANTAINE");

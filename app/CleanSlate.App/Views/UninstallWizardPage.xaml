@@ -66,11 +66,8 @@
                         <Run Text="·" />
                         <Run Text="{x:Bind ViewModel.App.SizeText, Mode=OneWay, FallbackValue=''}" />
                     </TextBlock>
-                    <!-- Important application (D65): warning and « Je comprends » before the launch. -->
-                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasCaution, Mode=OneWay}">
-                        <InfoBar IsClosable="False" IsOpen="True" Severity="Warning" x:Uid="WizardCaution" Message="{x:Bind ViewModel.CautionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Caution}" />
-                        <CheckBox x:Uid="WizardCautionAcknowledge" IsChecked="{x:Bind ViewModel.CautionAcknowledged, Mode=TwoWay}" />
-                    </StackPanel>
+                    <!-- Important application (D65, D67): a plain notice, nothing to tick. -->
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasCaution, Mode=OneWay}" Severity="Warning" x:Uid="WizardCaution" Message="{x:Bind ViewModel.CautionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Caution}" />
                     <CheckBox x:Uid="WizardRestorePoint" IsChecked="{x:Bind ViewModel.CreateRestorePoint, Mode=TwoWay}" Visibility="{x:Bind ViewModel.IsWin32, Mode=OneWay}" />
                     <CheckBox x:Uid="WizardQuiet" IsChecked="{x:Bind ViewModel.Quiet, Mode=TwoWay}" Visibility="{x:Bind ViewModel.CanQuiet, Mode=OneWay}" />
                     <TextBlock x:Uid="WizardStep1Help" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
@@ -159,7 +156,7 @@
                 </ItemsRepeater>
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button x:Uid="WizardSkipLeftovers" Command="{x:Bind ViewModel.SkipLeftoversCommand}" />
-                    <Button x:Uid="WizardQuarantine" Background="{ThemeResource DangerBrush}" Foreground="White" Command="{x:Bind ViewModel.QuarantineCommand}" />
+                    <Button Background="{ThemeResource DangerBrush}" Foreground="White" Command="{x:Bind ViewModel.QuarantineCommand}" Content="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}" />
                 </StackPanel>
             </StackPanel>
 

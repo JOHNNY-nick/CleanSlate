@@ -17,7 +17,7 @@ use crate::system::{command_executable_raw, program_path, SERVICES_KEY};
 use crate::tasks::{parse_actions, TaskAction};
 
 /// Folder names protected wherever they appear in a path (specs § 9.1).
-pub const PROTECTED_NAMES: [&str; 18] = [
+pub const PROTECTED_NAMES: &[&str] = &[
     "microsoft",
     "windows",
     "windows defender",
@@ -36,10 +36,33 @@ pub const PROTECTED_NAMES: [&str; 18] = [
     "system volume information",
     "$recycle.bin",
     "recovery",
+    // Windows' own folders a fresh Windows 11 scan proposed as leftovers (D67).
+    "windowspowershell",
+    "windows sidebar",
+    "windows defender advanced threat protection",
+    "windows mail",
+    "windows media player",
+    "windows multimedia platform",
+    "windows photo viewer",
+    "windows portable devices",
+    "windows security",
+    "internet explorer",
+    "modifiablewindowsapps",
+    "uninstall information",
+    "reference assemblies",
+    "regid.1991-06.com.microsoft",
+    "usoprivate",
+    "usoshared",
+    "softwaredistribution",
+    "whesvc",
+    "ssh",
+    "connecteddevicesplatform",
+    "d3dscache",
+    "virtualstore",
 ];
 
 /// Registry key names protected wherever they appear in a key (specs § 9.1).
-pub const PROTECTED_KEY_NAMES: [&str; 8] = [
+pub const PROTECTED_KEY_NAMES: &[&str] = &[
     "microsoft",
     "classes",
     "policies",
@@ -49,6 +72,24 @@ pub const PROTECTED_KEY_NAMES: [&str; 8] = [
     "cleanslate",
     // Test area of the registry (safety rule 2): never proposed.
     "cleanslatetest",
+    // Windows and drivers, proposed by a fresh Windows 11 scan (D67).
+    "odbc",
+    "appdatalow",
+    "defaultuserenvironment",
+    "intel",
+    "nvidia corporation",
+    "amd",
+];
+
+/// Keys of Windows and of the PC maker below the registry scan roots,
+/// protected with everything below them (D67).
+pub const PROTECTED_KEYS: &[&str] = &[
+    r"HKLM\SOFTWARE\OEM",
+    r"HKLM\SOFTWARE\Partner",
+    r"HKLM\SOFTWARE\Setup",
+    r"HKLM\SOFTWARE\WOW6432Node\OEM",
+    r"HKLM\SOFTWARE\WOW6432Node\Partner",
+    r"HKLM\SOFTWARE\WOW6432Node\Setup",
 ];
 
 /// Registry trees protected with everything below them.
@@ -780,6 +821,9 @@ impl SafetyRules {
             .iter()
             .any(|t| is_within(&text, &t.to_lowercase()))
             || REGISTRY_SCAN_ROOTS.iter().any(|r| text == r.to_lowercase())
+            || PROTECTED_KEYS
+                .iter()
+                .any(|k| is_within(&text, &k.to_lowercase()))
             || parts.iter().any(|p| PROTECTED_KEY_NAMES.contains(p))
             || parts.last() == Some(&"wow6432node")
             || self.exclusions.iter().any(|e| is_within(&text, e))
@@ -798,6 +842,82 @@ mod tests {
 
     fn rules() -> SafetyRules {
         SafetyRules::new(&KnownFolders::under(r"C:\"), &[])
+    }
+
+    /// D67: what a scan of a fresh Windows 11 (Sandbox, 30-31 Oct. 2026) proposed as
+    /// leftovers although it belongs to Windows. `C:\Program Files\WindowsPowerShell` was
+    /// even selected and only refused because it was a link in the Sandbox; on a real PC it
+    /// would have been moved. The blacklist only grows here: real leftovers stay allowed.
+    #[test]
+    fn windows_own_folders_and_keys_are_never_leftovers() {
+        let r = rules();
+        for path in [
+            r"C:\Program Files\WindowsPowerShell",
+            r"C:\Program Files (x86)\WindowsPowerShell",
+            r"C:\Program Files\Windows Sidebar",
+            r"C:\Program Files (x86)\Windows Sidebar",
+            r"C:\Program Files\Windows Defender Advanced Threat Protection",
+            r"C:\Program Files\ModifiableWindowsApps",
+            r"C:\Program Files\Uninstall Information",
+            r"C:\Program Files\Windows Mail",
+            r"C:\Program Files\Windows Media Player",
+            r"C:\Program Files\Windows Photo Viewer",
+            r"C:\Program Files\Internet Explorer",
+            r"C:\Program Files\Reference Assemblies",
+            r"C:\ProgramData\regid.1991-06.com.microsoft",
+            r"C:\ProgramData\USOPrivate",
+            r"C:\ProgramData\USOShared",
+            r"C:\ProgramData\SoftwareDistribution",
+            r"C:\ProgramData\Whesvc",
+            r"C:\ProgramData\ssh",
+            r"C:\Users\Ana\AppData\Local\ConnectedDevicesPlatform",
+            r"C:\Users\Ana\AppData\Local\D3DSCache",
+            r"C:\Users\Ana\AppData\Local\VirtualStore",
+        ] {
+            assert_eq!(
+                r.check_path(Path::new(path)).unwrap_err().code(),
+                "PROTECTED",
+                "{path}"
+            );
+        }
+        for key in [
+            r"HKLM\SOFTWARE\ODBC",
+            r"HKLM\SOFTWARE\WOW6432Node\ODBC",
+            r"HKLM\SOFTWARE\DefaultUserEnvironment",
+            r"HKLM\SOFTWARE\OEM",
+            r"HKLM\SOFTWARE\Partner",
+            r"HKLM\SOFTWARE\Setup",
+            r"HKLM\SOFTWARE\WOW6432Node\Setup",
+            r"HKLM\SOFTWARE\Intel",
+            r"HKLM\SOFTWARE\WOW6432Node\Intel",
+            r"HKCU\Software\AppDataLow",
+        ] {
+            let parsed = RegKeyPath::parse(key).unwrap();
+            assert_eq!(
+                r.validate_key(&parsed).unwrap_err().code(),
+                "PROTECTED",
+                "{key}"
+            );
+        }
+        // Real leftovers of the same scans stay allowed.
+        for path in [
+            r"C:\Users\Ana\AppData\Roaming\GIMP",
+            r"C:\Users\Ana\AppData\Local\Audacity",
+            r"C:\Program Files\VideoLAN",
+            r"C:\ProgramData\Mozilla-1de4eec8-1241-4177-a864-e594e8d1fb38",
+        ] {
+            assert!(r.check_path(Path::new(path)).is_ok(), "{path}");
+        }
+        for key in [
+            r"HKCU\Software\7-Zip",
+            r"HKCU\Software\QtProject",
+            r"HKLM\SOFTWARE\Google",
+        ] {
+            assert!(
+                r.validate_key(&RegKeyPath::parse(key).unwrap()).is_ok(),
+                "{key}"
+            );
+        }
     }
 
     fn assert_protected(path: &str) {

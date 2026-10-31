@@ -23,29 +23,15 @@ public sealed class ImportantAppTests
         Substitute.For<IEngineService>(), OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(false), Substitute.For<INavigationService>());
 
     [Fact]
-    public void AnImportantApplication_IsUninstalledOnlyAfterTheWarningIsAcknowledged()
+    public void AnImportantApplication_ShowsANotice_WithoutBlocking()
     {
+        // The owner asked for a plain notice, not a box to tick (D67).
         var vm = Wizard();
         vm.Start(App("PowerShell 7-x64", Caution.Microsoft), complete: true);
 
         Assert.True(vm.HasCaution);
         Assert.Equal("Microsoft", vm.CautionKey);
-        Assert.False(vm.LaunchCommand.CanExecute(null));
-
-        vm.CautionAcknowledged = true;
         Assert.True(vm.LaunchCommand.CanExecute(null));
-    }
-
-    [Fact]
-    public void TheAcknowledgement_IsAskedAgainForEachApplication()
-    {
-        var vm = Wizard();
-        vm.Start(App("Bitdefender Total Security", Caution.Security), complete: true);
-        vm.CautionAcknowledged = true;
-
-        vm.Start(App("NVIDIA Graphics Driver", Caution.Driver), complete: true);
-        Assert.False(vm.CautionAcknowledged);
-        Assert.False(vm.LaunchCommand.CanExecute(null));
     }
 
     [Fact]

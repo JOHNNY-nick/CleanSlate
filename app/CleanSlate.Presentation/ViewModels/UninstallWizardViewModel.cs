@@ -68,12 +68,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     [ObservableProperty]
     private bool _quiet;
 
-    /// <summary>« Je comprends » checked for an important application (D65).</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(LaunchCommand))]
-    private bool _cautionAcknowledged;
-
-    /// <summary>Other programs or Windows may depend on the application (D65).</summary>
+    /// <summary>Other programs or Windows may depend on the application: a notice is shown (D65, D67).</summary>
     public bool HasCaution => App?.App.Caution is not null;
 
     /// <summary>Why, turned into text by the view (<c>Caution_{value}</c>).</summary>
@@ -105,7 +100,11 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
 
     /// <summary>Items moved by the quarantine of the leftovers.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowCleanedLine))]
     private int _cleanedCount;
+
+    /// <summary>Label of the step 3 button: « Mettre les restes en quarantaine » or « Supprimer définitivement » (D67).</summary>
+    public string ActionKey => _settings.DeleteImmediately ? "DeleteForGood" : "QuarantineLeftovers";
 
     /// <summary>Size freed by the quarantine.</summary>
     [ObservableProperty]
@@ -227,7 +226,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     public bool WasSimulated => Result is { Simulated: true };
 
     /// <summary>Leftovers were really handled (summary line of step 4).</summary>
-    public bool ShowCleanedLine => !NoLeftoverFound
+    public bool ShowCleanedLine => CleanedCount > 0 && !NoLeftoverFound
         && (WithoutUninstaller ? !CleanSimulated : Result is { Simulated: false, StillInstalled: false });
 
     /// <summary>Leftovers found without uninstaller, quarantine only simulated (step 4).</summary>
@@ -253,7 +252,6 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         Step = 1;
         CreateRestorePoint = true;
         Quiet = false;
-        CautionAcknowledged = false;
         Result = null;
         ErrorCode = string.Empty;
         ErrorDetails = string.Empty;
@@ -269,11 +267,11 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(StillInstalled));
         OnPropertyChanged(nameof(HasCaution));
         OnPropertyChanged(nameof(CautionKey));
-        LaunchCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ActionKey));
     }
 
     /// <summary>Step 1 → 2 → 3 (or 4): runs the uninstaller, then looks for leftovers.</summary>
-    [RelayCommand(CanExecute = nameof(CanLaunch), IncludeCancelCommand = true)]
+    [RelayCommand(CanExecute = nameof(HasApp), IncludeCancelCommand = true)]
     private async Task LaunchAsync(CancellationToken cancellationToken)
     {
         if (App is null)
@@ -504,8 +502,6 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
 
     private bool HasApp() => App is not null;
 
-    // An important application waits for « Je comprends » (D65).
-    private bool CanLaunch() => HasApp() && (!HasCaution || CautionAcknowledged);
 
     private bool HasSelection() => SelectedCount > 0;
 

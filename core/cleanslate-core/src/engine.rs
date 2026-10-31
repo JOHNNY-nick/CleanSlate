@@ -15,8 +15,8 @@ use crate::history::History;
 use crate::inventory::is_guid;
 use crate::model::{
     AppKind, AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, JobProcess, Leftover,
-    PurgeRequest, PurgeResult, RestoreRequest, ScanOptions, ScanProgress, ScanReport, Session,
-    UninstallProgress, UninstallRequest, UninstallResult, UninstallStep,
+    PurgeRequest, PurgeResult, QuarantineStatus, RestoreRequest, ScanOptions, ScanProgress,
+    ScanReport, Session, UninstallProgress, UninstallRequest, UninstallResult, UninstallStep,
 };
 use crate::msi::{ApiMsiUninstaller, MsiUninstaller, NoMsiUninstaller};
 use crate::quarantine::{simulate, Quarantine};
@@ -700,9 +700,16 @@ impl Engine {
         if let Some(history) = self.history()?.as_mut() {
             history.save_session(&session)?;
         }
+        // Only moved items leave the report: an item left in place stays on screen
+        // and can be tried again (D67).
         if let Ok(mut last) = self.last_report.lock() {
-            for id in &plan.item_ids {
-                last.remove(id);
+            for item in session.items.iter().filter(|i| {
+                matches!(
+                    i.status,
+                    QuarantineStatus::Quarantined | QuarantineStatus::PendingReboot
+                )
+            }) {
+                last.remove(&item.id);
             }
         }
         Ok(session)
@@ -948,6 +955,54 @@ mod tests {
                 .code(),
             "BUSY"
         );
+    }
+
+    /// D67, Installer run of 31 Oct. 2026: an item left in place stays on screen; trying it
+    /// again must not fail with « unknown item » (only moved items leave the last report).
+    #[test]
+    fn an_item_left_in_place_can_be_tried_again() {
+        use crate::fs::strip_verbatim;
+        use crate::model::{Origin, QuarantineStatus};
+
+        let parent =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\engine-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let tool = base.join(r"Users\Ana\AppData\Roaming\OldTool");
+        std::fs::create_dir_all(&tool).unwrap();
+        std::fs::write(tool.join("settings.ini"), b"[x]").unwrap();
+        let area = TestRegistryKey::new();
+        let engine = Engine::with_folders(
+            EngineConfig {
+                dry_run: false,
+                data_dir: Some(base.join("data")),
+                exclusions: vec![],
+            },
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            KnownFolders::under(&base),
+        );
+        let report = engine
+            .scan_orphans(&ScanOptions::default(), &|_| {})
+            .unwrap();
+        let mut plan = CleanPlan::new(vec![report.groups[0].items[0].id.clone()], Origin::Orphans);
+        plan.dry_run = false;
+
+        // Gone between the scan and the quarantine: left in place (Failed).
+        std::fs::remove_dir_all(&tool).unwrap();
+        let first = engine.clean(&plan).unwrap();
+        assert_eq!(first.items[0].status, QuarantineStatus::Failed);
+
+        // Back again: the same item is still known and is now moved.
+        std::fs::create_dir_all(&tool).unwrap();
+        std::fs::write(tool.join("settings.ini"), b"[x]").unwrap();
+        let second = engine.clean(&plan).unwrap();
+        assert_eq!(second.items[0].status, QuarantineStatus::Quarantined);
+        assert!(!tool.exists());
+
+        // Once moved, it is gone from the report.
+        assert_eq!(engine.clean(&plan).unwrap_err().code(), "INVALID_INPUT");
     }
 
     /// Full cycle in a temporary machine under core/target (never %TEMP%,

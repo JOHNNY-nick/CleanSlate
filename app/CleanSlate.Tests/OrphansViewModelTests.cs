@@ -103,21 +103,21 @@ public sealed class OrphansViewModelTests
     }
 
     [Fact]
-    public async Task Simulate_ReportsWithoutTouchingAnything()
+    public void TheActionButton_SaysWhatWillHappen()
     {
-        var vm = await ScannedAsync(Report());
+        // Installer run of 31 Oct. 2026 (D67): with immediate deletion on, the button still said
+        // « Mettre en quarantaine »; it follows the setting, also when it changes later.
+        var settings = Settings();
+        var vm = new OrphansViewModel(Substitute.For<IEngineService>(), Dialogs(), settings, Substitute.For<INavigationService>());
+        Assert.Equal("Quarantine", vm.ActionKey);
 
-        Assert.True(vm.SimulateCommand.CanExecute(null));
-        Assert.True(vm.QuarantineCommand.CanExecute(null)); // enabled since J4, always behind the confirmation dialog
-        vm.SimulateCommand.Execute(null);
+        settings.DeleteImmediately.Returns(true);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        settings.Changed += Raise.Event();
 
-        Assert.True(vm.ShowSimulation);
-        Assert.Equal(1, vm.SimulatedCount);
-        Assert.Equal("381 Mo", vm.SimulatedSizeText);
-
-        vm.Groups[0].Items[0].IsChecked = false;
-        Assert.False(vm.ShowSimulation);
-        Assert.False(vm.SimulateCommand.CanExecute(null));
+        Assert.Equal("DeleteForGood", vm.ActionKey);
+        Assert.Contains(nameof(OrphansViewModel.ActionKey), changed);
     }
 
     [Fact]

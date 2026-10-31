@@ -286,3 +286,15 @@ Corrigé (D64) :
 - les contrôles de la désinstallation portent sur `settings.json` et sur le dossier de quarantaine choisi.
 
 Ce scénario est à relancer.
+
+### 7.7 Installeur après D65 et D66 (run `installer-20261031-101949`, commit `0c85d43`)
+
+Vérifications à la main, faites par le porteur. Constats corrigés en D67 :
+- **Bouton** : « Mettre en quarantaine » s'affichait alors que la suppression immédiate était choisie, et un bouton « Simuler » restait.
+- **Message de résultat** : « 0 élément mis en quarantaine… restaurables » s'affichait à côté de « 1 laissé en place, protégé ».
+- **Nouvel essai** : réessayer le même élément donnait « INVALID_INPUT unknown item ».
+- **Applications importantes** : la case à cocher a été jugée confuse.
+
+**Constat majeur** : l'élément coché était `C:\Program Files\WindowsPowerShell`, un dossier de Windows proposé comme reste. La liste noire est renforcée, ainsi qu'une vingtaine d'autres éléments de Windows proposés par l'analyse d'un Windows neuf (D67). Microsoft Edge : son désinstalleur déclaré est absent de l'image du Sandbox (`NO_UNINSTALLER`).
+
+À relancer : scénario Installer.
