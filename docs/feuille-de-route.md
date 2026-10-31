@@ -2,10 +2,13 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3, faux positifs de l'analyse du vrai PC. D68 (commit `35b1176`) fait passer de 415 éléments proposés, dont 102 précochés, à **320 éléments, dont 52 précochés**. Mesure faite par `scan --dry-run`, en lecture seule.
-- **Prochaine action** : le porteur relit la liste des 52 éléments précochés (dernière réponse de Claude) et signale ceux dont il se sert encore. Claude corrige ensuite, puis vient le dernier scénario Installer, puis A4.
-- **Qui la fait** : le porteur ; c'est une simple lecture, rien à lancer.
-- **Réponse attendue** : « tous désinstallés », ou la liste des programmes encore utilisés.
+- **Étape actuelle** : A4, installation sur le vrai PC, à la demande du porteur. Le dernier scénario Installer n'a pas été relancé : c'est son choix, compensé par les précautions de A4 et A5.
+- **Installeur** : `artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `2DE917E057750A4A2B6EE548856F143E966F0A9AE76164E7A01B6843863376E8` (après D68).
+- **Prochaine action** : le porteur crée un point de restauration, vérifie l'installeur et installe (commandes dans la dernière réponse de Claude).
+- **Qui la fait** : le porteur.
+- **Durée** : environ 10 min.
+- **Réponse attendue** : « installé », ou ce qui ne va pas.
+- **En attente** : la relecture des 52 éléments précochés (`relecture-52-elements.html`), à faire avant toute validation dans « Restes orphelins ».
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
@@ -37,7 +40,7 @@ Dernière mise à jour : 31 oct. 2026.
   - GIMP déjà lancé, puis désinstallé en mode silencieux : répondre Non, et vérifier que `%APPDATA%\GIMP` est proposé comme reste ;
   - export des journaux sans le nom d'utilisateur en clair ;
   - fenêtre à la largeur minimale.
-- [ ] **A3. Claude** : corrections éventuelles, puis les scénarios nécessaires sont relancés ; faux positifs de l'analyse du vrai PC réduits et vérifiés par `scan --dry-run` (lecture seule).
+- [x] **A3. Claude** (31 oct. 2026 : D59 à D68 ; dernier scénario Installer non relancé, à la demande du porteur) : corrections éventuelles, puis les scénarios nécessaires sont relancés ; faux positifs de l'analyse du vrai PC réduits et vérifiés par `scan --dry-run` (lecture seule).
 - [ ] **A4. Porteur** : point de restauration Windows, puis installation de CleanSlate sur son PC (Claude donne les commandes).
 - [ ] **A5. Porteur** : utilisation progressive pendant une à deux semaines, dans cet ordre :
   1. relecture des listes, sans rien valider ;
