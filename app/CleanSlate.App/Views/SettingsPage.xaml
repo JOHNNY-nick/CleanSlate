@@ -3,7 +3,12 @@
     x:Class="CleanSlate.App.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:CleanSlate.App.Converters"
     Loaded="OnLoaded">
+
+    <Page.Resources>
+        <conv:ResourceStringConverter x:Key="ResourceString" />
+    </Page.Resources>
 
     <ScrollViewer>
         <StackPanel Margin="{StaticResource PageMargin}" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
@@ -20,6 +25,25 @@
                 <StackPanel Spacing="8">
                     <NumberBox x:Uid="SettingsQuarantineDays" Maximum="365" Minimum="1" SpinButtonPlacementMode="Inline" Value="{x:Bind ViewModel.QuarantineDays, Mode=TwoWay}" />
                     <TextBlock x:Uid="SettingsQuarantineHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Folders chosen at the first launch (D63). -->
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock x:Uid="SettingsFoldersTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Uid="SettingsQuarantineFolderLabel" Style="{StaticResource SecondaryTextBlockStyle}" />
+                    <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Text="{x:Bind ViewModel.QuarantineFolder, Mode=OneWay}" TextWrapping="Wrap" />
+                    <Button x:Uid="SettingsQuarantineFolderChange" Command="{x:Bind ViewModel.ChangeQuarantineFolderCommand}" />
+                    <TextBlock x:Uid="SettingsQuarantineFolderHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                    <TextBlock x:Uid="SettingsExportFolderLabel" Margin="0,8,0,0" Style="{StaticResource SecondaryTextBlockStyle}" />
+                    <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Text="{x:Bind ViewModel.ExportFolder, Mode=OneWay}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Uid="SettingsExportFolderChange" Command="{x:Bind ViewModel.ChangeExportFolderCommand}" />
+                        <Button x:Uid="SettingsExportFolderDefault" Command="{x:Bind ViewModel.UseDefaultExportFolderCommand}" />
+                    </StackPanel>
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasFolderProblem, Mode=OneWay}" Severity="Warning" Message="{x:Bind ViewModel.FolderProblem, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=FolderProblem}" />
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasFolderError, Mode=OneWay}" Severity="Error" x:Uid="SettingsFolderError" Message="{x:Bind ViewModel.FolderError, Mode=OneWay}" />
                 </StackPanel>
             </Border>
 

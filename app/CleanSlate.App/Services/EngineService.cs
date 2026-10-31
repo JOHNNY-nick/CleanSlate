@@ -15,6 +15,7 @@ public sealed class EngineService : IEngineService, IDisposable
     private EngineClient? _client;
     private bool _clientSimulation;
     private IReadOnlyList<string> _clientExclusions = [];
+    private string? _clientDataDir;
 
     /// <summary>Creates the service.</summary>
     public EngineService(ISettingsService settings)
@@ -30,12 +31,14 @@ public sealed class EngineService : IEngineService, IDisposable
             {
                 bool simulation = _settings.SimulationMode;
                 IReadOnlyList<string> exclusions = _settings.Exclusions;
-                if (_client is null || _clientSimulation != simulation || !_clientExclusions.SequenceEqual(exclusions))
+                string? dataDir = string.IsNullOrWhiteSpace(_settings.QuarantineFolder) ? null : _settings.QuarantineFolder; // null: %LOCALAPPDATA%\CleanSlate (D63)
+                if (_client is null || _clientSimulation != simulation || !_clientExclusions.SequenceEqual(exclusions) || _clientDataDir != dataDir)
                 {
                     _client?.Dispose();
-                    _client = new EngineClient(new EngineConfig(DryRun: simulation) { Exclusions = exclusions });
+                    _client = new EngineClient(new EngineConfig(DryRun: simulation, DataDir: dataDir) { Exclusions = exclusions });
                     _clientSimulation = simulation;
                     _clientExclusions = exclusions.ToList();
+                    _clientDataDir = dataDir;
                 }
 
                 return _client;

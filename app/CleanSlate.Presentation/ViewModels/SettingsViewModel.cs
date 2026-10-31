@@ -11,13 +11,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ISettingsService _settings;
     private readonly IEngineService? _engine;
     private readonly ILogExportService? _logExport;
+    private readonly IFolderService? _folders;
 
     /// <summary>Creates the ViewModel from the stored settings.</summary>
-    public SettingsViewModel(ISettingsService settings, IEngineService? engine = null, ILogExportService? logExport = null)
+    public SettingsViewModel(ISettingsService settings, IEngineService? engine = null, ILogExportService? logExport = null, IFolderService? folders = null)
     {
         _settings = settings;
         _engine = engine;
         _logExport = logExport;
+        _folders = folders;
+        _quarantineFolder = settings.QuarantineFolder is { Length: > 0 } quarantine ? quarantine : folders?.DefaultQuarantineFolder ?? string.Empty;
+        _exportFolder = settings.ExportFolder is { Length: > 0 } export ? export : folders?.DefaultExportFolder ?? string.Empty;
         _simulationMode = settings.SimulationMode;
         _quarantineDays = settings.QuarantineDays;
         _themeIndex = (int)settings.Theme;
@@ -61,6 +65,35 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>A zip of the logs was written.</summary>
     public bool HasExport => ExportedPath.Length > 0;
 
+    /// <summary>Folder of the quarantine and its history (D63).</summary>
+    [ObservableProperty]
+    private string _quarantineFolder;
+
+    /// <summary>Folder of the exported logs (D63).</summary>
+    [ObservableProperty]
+    private string _exportFolder;
+
+    /// <summary>The quarantine is empty: its folder may move (no session left behind).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ChangeQuarantineFolderCommand))]
+    private bool _canChangeQuarantineFolder;
+
+    /// <summary>Why the last folder chosen was refused.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFolderProblem))]
+    private FolderProblem _folderProblem;
+
+    /// <summary>Reason why a folder could not be created or picked.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFolderError))]
+    private string _folderError = string.Empty;
+
+    /// <summary>The last folder chosen was refused.</summary>
+    public bool HasFolderProblem => FolderProblem != FolderProblem.None;
+
+    /// <summary>A folder could not be created or picked.</summary>
+    public bool HasFolderError => FolderError.Length > 0;
+
     /// <summary>Folders and keys never proposed (EF-20).</summary>
     public ObservableCollection<string> Exclusions { get; }
 
@@ -91,6 +124,87 @@ public sealed partial class SettingsViewModel : ObservableObject
             {
                 EngineVersion = "?";
             }
+
+            try
+            {
+                var sessions = await _engine.ListSessionsAsync(cancellationToken);
+                CanChangeQuarantineFolder = _folders is not null
+                    && !sessions.Any(s => s.Status is Interop.SessionStatus.Completed or Interop.SessionStatus.Partial);
+            }
+            catch (Interop.EngineException)
+            {
+                CanChangeQuarantineFolder = false;
+            }
+        }
+    }
+
+    /// <summary>Moves the quarantine to another folder, only while it is empty (D63).</summary>
+    [RelayCommand(CanExecute = nameof(CanChangeQuarantineFolder))]
+    private async Task ChangeQuarantineFolderAsync()
+    {
+        if (_folders is null || await PickAsync() is not string path)
+        {
+            return;
+        }
+
+        FolderProblem = _folders.CheckQuarantineFolder(path);
+        if (HasFolderProblem)
+        {
+            return;
+        }
+
+        try
+        {
+            _folders.PrepareQuarantineFolder(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            FolderError = ex.Message;
+            return;
+        }
+
+        _settings.QuarantineFolder = FolderRules.SamePath(path, _folders.DefaultQuarantineFolder) ? null : path;
+        QuarantineFolder = path;
+    }
+
+    /// <summary>Chooses the folder of the exported logs.</summary>
+    [RelayCommand]
+    private async Task ChangeExportFolderAsync()
+    {
+        if (_folders is null || await PickAsync() is not string path)
+        {
+            return;
+        }
+
+        FolderProblem = _folders.CheckExportFolder(path);
+        if (!HasFolderProblem)
+        {
+            _settings.ExportFolder = FolderRules.SamePath(path, _folders.DefaultExportFolder) ? null : path;
+            ExportFolder = path;
+        }
+    }
+
+    /// <summary>Exports the logs to the Desktop again.</summary>
+    [RelayCommand]
+    private void UseDefaultExportFolder()
+    {
+        _settings.ExportFolder = null;
+        ExportFolder = _folders?.DefaultExportFolder ?? string.Empty;
+        FolderProblem = FolderProblem.None;
+    }
+
+    private async Task<string?> PickAsync()
+    {
+        FolderProblem = FolderProblem.None;
+        FolderError = string.Empty;
+        try
+        {
+            return _folders is null ? null : await _folders.PickFolderAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            FolderError = ex.Message;
+            return null;
         }
     }
 

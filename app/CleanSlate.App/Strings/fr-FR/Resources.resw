@@ -439,7 +439,7 @@
     <value>Exporter les journaux</value>
   </data>
   <data name="SettingsLogsExportHelp.Text" xml:space="preserve">
-    <value>Crée sur le Bureau un fichier .zip des journaux et des réglages, à joindre à un signalement. Votre dossier personnel, le nom de l&apos;ordinateur et celui du compte y sont remplacés. Rien n&apos;est envoyé.</value>
+    <value>Crée, dans le dossier d&apos;export ci-dessus (le Bureau par défaut), un fichier .zip des journaux et des réglages, à joindre à un signalement. Votre dossier personnel, le nom de l&apos;ordinateur et celui du compte y sont remplacés. Rien n&apos;est envoyé.</value>
   </data>
   <data name="SettingsLogsExported.Title" xml:space="preserve">
     <value>Journaux exportés</value>
@@ -643,22 +643,178 @@ Détails enregistrés dans :
 
 Joignez ce fichier si vous signalez le problème.</value>
   </data>
-  <data name="FirstRunTitle" xml:space="preserve">
-    <value>Combien de temps garder la quarantaine ?</value>
+  <data name="OnboardingWelcomeTitle.Text" xml:space="preserve">
+    <value>Bienvenue dans CleanSlate</value>
   </data>
-  <data name="FirstRunIntro" xml:space="preserve">
-    <value>Ce que CleanSlate retire n&apos;est jamais effacé tout de suite : il part d&apos;abord en quarantaine, d&apos;où vous pouvez tout restaurer à l&apos;identique. Ces éléments gardent leur place sur le disque pendant ce délai, puis sont effacés définitivement au démarrage de CleanSlate.</value>
+  <data name="OnboardingWelcomeWhat.Text" xml:space="preserve">
+    <value>CleanSlate vous aide à garder votre PC propre. Quand vous désinstallez un programme, Windows laisse souvent derrière lui des dossiers, des réglages et des raccourcis devenus inutiles : CleanSlate les retrouve et vous propose de les retirer.</value>
   </data>
-  <data name="FirstRunChoice" xml:space="preserve">
-    <value>{0} jours</value>
+  <data name="OnboardingWelcomeWhy.Text" xml:space="preserve">
+    <value>Il sait aussi désinstaller complètement un programme : il lance d&apos;abord la désinstallation prévue par son éditeur, puis cherche ce qui reste.</value>
   </data>
-  <data name="FirstRunRecommended" xml:space="preserve">
-    <value> (recommandé)</value>
+  <data name="OnboardingWelcomeSteps.Text" xml:space="preserve">
+    <value>Trois écrans pour commencer : ce que fait CleanSlate, votre accord, puis vos réglages. Comptez une minute.</value>
   </data>
-  <data name="FirstRunNote" xml:space="preserve">
-    <value>Vous pourrez changer ce délai à tout moment dans Réglages (de 1 à 365 jours), ou vider la quarantaine plus tôt depuis Historique. Le mode simulation reste actif : rien n&apos;est déplacé tant que vous ne le désactivez pas.</value>
+  <data name="OnboardingStart.Content" xml:space="preserve">
+    <value>Commencer</value>
   </data>
-  <data name="FirstRunPrimary" xml:space="preserve">
-    <value>Valider</value>
+  <data name="OnboardingStepTwo.Text" xml:space="preserve">
+    <value>Étape 2 sur 3</value>
+  </data>
+  <data name="OnboardingHowTitle.Text" xml:space="preserve">
+    <value>Comment ça marche</value>
+  </data>
+  <data name="OnboardingHow1.Text" xml:space="preserve">
+    <value>1. CleanSlate cherche. Il regarde où les programmes rangent leurs fichiers et leurs réglages, sans rien modifier.</value>
+  </data>
+  <data name="OnboardingHow2.Text" xml:space="preserve">
+    <value>2. Vous choisissez. Il vous montre ce qu&apos;il a trouvé, avec un niveau de confiance. Seuls les éléments très sûrs sont cochés d&apos;avance, et vous pouvez tout décocher.</value>
+  </data>
+  <data name="OnboardingHow3.Text" xml:space="preserve">
+    <value>3. Rien n&apos;est effacé tout de suite. Ce que vous validez part en quarantaine, une sorte de corbeille propre à CleanSlate, pendant le délai que vous choisirez.</value>
+  </data>
+  <data name="OnboardingHow4.Text" xml:space="preserve">
+    <value>4. Vous pouvez revenir en arrière. Depuis Historique, chaque élément se remet à sa place, à l&apos;identique, tant qu&apos;il est en quarantaine. Ensuite, il est effacé pour de bon.</value>
+  </data>
+  <data name="OnboardingSimulation.Title" xml:space="preserve">
+    <value>Mode simulation activé</value>
+  </data>
+  <data name="OnboardingSimulation.Message" xml:space="preserve">
+    <value>Pour commencer en toute sécurité, CleanSlate montre ce qu&apos;il ferait sans rien déplacer ni désinstaller. Vous le désactiverez dans Réglages quand vous serez prêt.</value>
+  </data>
+  <data name="OnboardingSetup.Text" xml:space="preserve">
+    <value>En acceptant, vous autorisez CleanSlate à créer ses dossiers de travail : la quarantaine et son historique, à l&apos;emplacement choisi à l&apos;étape suivante, et ses journaux (un fichier par jour, gardés 7 jours, jamais envoyés sur Internet).</value>
+  </data>
+  <data name="OnboardingWarranty.Text" xml:space="preserve">
+    <value>CleanSlate est un logiciel libre, fourni sans garantie. Relisez toujours la liste avant de valider : c&apos;est vous qui décidez de ce qui est retiré.</value>
+  </data>
+  <data name="OnboardingAccept.Content" xml:space="preserve">
+    <value>J&apos;ai compris et j&apos;accepte</value>
+  </data>
+  <data name="OnboardingBack.Content" xml:space="preserve">
+    <value>Retour</value>
+  </data>
+  <data name="OnboardingContinue.Content" xml:space="preserve">
+    <value>Continuer</value>
+  </data>
+  <data name="OnboardingStepThree.Text" xml:space="preserve">
+    <value>Étape 3 sur 3</value>
+  </data>
+  <data name="OnboardingSettingsTitle.Text" xml:space="preserve">
+    <value>Vos réglages</value>
+  </data>
+  <data name="OnboardingDaysTitle.Text" xml:space="preserve">
+    <value>Durée de la quarantaine</value>
+  </data>
+  <data name="OnboardingDaysHelp.Text" xml:space="preserve">
+    <value>Pendant ce délai, ce que CleanSlate a retiré reste restaurable et garde sa place sur le disque. Ensuite, il est effacé définitivement et l&apos;espace est libéré.</value>
+  </data>
+  <data name="OnboardingDays7.Content" xml:space="preserve">
+    <value>7 jours</value>
+  </data>
+  <data name="OnboardingDays14.Content" xml:space="preserve">
+    <value>14 jours</value>
+  </data>
+  <data name="OnboardingDays30.Content" xml:space="preserve">
+    <value>30 jours (recommandé)</value>
+  </data>
+  <data name="OnboardingDays90.Content" xml:space="preserve">
+    <value>90 jours</value>
+  </data>
+  <data name="OnboardingQuarantineTitle.Text" xml:space="preserve">
+    <value>Emplacement de la quarantaine</value>
+  </data>
+  <data name="OnboardingQuarantineHelp.Text" xml:space="preserve">
+    <value>Le dossier où CleanSlate range ce qu&apos;il retire, avec son historique. Choisissez un disque interne, par exemple un second disque pour garder de la place sur C:. Les dossiers de Windows et des programmes, OneDrive, les clés USB et les dossiers réseau sont refusés.</value>
+  </data>
+  <data name="OnboardingQuarantineBox.PlaceholderText" xml:space="preserve">
+    <value>Exemple : D:\CleanSlate</value>
+  </data>
+  <data name="OnboardingBrowse.Content" xml:space="preserve">
+    <value>Parcourir…</value>
+  </data>
+  <data name="OnboardingDefault.Content" xml:space="preserve">
+    <value>Par défaut</value>
+  </data>
+  <data name="OnboardingPrepareError.Title" xml:space="preserve">
+    <value>Le dossier n&apos;a pas pu être créé</value>
+  </data>
+  <data name="OnboardingExportTitle.Text" xml:space="preserve">
+    <value>Dossier d&apos;export des journaux</value>
+  </data>
+  <data name="OnboardingExportHelp.Text" xml:space="preserve">
+    <value>Là où le bouton « Exporter les journaux » (Réglages) enregistre son fichier .zip, à joindre à un signalement de problème. Une clé USB convient.</value>
+  </data>
+  <data name="OnboardingExportBox.PlaceholderText" xml:space="preserve">
+    <value>Exemple : le Bureau</value>
+  </data>
+  <data name="OnboardingPickerFailed.Title" xml:space="preserve">
+    <value>La fenêtre de choix n&apos;a pas pu s&apos;ouvrir</value>
+  </data>
+  <data name="OnboardingPickerFailed.Message" xml:space="preserve">
+    <value>Tapez le chemin du dossier dans la case.</value>
+  </data>
+  <data name="OnboardingLater.Text" xml:space="preserve">
+    <value>Tout se change ensuite dans Réglages.</value>
+  </data>
+  <data name="OnboardingFinish.Content" xml:space="preserve">
+    <value>Accéder à CleanSlate</value>
+  </data>
+  <data name="FolderProblem_None" xml:space="preserve">
+    <value></value>
+  </data>
+  <data name="FolderProblem_NotAbsolute" xml:space="preserve">
+    <value>Indiquez un chemin complet, par exemple D:\CleanSlate.</value>
+  </data>
+  <data name="FolderProblem_Network" xml:space="preserve">
+    <value>Les dossiers réseau ne conviennent pas : choisissez un disque de ce PC.</value>
+  </data>
+  <data name="FolderProblem_NotLocalDisk" xml:space="preserve">
+    <value>Choisissez un disque interne : une clé USB ou un disque amovible peut être débranché.</value>
+  </data>
+  <data name="FolderProblem_NotNtfs" xml:space="preserve">
+    <value>Ce disque ne gère pas les autorisations (FAT32, exFAT) : choisissez un disque NTFS.</value>
+  </data>
+  <data name="FolderProblem_DriveRoot" xml:space="preserve">
+    <value>Choisissez un dossier, pas la racine du disque : par exemple D:\CleanSlate.</value>
+  </data>
+  <data name="FolderProblem_SystemFolder" xml:space="preserve">
+    <value>Ce dossier appartient à Windows ou aux programmes installés.</value>
+  </data>
+  <data name="FolderProblem_ScannedFolder" xml:space="preserve">
+    <value>CleanSlate analyse ce dossier, ou Windows le vide de lui-même : choisissez un autre emplacement.</value>
+  </data>
+  <data name="FolderProblem_CloudSynced" xml:space="preserve">
+    <value>Ce dossier est synchronisé avec le cloud : ce que vous retirez quitterait votre PC.</value>
+  </data>
+  <data name="FolderProblem_Link" xml:space="preserve">
+    <value>Ce chemin passe par un lien ou une jonction : choisissez le dossier réel.</value>
+  </data>
+  <data name="FolderProblem_NotEmpty" xml:space="preserve">
+    <value>Ce dossier contient déjà des fichiers : choisissez un dossier vide ou un nouveau nom.</value>
+  </data>
+  <data name="SettingsFoldersTitle.Text" xml:space="preserve">
+    <value>Emplacements</value>
+  </data>
+  <data name="SettingsQuarantineFolderLabel.Text" xml:space="preserve">
+    <value>Quarantaine et historique</value>
+  </data>
+  <data name="SettingsQuarantineFolderChange.Content" xml:space="preserve">
+    <value>Déplacer…</value>
+  </data>
+  <data name="SettingsQuarantineFolderHelp.Text" xml:space="preserve">
+    <value>Ce dossier ne peut changer que lorsque la quarantaine est vide : restaurez ou videz d&apos;abord les sessions depuis Historique. L&apos;historique repart alors de zéro dans le nouveau dossier.</value>
+  </data>
+  <data name="SettingsExportFolderLabel.Text" xml:space="preserve">
+    <value>Export des journaux</value>
+  </data>
+  <data name="SettingsExportFolderChange.Content" xml:space="preserve">
+    <value>Modifier…</value>
+  </data>
+  <data name="SettingsExportFolderDefault.Content" xml:space="preserve">
+    <value>Bureau</value>
+  </data>
+  <data name="SettingsFolderError.Title" xml:space="preserve">
+    <value>Le dossier n&apos;a pas pu être utilisé</value>
   </data>
 </root>

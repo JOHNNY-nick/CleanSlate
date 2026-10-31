@@ -9,34 +9,38 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <NavigationView
-        x:Name="NavView"
-        IsBackButtonVisible="Collapsed"
-        IsSettingsVisible="False"
-        PaneDisplayMode="Left"
-        SelectionChanged="OnSelectionChanged">
-        <NavigationView.MenuItems>
-            <NavigationViewItem x:Uid="NavHome" Tag="Home" Icon="Home" />
-            <NavigationViewItem x:Uid="NavApps" Tag="Apps">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE71D;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavOrphans" Tag="Orphans">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE721;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavHistory" Tag="History">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE81C;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.MenuItems>
-        <NavigationView.FooterMenuItems>
-            <NavigationViewItem x:Uid="NavSettings" Tag="Settings" Icon="Setting" />
-        </NavigationView.FooterMenuItems>
+    <!-- First launch (D63): the welcome screens take the whole window until they are completed. -->
+    <Grid>
+        <NavigationView
+            x:Name="NavView"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            PaneDisplayMode="Left"
+            SelectionChanged="OnSelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Uid="NavHome" Tag="Home" Icon="Home" />
+                <NavigationViewItem x:Uid="NavApps" Tag="Apps">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE71D;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Uid="NavOrphans" Tag="Orphans">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE721;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Uid="NavHistory" Tag="History">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem x:Uid="NavSettings" Tag="Settings" Icon="Setting" />
+            </NavigationView.FooterMenuItems>
 
-        <Frame x:Name="ContentFrame" />
-    </NavigationView>
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+        <Frame x:Name="OnboardingFrame" Visibility="Collapsed" />
+    </Grid>
 </Window>

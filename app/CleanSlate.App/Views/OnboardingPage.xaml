@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="CleanSlate.App.Views.OnboardingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:CleanSlate.App.Converters">
+
+    <Page.Resources>
+        <conv:ResourceStringConverter x:Key="ResourceString" />
+    </Page.Resources>
+
+    <!-- First launch (D63): 1 welcome, 2 how it works and acceptance, 3 basic settings. -->
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="{StaticResource PageMargin}" Spacing="20" MaxWidth="680" HorizontalAlignment="Center">
+
+            <!-- Step 1: welcome -->
+            <StackPanel Spacing="20" Visibility="{x:Bind ViewModel.IsStep1, Mode=OneWay}">
+                <Image Width="160" Height="160" HorizontalAlignment="Center" Source="ms-appx:///Assets/cleanslate-icon-256.png" AutomationProperties.AccessibilityView="Raw" />
+                <TextBlock x:Uid="OnboardingWelcomeTitle" HorizontalAlignment="Center" Style="{StaticResource TitleTextBlockStyle}" TextAlignment="Center" TextWrapping="Wrap" />
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Uid="OnboardingWelcomeWhat" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingWelcomeWhy" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingWelcomeSteps" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <Button x:Uid="OnboardingStart" HorizontalAlignment="Center" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+
+            <!-- Step 2: how it works, in plain words, and acceptance -->
+            <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.IsStep2, Mode=OneWay}">
+                <TextBlock x:Uid="OnboardingStepTwo" Style="{StaticResource SecondaryTextBlockStyle}" />
+                <TextBlock x:Uid="OnboardingHowTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Uid="OnboardingHow1" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingHow2" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingHow3" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingHow4" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <InfoBar IsClosable="False" IsOpen="True" Severity="Informational" x:Uid="OnboardingSimulation" />
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Uid="OnboardingSetup" TextWrapping="Wrap" />
+                        <TextBlock x:Uid="OnboardingWarranty" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                        <CheckBox x:Uid="OnboardingAccept" IsChecked="{x:Bind ViewModel.Accepted, Mode=TwoWay}" />
+                    </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button x:Uid="OnboardingBack" Command="{x:Bind ViewModel.BackCommand}" />
+                    <Button x:Uid="OnboardingContinue" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Step 3: basic settings -->
+            <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.IsStep3, Mode=OneWay}">
+                <TextBlock x:Uid="OnboardingStepThree" Style="{StaticResource SecondaryTextBlockStyle}" />
+                <TextBlock x:Uid="OnboardingSettingsTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Uid="OnboardingDaysTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Uid="OnboardingDaysHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                        <RadioButtons SelectedIndex="{x:Bind ViewModel.SelectedDaysIndex, Mode=TwoWay}">
+                            <RadioButton x:Uid="OnboardingDays7" />
+                            <RadioButton x:Uid="OnboardingDays14" />
+                            <RadioButton x:Uid="OnboardingDays30" />
+                            <RadioButton x:Uid="OnboardingDays90" />
+                        </RadioButtons>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Uid="OnboardingQuarantineTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Uid="OnboardingQuarantineHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBox x:Uid="OnboardingQuarantineBox" FontFamily="{StaticResource PathFontFamily}" Text="{x:Bind ViewModel.QuarantineFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Uid="OnboardingBrowse" Command="{x:Bind ViewModel.PickQuarantineFolderCommand}" />
+                            <Button x:Uid="OnboardingDefault" Command="{x:Bind ViewModel.UseDefaultQuarantineFolderCommand}" />
+                        </StackPanel>
+                        <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasQuarantineProblem, Mode=OneWay}" Severity="Warning" Message="{x:Bind ViewModel.QuarantineProblem, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=FolderProblem}" />
+                        <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasPrepareError, Mode=OneWay}" Severity="Error" x:Uid="OnboardingPrepareError" Message="{x:Bind ViewModel.PrepareError, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Uid="OnboardingExportTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Uid="OnboardingExportHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                        <TextBox x:Uid="OnboardingExportBox" FontFamily="{StaticResource PathFontFamily}" Text="{x:Bind ViewModel.ExportFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Uid="OnboardingBrowse" Command="{x:Bind ViewModel.PickExportFolderCommand}" />
+                            <Button x:Uid="OnboardingDefault" Command="{x:Bind ViewModel.UseDefaultExportFolderCommand}" />
+                        </StackPanel>
+                        <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.HasExportProblem, Mode=OneWay}" Severity="Warning" Message="{x:Bind ViewModel.ExportProblem, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=FolderProblem}" />
+                    </StackPanel>
+                </Border>
+
+                <InfoBar IsClosable="False" IsOpen="{x:Bind ViewModel.PickerFailed, Mode=OneWay}" Severity="Informational" x:Uid="OnboardingPickerFailed" />
+                <TextBlock x:Uid="OnboardingLater" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button x:Uid="OnboardingBack" Command="{x:Bind ViewModel.BackCommand}" />
+                    <Button x:Uid="OnboardingFinish" Command="{x:Bind ViewModel.FinishCommand}" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

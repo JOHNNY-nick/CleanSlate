@@ -10,8 +10,9 @@ using Microsoft.Win32;
 namespace CleanSlate.App.Services;
 
 /// <summary>
-/// Writes <c>CleanSlate-journaux-yyyyMMdd-HHmmss.zip</c> on the Desktop (known folder: also
-/// when it is redirected to OneDrive), with <see cref="LogExport"/>. Nothing is sent.
+/// Writes <c>CleanSlate-journaux-yyyyMMdd-HHmmss.zip</c> in the export folder of the settings,
+/// else on the Desktop (known folder: also when it is redirected to OneDrive), with
+/// <see cref="LogExport"/>. Nothing is sent.
 /// </summary>
 public sealed class LogExportService : ILogExportService
 {
@@ -39,8 +40,10 @@ public sealed class LogExportService : ILogExportService
         }
 
         string system = SystemText(engineVersion);
-        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        string zip = Path.Combine(desktop, $"CleanSlate-journaux-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+        // Folder chosen at the first launch or in Réglages (D63), else the Desktop.
+        string folder = string.IsNullOrWhiteSpace(_settings.ExportFolder) ? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory) : _settings.ExportFolder;
+        Directory.CreateDirectory(folder);
+        string zip = Path.Combine(folder, $"CleanSlate-journaux-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
         var replacements = LogExport.Replacements(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             Environment.UserName,

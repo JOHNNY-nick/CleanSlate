@@ -22,8 +22,14 @@ public interface ISettingsService
     /// <summary>Days before the quarantine is purged (EF-19), 1 to 365, 30 by default.</summary>
     int QuarantineDays { get; set; }
 
-    /// <summary>The first-launch questions were answered (D62).</summary>
+    /// <summary>The first-launch screens were completed (D63).</summary>
     bool FirstRunDone { get; set; }
+
+    /// <summary>Data folder chosen for the quarantine and its history; null = <c>%LOCALAPPDATA%\CleanSlate</c> (D63).</summary>
+    string? QuarantineFolder { get; set; }
+
+    /// <summary>Folder of the exported logs; null = the Desktop (D63).</summary>
+    string? ExportFolder { get; set; }
 
     /// <summary>Theme, following Windows by default.</summary>
     AppTheme Theme { get; set; }

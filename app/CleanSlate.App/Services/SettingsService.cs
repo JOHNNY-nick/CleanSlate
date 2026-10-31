@@ -49,6 +49,20 @@ public sealed class SettingsService : ISettingsService
     }
 
     /// <inheritdoc/>
+    public string? QuarantineFolder
+    {
+        get => _stored.QuarantineFolder;
+        set => Update(_stored with { QuarantineFolder = value });
+    }
+
+    /// <inheritdoc/>
+    public string? ExportFolder
+    {
+        get => _stored.ExportFolder;
+        set => Update(_stored with { ExportFolder = value });
+    }
+
+    /// <inheritdoc/>
     public AppTheme Theme
     {
         get => _stored.Theme;
@@ -109,7 +123,13 @@ public sealed class SettingsService : ISettingsService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private sealed record Stored(bool SimulationMode = true, int QuarantineDays = 30, AppTheme Theme = AppTheme.System, bool FirstRunDone = false)
+    private sealed record Stored(
+        bool SimulationMode = true,
+        int QuarantineDays = 30,
+        AppTheme Theme = AppTheme.System,
+        bool FirstRunDone = false,
+        string? QuarantineFolder = null,
+        string? ExportFolder = null)
     {
         public IReadOnlyList<string> Exclusions { get; init; } = [];
 
@@ -119,8 +139,10 @@ public sealed class SettingsService : ISettingsService
             && QuarantineDays == other.QuarantineDays
             && Theme == other.Theme
             && FirstRunDone == other.FirstRunDone
+            && QuarantineFolder == other.QuarantineFolder
+            && ExportFolder == other.ExportFolder
             && Exclusions.SequenceEqual(other.Exclusions);
 
-        public override int GetHashCode() => HashCode.Combine(SimulationMode, QuarantineDays, Theme, FirstRunDone, Exclusions.Count);
+        public override int GetHashCode() => HashCode.Combine(SimulationMode, QuarantineDays, Theme, FirstRunDone, QuarantineFolder, ExportFolder, Exclusions.Count);
     }
 }

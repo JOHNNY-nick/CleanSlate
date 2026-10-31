@@ -38,7 +38,37 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = (int)(MinimumHeight * scale);
         }
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "cleanslate.ico"));
+    }
+
+    /// <summary>Shows the application on its home page.</summary>
+    public void ShowHome()
+    {
+        OnboardingFrame.Content = null;
+        OnboardingFrame.Visibility = Visibility.Collapsed;
+        NavView.Visibility = Visibility.Visible;
         NavView.SelectedItem = NavView.MenuItems[0];
+    }
+
+    /// <summary>
+    /// First launch (D63): shows the welcome screens in place of the application and completes
+    /// when the user has finished them. No page of the application is loaded before.
+    /// </summary>
+    public Task ShowOnboardingAsync()
+    {
+        var done = new TaskCompletionSource();
+        NavView.Visibility = Visibility.Collapsed;
+        OnboardingFrame.Visibility = Visibility.Visible;
+        OnboardingFrame.Navigate(typeof(OnboardingPage));
+        if (OnboardingFrame.Content is OnboardingPage page)
+        {
+            page.ViewModel.Completed += (_, _) => done.TrySetResult();
+        }
+        else
+        {
+            done.TrySetResult();
+        }
+
+        return done.Task;
     }
 
     /// <summary>Applies the theme of the settings (ENF-08).</summary>

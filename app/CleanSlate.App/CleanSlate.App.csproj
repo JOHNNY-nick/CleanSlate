@@ -25,6 +25,7 @@
   <!-- Window and taskbar icon, loaded by MainWindow through AppWindow.SetIcon. -->
   <ItemGroup>
     <Content Include="..\..\assets\branding\cleanslate.ico" Link="Assets\cleanslate.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\branding\png\cleanslate-icon-256.png" Link="Assets\cleanslate-icon-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Unpackaged publish leaves out the compiled XAML (*.xbf) and the app's

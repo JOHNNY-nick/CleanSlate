@@ -83,7 +83,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 | EF-16 | Afficher un récapitulatif avant toute suppression : nombre d'éléments, taille, chemins ; confirmation explicite obligatoire. | M |
 | EF-17 | Déplacer les fichiers et exporter les clés de registre vers une quarantaine avant suppression ; jamais de suppression définitive directe. | M |
 | EF-18 | Restaurer une session de nettoyage, en totalité ou élément par élément, depuis l'historique. | M |
-| EF-19 | Purger la quarantaine automatiquement après 30 jours (durée réglable) ou manuellement. Au premier lancement, l'utilisateur choisit ce délai (7, 14, 30 ou 90 jours, 30 recommandé), modifiable ensuite dans Réglages (D62). | S |
+| EF-19 | Purger la quarantaine automatiquement après 30 jours (durée réglable) ou manuellement. Au premier lancement, l'utilisateur choisit ce délai (7, 14, 30 ou 90 jours, 30 recommandé), l'emplacement de la quarantaine et le dossier d'export des journaux, après un accueil qui explique CleanSlate et une acceptation ; tout se change ensuite dans Réglages (D62, D63). | S |
 
 ### 3.5 Historique et réglages
 

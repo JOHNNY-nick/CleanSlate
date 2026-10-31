@@ -1,5 +1,4 @@
 using CleanSlate.App.Services;
-using CleanSlate.Presentation;
 using CleanSlate.Presentation.Services;
 using CleanSlate.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +31,8 @@ public partial class App : Application
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<ILogExportService, LogExportService>();
+        services.AddSingleton<IFolderService, FolderService>();
+        services.AddTransient<OnboardingViewModel>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();
                 services.AddTransient(sp => new HomeViewModel(
@@ -100,17 +101,18 @@ public partial class App : Application
         _ = StartAsync(window);
     }
 
-    /// <summary>First-launch choice of the quarantine delay (D62), then the automatic purge, which uses it.</summary>
+    /// <summary>
+    /// First launch: the welcome screens and basic settings (D63), then the application; the
+    /// automatic purge comes last, with the delay and folder chosen.
+    /// </summary>
     private static async Task StartAsync(MainWindow window)
     {
-        if (window.Content is FrameworkElement root && root.XamlRoot is null)
+        if (!GetService<ISettingsService>().FirstRunDone)
         {
-            var loaded = new TaskCompletionSource();
-            root.Loaded += (_, _) => loaded.TrySetResult();
-            await loaded.Task;
+            await window.ShowOnboardingAsync();
         }
 
-        await FirstRun.RunAsync(GetService<ISettingsService>(), GetService<IDialogService>());
+        window.ShowHome();
         await PurgeOldSessionsAsync();
     }
 

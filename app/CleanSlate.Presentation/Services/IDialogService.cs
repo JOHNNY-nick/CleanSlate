@@ -30,7 +30,4 @@ public interface IDialogService
 
     /// <summary>Asks before purging the quarantine for good (EF-19).</summary>
     Task<bool> ConfirmPurgeAsync(int quarantineDays);
-
-    /// <summary>First launch: quarantine delay in days, or null without an answer (D62).</summary>
-    Task<int?> ChooseQuarantineDaysAsync(int currentDays);
 }
