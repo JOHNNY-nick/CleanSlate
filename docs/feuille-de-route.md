@@ -2,13 +2,11 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A2, scénario Complements puis vérifications à la main. A1 est atteint (run `apps-20261030-234036`, `docs/tests-acceptation.md` § 7.4).
-- **Prochaine action** : lancer le scénario Complements.
+- **Étape actuelle** : A2. La partie automatique de Complements est atteinte (20 / 20, run `complements-20261031-022958`, `docs/tests-acceptation.md` § 7.5) ; les vérifications à la main restent à faire.
+- **Prochaine action** : faire les vérifications à la main dans le Sandbox encore ouvert. La liste à cocher est dans la dernière réponse de Claude ; elle reprend les points de A2 ci-dessous.
 - **Qui la fait** : le porteur.
-- **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
-  `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
-- **Durée** : 2 à 5 min de préparation, puis 15 à 20 min automatiques dans le Sandbox, puis environ 15 min de vérifications à la main.
-- **Réponse attendue** : « fait », suivi de « tout OK » ou de ce qui ne va pas dans la liste à cocher.
+- **Durée** : environ 15 min.
+- **Réponse attendue** : « tout OK », ou les cases qui ne vont pas et ce qui a été vu.
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage

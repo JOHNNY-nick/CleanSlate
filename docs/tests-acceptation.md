@@ -246,3 +246,17 @@ Constats :
 - La désinstallation classique de GIMP prend 7 s, contre 4417 s au run `185352` : `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` (D59) a supprimé l'attente d'un clic.
 - Avec `/SUPPRESSMSGBOXES`, GIMP 3.2.6 garde ses réglages. Pour ce seul désinstalleur, ce serait donc la réponse souhaitée. D60 reste inchangée : la réponse par défaut d'un autre désinstalleur Inno Setup ne peut pas être garantie, et CleanSlate ne passe toujours pas cette option.
 - `evenements.txt` : deux plantages de `msedge.exe` (00:13 et 01:27), après la fin du scénario, alors que le Sandbox était resté ouvert. Ils sont sans rapport avec CleanSlate.
+
+### 7.5 Compléments, étape A2 de la feuille de route (run `complements-20261031-022958`, commit `cc949dd`)
+
+**Partie automatique : 20 / 20 vérifications atteintes.**
+
+| Vérification | Mesure | Résultat |
+| --- | --- | --- |
+| Menu Démarrer, tâche, service, reste du Store : retrait puis restauration (D20, D47, D48) | 4 sessions, états identiques | atteint |
+| Paquet MSIX listé et désinstallé avec progression | 3 relevés, dernier 100 % | atteint |
+| VLC (MSI) | 63 événements en 5,2 s, 13 pourcentages distincts jusqu'à 100 %, 59 actions | atteint |
+| GIMP (Inno Setup) | 13 événements en 2,4 s, processus `unins000.exe` et `_unins.tmp`, aucun pourcentage | atteint |
+| GIMP : commande du mode silencieux (EF-14, D60) | `unins000.exe /VERYSILENT /NORESTART`, sans `/SUPPRESSMSGBOXES` | atteint |
+
+Un plantage de `msedge.exe` (02:32) est sans rapport avec CleanSlate. Les vérifications à la main sont en cours.
