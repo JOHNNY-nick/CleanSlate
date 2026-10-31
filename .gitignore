@@ -22,3 +22,6 @@ coverage/
 Thumbs.db
 .DS_Store
 .reference/
+
+# Livre (branche livre) : PDF et HTML générés
+book/dist/
