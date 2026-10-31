@@ -1,4 +1,5 @@
 using CleanSlate.App.Services;
+using CleanSlate.Presentation;
 using CleanSlate.Presentation.Services;
 using CleanSlate.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,7 +97,21 @@ public partial class App : Application
         settings.Changed += (_, _) => window.DispatcherQueue.TryEnqueue(() => window.ApplyTheme(settings.Theme));
         window.Closed += (_, _) => _host.Dispose();
         window.Activate();
-        _ = PurgeOldSessionsAsync();
+        _ = StartAsync(window);
+    }
+
+    /// <summary>First-launch choice of the quarantine delay (D62), then the automatic purge, which uses it.</summary>
+    private static async Task StartAsync(MainWindow window)
+    {
+        if (window.Content is FrameworkElement root && root.XamlRoot is null)
+        {
+            var loaded = new TaskCompletionSource();
+            root.Loaded += (_, _) => loaded.TrySetResult();
+            await loaded.Task;
+        }
+
+        await FirstRun.RunAsync(GetService<ISettingsService>(), GetService<IDialogService>());
+        await PurgeOldSessionsAsync();
     }
 
     /// <summary>Automatic purge at startup (EF-19); does nothing in simulation mode.</summary>

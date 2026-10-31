@@ -643,4 +643,22 @@ Détails enregistrés dans :
 
 Joignez ce fichier si vous signalez le problème.</value>
   </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Combien de temps garder la quarantaine ?</value>
+  </data>
+  <data name="FirstRunIntro" xml:space="preserve">
+    <value>Ce que CleanSlate retire n&apos;est jamais effacé tout de suite : il part d&apos;abord en quarantaine, d&apos;où vous pouvez tout restaurer à l&apos;identique. Ces éléments gardent leur place sur le disque pendant ce délai, puis sont effacés définitivement au démarrage de CleanSlate.</value>
+  </data>
+  <data name="FirstRunChoice" xml:space="preserve">
+    <value>{0} jours</value>
+  </data>
+  <data name="FirstRunRecommended" xml:space="preserve">
+    <value> (recommandé)</value>
+  </data>
+  <data name="FirstRunNote" xml:space="preserve">
+    <value>Vous pourrez changer ce délai à tout moment dans Réglages (de 1 à 365 jours), ou vider la quarantaine plus tôt depuis Historique. Le mode simulation reste actif : rien n&apos;est déplacé tant que vous ne le désactivez pas.</value>
+  </data>
+  <data name="FirstRunPrimary" xml:space="preserve">
+    <value>Valider</value>
+  </data>
 </root>

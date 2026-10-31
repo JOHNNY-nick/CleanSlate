@@ -72,6 +72,45 @@ public sealed class DialogService : IDialogService
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
+    /// <inheritdoc/>
+    public async Task<int?> ChooseQuarantineDaysAsync(int currentDays)
+    {
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(Text(Loader.GetString("FirstRunIntro")));
+        var choices = new RadioButtons();
+        foreach (int days in Presentation.FirstRun.Choices)
+        {
+            string label = string.Format(Loader.GetString("FirstRunChoice"), days);
+            if (days == Presentation.FirstRun.DefaultDays)
+            {
+                label += Loader.GetString("FirstRunRecommended");
+            }
+
+            choices.Items.Add(new RadioButton { Content = label, Tag = days });
+        }
+
+        int selected = Array.IndexOf(Presentation.FirstRun.Choices, currentDays);
+        choices.SelectedIndex = selected >= 0 ? selected : Array.IndexOf(Presentation.FirstRun.Choices, Presentation.FirstRun.DefaultDays);
+        panel.Children.Add(choices);
+        panel.Children.Add(Text(Loader.GetString("FirstRunNote")));
+
+        // No close button: the question is answered, or asked again at the next launch.
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Window.Content.XamlRoot,
+            Title = Loader.GetString("FirstRunTitle"),
+            Content = new ScrollViewer { Content = panel },
+            PrimaryButtonText = Loader.GetString("FirstRunPrimary"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+
+        return (choices.SelectedItem as RadioButton)?.Tag as int? ?? Presentation.FirstRun.DefaultDays;
+    }
+
     private static TextBlock Text(string text, bool bold = false) => new()
     {
         Text = text,

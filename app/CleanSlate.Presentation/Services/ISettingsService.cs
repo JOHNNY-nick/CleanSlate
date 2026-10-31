@@ -22,6 +22,9 @@ public interface ISettingsService
     /// <summary>Days before the quarantine is purged (EF-19), 1 to 365, 30 by default.</summary>
     int QuarantineDays { get; set; }
 
+    /// <summary>The first-launch questions were answered (D62).</summary>
+    bool FirstRunDone { get; set; }
+
     /// <summary>Theme, following Windows by default.</summary>
     AppTheme Theme { get; set; }
 
