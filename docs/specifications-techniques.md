@@ -305,7 +305,8 @@ Un candidat est **rattaché** si au moins une condition est vraie :
 - similarité Jaro-Winkler ≥ 0,90 avec un nom ou un éditeur installé, ou tous les mots du candidat contenus dans un nom installé ;
 - il contient l'exécutable d'un service, d'un processus en cours ou d'une entrée Uninstall ;
 - c'est un dossier éditeur et au moins une application de cet éditeur est encore installée ;
-- son nom est celui d'un **programme présent sur le disque** sans entrée Uninstall : dossier de `Program Files`, `Program Files (x86)` ou `%LOCALAPPDATA%\Programs` contenant un `.exe` sur 3 niveaux (D22) ;
+- son nom est celui d'un **programme présent sur le disque** sans entrée Uninstall : dossier de `Program Files`, `Program Files (x86)` ou `%LOCALAPPDATA%\Programs` contenant un `.exe` sur 3 niveaux (D22), ou programme atteint par le `PATH` (hors `%WINDIR%`) : dossier d'une entrée du `PATH` sous une racine d'analyse (`Roaming\npm`, `Local\MyCESAM`) et commandes qu'elle offre (`pnpm.cmd`, `uv.exe`) (D68) ;
+- son premier mot est, en entier, le nom d'un programme présent ou installé (`pnpm-cache` pour `pnpm`) (D68) ;
 - son nom normalisé est vide (trop générique pour être jugé).
 
 Les reparse points ne sont jamais proposés, ni traversés (D18).
@@ -321,10 +322,10 @@ Les reparse points ne sont jamais proposés, ni traversés (D18).
 | Ne contient aucun exécutable | +10 |
 | Modifié il y a moins de 7 jours | −30 |
 | Nom générique (`Temp`, `Cache`, `Common`, `Shared`, `Data`, `Config`, `Logs`…) | −25 |
-| Contient des `.exe` dans `Program Files` sans entrée Uninstall (logiciel portable probable) | −25 |
+| Contient des `.exe` sans entrée Uninstall, dans `Program Files` ou dans AppData (logiciel portable ou installé pour l'utilisateur probable, D68) | −25 |
 | Clé de registre contenant moins de 3 valeurs et aucune sous-clé | −10 |
 
-Plafonds appliqués après le score (D21, D23) : un élément de `Documents` est toujours **Faible** (dossier personnel possible) ; un élément de profondeur 2 sous le dossier d'un éditeur encore installé est au plus **Moyenne**. Le signal « historique » (+30) arrive avec l'historique en J4.
+Plafonds appliqués après le score (D21, D23, D68) : un élément de `Documents` est toujours **Faible** (dossier personnel possible), et l'analyse des restes orphelins ne parcourt plus `Documents` (seule la recherche des restes d'une application désinstallée y regarde) ; un dossier qui contient des données (base de données, `PG_VERSION`, coffre `.kdbx`, messagerie `.pst`, disque virtuel…) est au plus **Moyenne** ; un élément de profondeur 2 sous le dossier d'un éditeur encore installé est au plus **Moyenne**. Le signal « historique » (+30) arrive avec l'historique en J4.
 
 Niveaux : **Élevée** ≥ 60, **Moyenne** 35 à 59, **Faible** < 35. Chaque signal retenu est ajouté en clair à `reasons` pour que l'utilisateur comprenne la proposition. Ces seuils sont des valeurs de départ, à ajuster sur le jeu de test d'acceptation.
 

@@ -155,13 +155,19 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
     let errors = Errors::default();
     let listing = Reporter::new(progress, 0);
     listing.emit(ScanPhase::Listing, "");
-    for name in present_programs(env, &errors) {
+    for name in present_programs(env, &errors)
+        .into_iter()
+        .chain(path_programs(env))
+    {
         known.add_present_program(&name);
     }
 
     let mut candidates = Vec::new();
     let personal = [env.folders.documents.clone()];
     let mut roots = env.folders.scan_roots();
+    // D68: Documents holds the user's own folders; only the leftovers of an
+    // application being uninstalled are looked for there (scan_app_leftovers).
+    roots.retain(|r| *r != env.folders.documents);
     roots.sort();
     roots.dedup();
     for root in &roots {
@@ -315,6 +321,49 @@ fn present_programs(env: &ScanEnv, errors: &Errors) -> Vec<String> {
                 && contains_executable(env.fs, &entry.path, PRESENT_PROGRAM_DEPTH)
             {
                 names.push(entry.name.to_string_lossy().into_owned());
+            }
+        }
+    }
+    names
+}
+
+/// Most entries read in one `PATH` folder; beyond, its commands are ignored.
+const PATH_DIR_LIMIT: usize = 400;
+
+/// Programs reached through the `PATH` (D68), outside `%WINDIR%`: the folder
+/// a `PATH` entry belongs to below a scan root (`Roaming\npm`, `Local\MyCESAM`),
+/// and the commands it offers (`pnpm.cmd`, `uv.exe`). Tools installed by npm,
+/// pip, uv, cargo or an SDK have no Uninstall entry; their data folders must
+/// not be proposed.
+fn path_programs(env: &ScanEnv) -> Vec<String> {
+    let windir = env.folders.windir.to_string_lossy().to_lowercase();
+    let roots = env.folders.scan_roots();
+    let mut names = Vec::new();
+    for dir in &env.folders.path_dirs {
+        let text = dir.to_string_lossy().to_lowercase();
+        if text.starts_with(&windir) {
+            continue;
+        }
+        for root in &roots {
+            if let Ok(rest) = dir.strip_prefix(root) {
+                if let Some(first) = rest.components().next() {
+                    names.push(first.as_os_str().to_string_lossy().into_owned());
+                }
+            }
+        }
+        let Ok(entries) = env.fs.read_dir(dir) else {
+            continue;
+        };
+        for entry in entries.into_iter().take(PATH_DIR_LIMIT) {
+            let is_command = entry.path.extension().is_some_and(|e| {
+                ["exe", "cmd", "bat", "ps1"]
+                    .iter()
+                    .any(|c| e.eq_ignore_ascii_case(c))
+            });
+            if !entry.metadata.is_dir && is_command {
+                if let Some(stem) = entry.path.file_stem() {
+                    names.push(stem.to_string_lossy().into_owned());
+                }
             }
         }
     }
@@ -952,6 +1001,7 @@ fn analyze(
             }
             facts.last_modified = stats.last_modified;
             facts.has_executable = !stats.executables.is_empty();
+            facts.contains_data = stats.has_data;
             stats.size
         }
         (None, Some(key)) => {
@@ -998,6 +1048,23 @@ struct Stats {
     size: u64,
     last_modified: Option<DateTime<Utc>>,
     executables: Vec<String>,
+    /// A database, a password vault, a mailbox or a virtual disk (D68).
+    has_data: bool,
+}
+
+/// Extensions of files holding the user's data: their folder is never pre-checked (D68).
+const DATA_EXTENSIONS: &[&str] = &[
+    "mdf", "ldf", "ndf", "sqlite", "sqlite3", "ibd", "myd", "accdb", "mdb", "kdbx", "pst", "ost",
+    "vmdk", "vhd", "vhdx", "qcow2", "vdi",
+];
+
+/// `PG_VERSION` marks a PostgreSQL data folder (D68).
+fn is_data_file(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|n| n.eq_ignore_ascii_case("PG_VERSION"))
+        || path
+            .extension()
+            .is_some_and(|e| DATA_EXTENSIONS.iter().any(|d| e.eq_ignore_ascii_case(d)))
 }
 
 /// Walks a folder through the [`FileSystem`] trait without traversing
@@ -1028,6 +1095,7 @@ fn measure(env: &ScanEnv, root: &Path, reporter: &Reporter, errors: &Errors) -> 
                 continue;
             }
             stats.size += meta.len;
+            stats.has_data |= is_data_file(&entry.path);
             let is_exe = entry
                 .path
                 .extension()
@@ -1209,6 +1277,76 @@ pub(crate) mod tests {
             installed_packages: None,
         };
         scan_orphans(&env, &ScanOptions::default(), progress)
+    }
+
+    /// D68, read-only scan of the owner's PC on 31 Oct. 2026: tools reached through the
+    /// PATH (pnpm installed by npm, uv in `.local\bin`, Flutter in an SDK folder) were
+    /// proposed and pre-checked; so was the database PostgreSQL left behind.
+    #[test]
+    fn programs_on_the_path_and_data_folders() {
+        let old = Some(now() - Days::days(200));
+        let r = r"C:\Users\Ana\AppData\Roaming";
+        let l = r"C:\Users\Ana\AppData\Local";
+        let mut fs = FakeFileSystem::new();
+        fs.add_file(format!(r"{r}\npm\pnpm.cmd"), 300, old)
+            .add_file(format!(r"{l}\pnpm-cache\metadata.json"), 300, old)
+            .add_file(format!(r"{l}\pnpm-state\state.json"), 300, old)
+            .add_file(r"C:\Users\Ana\.local\bin\uv.exe", 9_000, old)
+            .add_file(format!(r"{r}\uv\python\list.json"), 300, old)
+            .add_file(format!(r"{l}\MyCESAM\tools\flutter\bin\dart.bat"), 300, old)
+            .add_file(r"C:\Program Files\PostgreSQL\15\data\PG_VERSION", 3, old)
+            .add_file(
+                r"C:\Program Files\PostgreSQL\15\data\base\1\1259",
+                8_000,
+                old,
+            )
+            .add_file(format!(r"{r}\OldTool\settings.ini"), 300, old)
+            .add_file(r"C:\Users\Ana\Documents\Projets\notes.txt", 300, old);
+        let mut folders = KnownFolders::under(r"C:\");
+        folders.path_dirs = vec![
+            PathBuf::from(format!(r"{r}\npm")),
+            PathBuf::from(r"C:\Users\Ana\.local\bin"),
+            PathBuf::from(format!(r"{l}\MyCESAM\tools\flutter\bin")),
+            PathBuf::from(r"C:\Windows\System32"),
+        ];
+        let rules = SafetyRules::new(&folders, &[]);
+        let area = TestRegistryKey::new();
+        let registry = area.registry();
+        let cancel = AtomicBool::new(false);
+        let env = ScanEnv {
+            fs: &fs,
+            registry: &registry,
+            folders: &folders,
+            rules: &rules,
+            apps: &[],
+            extra_executables: &[],
+            cancel: &cancel,
+            now: now(),
+            installed_packages: None,
+        };
+        let report = scan_orphans(&env, &ScanOptions::default(), &|_| {});
+        let items: Vec<&Leftover> = report.groups.iter().flat_map(|g| &g.items).collect();
+        let lower: Vec<String> = items.iter().map(|i| i.location.to_lowercase()).collect();
+        for forbidden in [r"\npm", "pnpm", r"roaming\uv", "mycesam", "documents"] {
+            assert!(
+                !lower.iter().any(|l| l.contains(forbidden)),
+                "{forbidden} must not be proposed: {lower:?}"
+            );
+        }
+        let at = |suffix: &str| {
+            items
+                .iter()
+                .find(|i| i.location.to_lowercase().ends_with(suffix))
+                .unwrap_or_else(|| panic!("{suffix} missing: {lower:?}"))
+        };
+        assert_eq!(at(r"roaming\oldtool").confidence, Confidence::High);
+        let database = at(r"program files\postgresql");
+        assert_eq!(database.confidence, Confidence::Medium);
+        assert!(
+            database.reasons.iter().any(|r| r.contains("données")),
+            "{:?}",
+            database.reasons
+        );
     }
 
     fn locations(report: &ScanReport) -> Vec<String> {
@@ -1442,7 +1580,6 @@ pub(crate) mod tests {
             r"\local\handbrake",
             r"hkcu\software\audacity",
             r"\desktop\audacity.lnk",
-            r"\documents\thesis",
         ] {
             assert!(
                 lower.iter().any(|l| l.ends_with(expected)),
@@ -1461,6 +1598,8 @@ pub(crate) mod tests {
             "trap",
             "obsidian",
             r"roaming\mozilla",
+            // D68: personal folders are never proposed by the orphan scan.
+            "documents",
         ] {
             assert!(
                 !lower
@@ -1481,7 +1620,7 @@ pub(crate) mod tests {
                 .clone()
         };
         assert_eq!(item(r"\roaming\audacity").confidence, Confidence::High);
-        assert_eq!(item(r"\documents\thesis").confidence, Confidence::Low);
+
         assert_eq!(item(r"\desktop\audacity.lnk").confidence, Confidence::High);
         assert_eq!(item(r"\roaming\audacity").size_bytes, 4_000);
         // Audacity folder, Program Files folder, key and shortcut share a group.

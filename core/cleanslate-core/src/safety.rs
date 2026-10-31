@@ -59,6 +59,22 @@ pub const PROTECTED_NAMES: &[&str] = &[
     "connecteddevicesplatform",
     "d3dscache",
     "virtualstore",
+    // .NET, Visual Studio and Windows, found by a scan of the owner's PC (D68).
+    "msbuild",
+    "isolatedstorage",
+    "comms",
+    "peerdistrepub",
+    "placeholdertilelogofolder",
+    "publishers",
+    "windowsoobeapphost",
+    "toastnotificationmanagercompat",
+    // Drivers of the PC (folders), as for their registry keys (D68).
+    "soundresearch",
+    "realtek",
+    "elantech",
+    "synaptics",
+    "fortemedia",
+    "khronos",
 ];
 
 /// Registry key names protected wherever they appear in a key (specs § 9.1).
@@ -79,6 +95,19 @@ pub const PROTECTED_KEY_NAMES: &[&str] = &[
     "intel",
     "nvidia corporation",
     "amd",
+    // Drivers and Windows integration, found by a scan of the owner's PC (D68).
+    "khronos",
+    "realtek",
+    "elantech",
+    "synaptics",
+    "fortemedia",
+    "soundresearch",
+    "tap0901",
+    "im providers",
+    "syncengines",
+    "syncintegrationclients",
+    "deviceinfo",
+    "nativemessaginghosts",
 ];
 
 /// Keys of Windows and of the PC maker below the registry scan roots,
@@ -172,6 +201,9 @@ pub struct KnownFolders {
     pub start_menu: Vec<PathBuf>,
     /// `Documents` (scan root of EF-05).
     pub documents: PathBuf,
+    /// Folders of the `PATH`: tools installed by npm, pip, uv, cargo or an SDK
+    /// have no Uninstall entry but are reached through it (D68).
+    pub path_dirs: Vec<PathBuf>,
 }
 
 impl KnownFolders {
@@ -209,6 +241,7 @@ impl KnownFolders {
             roaming,
             local,
             documents,
+            path_dirs: Vec::new(),
         }
     }
 
@@ -242,6 +275,14 @@ impl KnownFolders {
             f.program_data.join(START_MENU_PROGRAMS),
         ];
         known::fill(&mut f);
+        // Machine and user PATH of this process (the interface inherits both).
+        f.path_dirs = std::env::var_os("PATH")
+            .map(|p| {
+                std::env::split_paths(&p)
+                    .filter(|d| d.is_absolute())
+                    .collect()
+            })
+            .unwrap_or_default();
         f
     }
 
@@ -873,6 +914,19 @@ mod tests {
             r"C:\Users\Ana\AppData\Local\ConnectedDevicesPlatform",
             r"C:\Users\Ana\AppData\Local\D3DSCache",
             r"C:\Users\Ana\AppData\Local\VirtualStore",
+            // D68, read-only scan of the owner's PC.
+            r"C:\Program Files\MSBuild",
+            r"C:\Program Files (x86)\MSBuild",
+            r"C:\Users\Ana\AppData\Local\IsolatedStorage",
+            r"C:\Users\Ana\AppData\Local\Comms",
+            r"C:\Users\Ana\AppData\Local\PeerDistRepub",
+            r"C:\Users\Ana\AppData\Local\PlaceholderTileLogoFolder",
+            r"C:\Users\Ana\AppData\Local\Publishers",
+            r"C:\Users\Ana\AppData\Local\WindowsOobeAppHost",
+            r"C:\Users\Ana\AppData\Local\ToastNotificationManagerCompat",
+            r"C:\Users\Ana\AppData\Local\SoundResearch",
+            r"C:\ProgramData\Realtek",
+            r"C:\Program Files\Synaptics",
         ] {
             assert_eq!(
                 r.check_path(Path::new(path)).unwrap_err().code(),
@@ -891,6 +945,23 @@ mod tests {
             r"HKLM\SOFTWARE\Intel",
             r"HKLM\SOFTWARE\WOW6432Node\Intel",
             r"HKCU\Software\AppDataLow",
+            // D68: drivers and Windows integration keys of the owner's PC.
+            r"HKLM\SOFTWARE\Khronos",
+            r"HKLM\SOFTWARE\WOW6432Node\Khronos",
+            r"HKLM\SOFTWARE\Realtek",
+            r"HKCU\Software\Realtek",
+            r"HKCU\Software\Elantech",
+            r"HKLM\SOFTWARE\Synaptics",
+            r"HKLM\SOFTWARE\Fortemedia",
+            r"HKLM\SOFTWARE\SoundResearch",
+            r"HKLM\SOFTWARE\tap0901",
+            r"HKLM\SOFTWARE\IM Providers",
+            r"HKCU\Software\IM Providers",
+            r"HKCU\Software\SyncEngines",
+            r"HKLM\SOFTWARE\SyncIntegrationClients",
+            r"HKCU\Software\DeviceInfo",
+            r"HKLM\SOFTWARE\Mozilla\NativeMessagingHosts",
+            r"HKCU\Software\Mozilla\NativeMessagingHosts",
         ] {
             let parsed = RegKeyPath::parse(key).unwrap();
             assert_eq!(

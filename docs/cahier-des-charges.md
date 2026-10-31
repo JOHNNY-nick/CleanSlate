@@ -58,7 +58,7 @@ Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCo
 
 | ID | Exigence | Priorité |
 | --- | --- | --- |
-| EF-05 | Lancer un scan complet sans saisir de nom : dossiers de `Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`. | M |
+| EF-05 | Lancer un scan complet sans saisir de nom : dossiers de `Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%` ; `Documents` seulement pour les restes d'une application désinstallée, jamais dans l'analyse générale, qui proposait des dossiers personnels (D68). | M |
 | EF-06 | Scanner le registre : `HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`. | M |
 | EF-07 | Scanner les raccourcis du menu Démarrer et du Bureau dont la cible locale n'existe plus, les tâches planifiées et services dont l'exécutable a disparu ; les mettre en quarantaine de façon restaurable (raccourci déplacé, tâche exportée en XML, service sauvegardé en JSON et `.reg`). | S |
 | EF-08 | Considérer un élément comme orphelin s'il ne correspond à aucune application installée, en comparant noms, éditeurs, chemins d'installation et exécutables. | M |

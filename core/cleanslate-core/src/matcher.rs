@@ -205,6 +205,14 @@ impl KnownSet {
             return Some(format!("nom proche d'une application installée : {known}"));
         }
         let words: Vec<&str> = normalized.split(' ').collect();
+        // D68: `pnpm cache` belongs to `pnpm`; the whole first word must be the name.
+        if let Some(known) = self.names.iter().find(|known| {
+            known.len() >= 2 && !known.contains(' ') && words.first() == Some(&known.as_str())
+        }) {
+            return Some(format!(
+                "son nom commence par celui d'un programme présent : {known}"
+            ));
+        }
         if self
             .names
             .iter()
@@ -254,6 +262,9 @@ pub struct Facts {
     /// The item lies in the folder of a publisher that still has an
     /// installed application: at most Medium (never pre-checked).
     pub under_installed_publisher: bool,
+    /// The folder holds a database, a vault, a mailbox or a virtual disk:
+    /// at most Medium, never pre-checked (D68).
+    pub contains_data: bool,
 }
 
 /// Computes the confidence score of an orphan (specs § 6.3) with its
@@ -295,10 +306,11 @@ pub fn score(
     if GENERIC_NAMES.contains(&normalize(name).as_str()) {
         add(-25, "Nom générique, souvent partagé entre logiciels");
     }
-    if facts.in_program_files && facts.has_executable {
+    // Program Files, or AppData for per-user installs (Squirrel, portable): D68.
+    if is_file_like && facts.has_executable && !facts.dead_shortcut {
         add(
             -25,
-            "Contient des programmes sans entrée de désinstallation (logiciel portable probable)",
+            "Contient des programmes sans entrée de désinstallation (logiciel portable ou installé pour l'utilisateur probable)",
         );
     }
     if let Some((values, subkeys)) = facts.registry_counts {
@@ -316,6 +328,15 @@ pub fn score(
         confidence = Confidence::Medium;
         reasons.push(
             "Dans le dossier d'un éditeur dont une application est encore installée : jamais précoché"
+                .to_owned(),
+        );
+    }
+    if facts.contains_data && confidence == Confidence::High {
+        confidence = Confidence::Medium;
+    }
+    if facts.contains_data {
+        reasons.push(
+            "Contient des données (base de données, coffre, messagerie ou disque virtuel) : jamais précoché"
                 .to_owned(),
         );
     }
@@ -452,6 +473,22 @@ mod tests {
         assert!(!known.is_installed_publisher("videolan"));
     }
 
+    /// D68: `pnpm-cache` and `pnpm-state` belong to `pnpm`; a one-word name must be the
+    /// whole first word, so `codeblocks` is not `code`, nor `uvicorn` `uv`.
+    #[test]
+    fn attach_when_the_name_starts_with_a_present_program() {
+        let mut known = KnownSet::default();
+        known.add_present_program("pnpm");
+        known.add_present_program("code");
+        known.add_present_program("uv");
+        assert!(known.attach("pnpm-cache", None, &[]).is_some());
+        assert!(known.attach("pnpm-state", None, &[]).is_some());
+        assert!(known.attach("Code Cache", None, &[]).is_some());
+        assert!(known.attach("CodeBlocks", None, &[]).is_none());
+        assert!(known.attach("uvicorn", None, &[]).is_none());
+        assert!(known.attach("Audacity", None, &[]).is_none());
+    }
+
     #[test]
     fn empty_normalized_name_is_never_proposed() {
         let known = KnownSet::default();
@@ -506,6 +543,15 @@ mod tests {
             ..Facts::default()
         };
         let (points, confidence, _) = score(LeftoverKind::Folder, "Tool", 0.4, &portable, now());
+        assert_eq!(points, 35);
+        assert_eq!(confidence, Confidence::Medium);
+
+        // D68: the same in AppData (per-user installs such as Postman): never pre-checked.
+        let per_user = Facts {
+            in_program_files: false,
+            ..portable
+        };
+        let (points, confidence, _) = score(LeftoverKind::Folder, "Postman", 0.4, &per_user, now());
         assert_eq!(points, 35);
         assert_eq!(confidence, Confidence::Medium);
     }
