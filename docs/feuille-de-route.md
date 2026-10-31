@@ -2,16 +2,15 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A1, scénario Apps dans Windows Sandbox.
-- **Prochaine action** : lancer le scénario Apps.
-- **Qui la fait** : le porteur (Claude ne peut pas lancer Windows Sandbox).
+- **Étape actuelle** : A2, scénario Complements puis vérifications à la main. A1 est atteint (run `apps-20261030-234036`, `docs/tests-acceptation.md` § 7.4).
+- **Prochaine action** : lancer le scénario Complements.
+- **Qui la fait** : le porteur.
 - **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
-  `pwsh scripts/sandbox/prepare.ps1 -Scenario Apps -Launch`
-- **Durée** : 2 à 5 min de préparation, puis 35 à 45 min dans le Sandbox. Aucun clic n'est attendu ; le rapport s'ouvre tout seul à la fin.
-- **Réponse attendue** : « fait » (Claude lit lui-même le dernier dossier de `artifacts\sandbox\results\`).
+  `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
+- **Durée** : 2 à 5 min de préparation, puis 15 à 20 min automatiques dans le Sandbox, puis environ 15 min de vérifications à la main.
+- **Réponse attendue** : « fait », suivi de « tout OK » ou de ce qui ne va pas dans la liste à cocher.
 
 Dernière mise à jour : 31 oct. 2026.
-
 ## Règles de pilotage
 
 - Claude pilote : à la fin de **chaque** réponse, il donne la prochaine action, qui la fait, la commande exacte et le dossier d'où la lancer, la durée et ce qu'il faut lui répondre.
@@ -29,7 +28,7 @@ Dernière mise à jour : 31 oct. 2026.
 ## Étape A — Finaliser pour l'usage personnel
 
 - [x] Mise en place du pilotage : feuille de route, consigne dans `CLAUDE.md`, `.claude/settings.json` commité (`ed923e8`).
-- [ ] **A1. Porteur** : scénario Apps dans le Sandbox. Critères :
+- [x] **A1. Porteur** (atteint le 30 oct. 2026, run `apps-20261030-234036`) : scénario Apps dans le Sandbox. Critères :
   - ≥ 90 % des restes retrouvés ;
   - zéro élément fautif précoché ;
   - restauration à l'identique ;

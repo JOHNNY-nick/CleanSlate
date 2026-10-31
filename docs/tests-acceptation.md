@@ -145,7 +145,7 @@ But : vérifier les trois critères mesurables du cahier § 6.3 sur un jeu de 5 
 | Critère (cahier § 6.3) | Mesure | Résultat |
 | --- | --- | --- |
 | Exigences M satisfaites | `docs/journal/revue-finale.md` | voir la revue finale |
-| ≥ 90 % des restes retrouvés | T / R = 6 / 6 (100 %) le 30 oct. 2026 (run `apps-20261030-185352`, Audacity compris) | atteint ; à confirmer au prochain run Apps, la désinstallation de GIMP ayant attendu un clic (D59, § 7.3) |
+| ≥ 90 % des restes retrouvés | T / R = 6 / 6 (100 %) le 30 oct. 2026 (run `apps-20261030-234036`, sans aucun clic, § 7.4) | atteint |
 | Zéro élément d'une application installée ou du système précoché | 0 précoché fautif ; 0 précoché au total (41 proposés : 20 Moyenne, 21 Faible) | atteint ; voir § 7 sur l'absence de précochés dans un Sandbox |
 | Session restaurable à l'identique | 6 / 6 restes mis en quarantaine puis restaurés à l'identique (run `apps-20261030-185352`, automatique depuis D58) | atteint |
 | Tests automatisés et `clippy` sans alerte | `cargo test` 231, `dotnet test` 86, `cargo clippy -D warnings` avec et sans `--all-features` ; tests des scripts sous PowerShell 5.1 et 7 | atteint |
@@ -228,3 +228,21 @@ Constats :
 - **Désinstallation classique de GIMP : 4417 s (étape 20)**. GIMP 3 enregistre `QuietUninstallString = "…\unins000.exe" /SILENT` ; après un premier lancement, son désinstalleur demande s'il faut supprimer les réglages personnels, et `/SILENT` ne supprime pas cette boîte. Le script attendait sans limite : 126 s au run `182833` (`Roaming\GIMP\3.2` gardé), 4417 s ici (`Roaming\GIMP\3.2` supprimé). R dépendait donc d'un clic. Corrigé (D59) : `Get-SilentUninstall` passe toujours `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` aux désinstalleurs Inno Setup, chaque désinstallation est limitée à 10 min (étape en « échec du script » avec les fenêtres ouvertes), et le critère 2 passe en « échec du script » si une désinstallation n'a pas abouti ; test `scripts/tests/sandbox-uninstall.tests.ps1` (5.1 et 7, CI). Le critère 2 reste atteint, mais il est à remesurer sans clic.
 - **Analyse : 9,2 s** contre 1,6 s au run précédent, toujours sous 60 s ; elle suivait 74 min d'attente, avec Windows Update actif dans le Sandbox (diff de l'étape 20). Aucune action.
 - `evenements.txt` : un plantage de `msedge.exe` à 20:26, après la fin des mesures, sans rapport avec CleanSlate.
+
+### 7.4 Scénario des 5 applications, étape A1 de la feuille de route (run `apps-20261030-234036`, commit `10f2d61`)
+
+| Critère (cahier § 6.3) | Mesure | Résultat |
+| --- | --- | --- |
+| Installeurs conformes au manifeste | 6 SHA-256 vérifiés | atteint |
+| ≥ 90 % des restes retrouvés (critère 2) | T / R = 6 / 6 (100 %), les 5 applications lancées | atteint |
+| Zéro précoché fautif (critère 3) | 0 / 0 précoché, 45 éléments proposés | atteint |
+| Analyse sous 60 s (ENF-05) | 1,3 s | atteint |
+| Session restaurable à l'identique (critère 4) | 6 / 6 restes retirés puis restaurés à l'identique | atteint |
+| Aucun « échec du script » | aucune étape en échec ; scénario complet en 15,4 min | atteint |
+| Information (D60) : réponse de `/SUPPRESSMSGBOXES` à la question de GIMP | dossier de réglages `3.2` gardé | réponse « garder » |
+
+Constats :
+
+- La désinstallation classique de GIMP prend 7 s, contre 4417 s au run `185352` : `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` (D59) a supprimé l'attente d'un clic.
+- Avec `/SUPPRESSMSGBOXES`, GIMP 3.2.6 garde ses réglages. Pour ce seul désinstalleur, ce serait donc la réponse souhaitée. D60 reste inchangée : la réponse par défaut d'un autre désinstalleur Inno Setup ne peut pas être garantie, et CleanSlate ne passe toujours pas cette option.
+- `evenements.txt` : deux plantages de `msedge.exe` (00:13 et 01:27), après la fin du scénario, alors que le Sandbox était resté ouvert. Ils sont sans rapport avec CleanSlate.
