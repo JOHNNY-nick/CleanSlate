@@ -22,10 +22,10 @@ Dernière mise à jour : 31 oct. 2026.
 - Claude décide seul de ce qui est technique et le consigne dans `docs/decisions.md`. Il ne pose une question que pour quatre cas : une règle de sécurité à affaiblir, une dépendance hors des spécifications, une dépense, ou une information qu'il ne peut pas connaître. Il propose alors une réponse par défaut.
 - Les règles de sécurité de `CLAUDE.md` restent absolues.
 - « suite » : Claude fait l'action suivante de cette feuille de route.
-- Livre : rédigé par une autre session de Claude Code, dans le worktree `C:\Users\HP\Downloads\CleanSlate-livre`, sur la branche `livre`. Les règles qui s'appliquent ici :
-  - ne jamais modifier le dossier `book/` ni la branche `livre` ;
-  - ne jamais supprimer ni déplacer le dossier `CleanSlate-livre` ;
-  - lire régulièrement `git show livre:book/constats-pour-main.md` (au début de chaque session et avant chaque commit), et traiter une faille ou un bug qui y est signalé comme une correction normale, avec un test.
+- Livre : rédigé par une autre session de Claude Code, dans ce même dossier, sur `main`, uniquement dans `book/` et `docs/prompts/livre.md`. Les règles qui s'appliquent ici :
+  - ne jamais modifier `book/` ni `docs/prompts/livre.md` ;
+  - lire directement `book/constats-pour-main.md`, au début de chaque session et avant chaque commit, et traiter une faille ou un bug qui y est signalé comme une correction normale, avec un test ;
+  - règles de commit : voir `CLAUDE.md` (« Session du livre »).
 ## Étape A — Finaliser pour l'usage personnel
 
 - [x] Mise en place du pilotage : feuille de route, consigne dans `CLAUDE.md`, `.claude/settings.json` commité (`ed923e8`).
@@ -104,4 +104,4 @@ Dernière mise à jour : 31 oct. 2026.
 
 ## Étape D — Livre
 
-- [ ] **D. Livre** : rédigé par une autre session sur la branche livre ; à la fin, vérifier book/constats-pour-main.md, puis fusionner la branche livre dans main (je te dirai quand).
+- [ ] **D. Livre** : rédigé par une autre session dans book/, sur main. À la fin, traiter book/constats-pour-main.md.

@@ -104,6 +104,18 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
   n'appellent jamais EngineClient directement.
 - Tests de ViewModels avec NSubstitute (IEngineService simulé).
 
+## Session du livre (même dossier, même branche main)
+Une autre session de Claude Code rédige le livre ici, sur main, uniquement dans book/ et
+docs/prompts/livre.md.
+- Ne jamais modifier book/ ni docs/prompts/livre.md.
+- Lire book/constats-pour-main.md au début de chaque session et avant chaque commit ;
+  une faille ou un bug signalé se traite comme une correction normale, avec un test.
+- Commits : uniquement ses propres fichiers, nommés un par un (git add <fichier>…).
+  Jamais git add -A, git add ., git commit -a, ni git stash, reset, checkout ou rebase,
+  qui toucheraient au livre en cours. Ignorer book/ dans git status.
+- Si Git signale index.lock (l'autre session commite), attendre puis réessayer ;
+  ne jamais supprimer le fichier de verrou.
+
 ## Façon de travailler
 - Au début de chaque session, lis docs/feuille-de-route.md et annonce la prochaine action.
   Claude pilote le projet selon les « Règles de pilotage » de ce fichier : à la fin de chaque
