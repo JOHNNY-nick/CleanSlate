@@ -2,13 +2,10 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A4, installation sur le vrai PC, à la demande du porteur. Le dernier scénario Installer n'a pas été relancé : c'est son choix, compensé par les précautions de A4 et A5.
-- **Installeur** : `artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `2DE917E057750A4A2B6EE548856F143E966F0A9AE76164E7A01B6843863376E8` (après D68).
-- **Prochaine action** : le porteur crée un point de restauration, vérifie l'installeur et installe (commandes dans la dernière réponse de Claude).
+- **Étape actuelle** : A5, usage réel. CleanSlate est installé sur le PC du porteur. Deux demandes sont faites (D69, commit `65b1e8b`) : le filtre des restes sans espaces vides, et la page « Stockage ».
+- **Prochaine action** : le porteur ferme CleanSlate et répond « fermé » ; Claude construit alors l'installeur et donne la commande de mise à jour.
 - **Qui la fait** : le porteur.
-- **Durée** : environ 10 min.
-- **Réponse attendue** : « installé », ou ce qui ne va pas.
-- **En attente** : la relecture des 52 éléments précochés (`relecture-52-elements.html`), à faire avant toute validation dans « Restes orphelins ».
+- **Réponse attendue** : « fermé ».
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
@@ -41,7 +38,7 @@ Dernière mise à jour : 31 oct. 2026.
   - export des journaux sans le nom d'utilisateur en clair ;
   - fenêtre à la largeur minimale.
 - [x] **A3. Claude** (31 oct. 2026 : D59 à D68 ; dernier scénario Installer non relancé, à la demande du porteur) : corrections éventuelles, puis les scénarios nécessaires sont relancés ; faux positifs de l'analyse du vrai PC réduits et vérifiés par `scan --dry-run` (lecture seule).
-- [ ] **A4. Porteur** : point de restauration Windows, puis installation de CleanSlate sur son PC (Claude donne les commandes).
+- [x] **A4. Porteur** (31 oct. 2026) : point de restauration Windows, puis installation de CleanSlate sur son PC (Claude donne les commandes).
 - [ ] **A5. Porteur** : utilisation progressive pendant une à deux semaines, dans cet ordre :
   1. relecture des listes, sans rien valider ;
   2. petite quarantaine ;
