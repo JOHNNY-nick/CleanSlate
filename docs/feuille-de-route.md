@@ -2,14 +2,13 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3. A1 et A2 sont atteints. Le premier lancement voulu par le porteur est fait (D63, commit `673b9c6`) : accueil avec le logo, explication, acceptation, puis réglages de base (durée et emplacement de la quarantaine, dossier d'export). Il reste à le vérifier avec l'installeur réel, dans le Sandbox, avant A4.
-- **Prochaine action** : scénario Installer dans le Sandbox, avec la liste à cocher de la dernière réponse de Claude.
-- **Qui la fait** : le porteur.
-- **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
-  `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`
-- **Durée** : environ 2 min de préparation, puis environ 20 min dans le Sandbox, en grande partie à la main.
-- **Réponse attendue** : « fait, tout OK », ou ce qui ne va pas.
-- **Question en attente pour le porteur** : proposer de désactiver la quarantaine ? Réponse par défaut : non (règle de sécurité n° 7), le délai minimal reste 1 jour.
+- **Étape actuelle** : A3. Le premier lancement est vérifié à la main dans le Sandbox (tout est bon, `docs/tests-acceptation.md` § 7.6). Le script Installer est corrigé (D64).
+- **Prochaine action** : le porteur répond à la question sur le mode simulation (dernière réponse de Claude). Claude fait ensuite le changement, puis le scénario Installer est relancé une seule fois pour tout vérifier.
+- **Qui la fait** : le porteur, une réponse écrite.
+- **Réponse attendue** : « d'accord » (réponse par défaut) ou une autre option.
+- **Questions en attente** :
+  - mode simulation : réponse par défaut B, le retirer de l'application, le moteur, la CLI et les tests gardant `dry_run = true` par défaut ;
+  - désactivation de la quarantaine : réponse par défaut non.
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
