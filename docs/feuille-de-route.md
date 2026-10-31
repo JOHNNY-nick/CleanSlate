@@ -2,19 +2,10 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3. Les constats du run Installer sont corrigés (D67, commit `44eea35`).
-- **Nouveau constat** : l'analyse en lecture seule du vrai PC (`scan --dry-run`, 31 oct. 2026) propose 415 éléments, dont **102 précochés** (confiance élevée). Parmi eux, beaucoup sont des faux positifs :
-  - **outils de développement** sans entrée de désinstallation : pnpm, uv, npm, NuGet, Yarn, MSBuild, et les applications Scoop ;
-  - **applications installées** pour l'utilisateur : Obsidian, Notion, Zed, Cursor ? ;
-  - **données .NET et Windows** : IsolatedStorage ;
-  - **pilotes et matériel** : Khronos, Realtek, SoundResearch, Elantech, tap0901 ;
-  - **dossiers personnels** de Documents (Projets, Concours maths…), en confiance faible ;
-  - **PostgreSQL**, qui peut contenir des bases de données.
-
-  Le vrai PC n'est pas prêt pour un usage réel tant que ce n'est pas corrigé.
-- **Prochaine action** : Claude réduit ces faux positifs, avec des tests. Il vérifie chaque amélioration par une nouvelle analyse en lecture seule du vrai PC, la seule commande autorisée, sans Sandbox. Viennent ensuite un dernier scénario Installer, puis A4.
-- **Qui la fait** : Claude.
-- **Réponse attendue** : « suite ».
+- **Étape actuelle** : A3, faux positifs de l'analyse du vrai PC. D68 (commit `35b1176`) fait passer de 415 éléments proposés, dont 102 précochés, à **320 éléments, dont 52 précochés**. Mesure faite par `scan --dry-run`, en lecture seule.
+- **Prochaine action** : le porteur relit la liste des 52 éléments précochés (dernière réponse de Claude) et signale ceux dont il se sert encore. Claude corrige ensuite, puis vient le dernier scénario Installer, puis A4.
+- **Qui la fait** : le porteur ; c'est une simple lecture, rien à lancer.
+- **Réponse attendue** : « tous désinstallés », ou la liste des programmes encore utilisés.
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
