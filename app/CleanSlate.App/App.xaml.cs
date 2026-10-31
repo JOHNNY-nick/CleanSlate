@@ -32,6 +32,8 @@ public partial class App : Application
                 services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<ILogExportService, LogExportService>();
         services.AddSingleton<IFolderService, FolderService>();
+        services.AddSingleton<IStorageService, StorageService>();
+        services.AddTransient<StorageViewModel>();
         services.AddTransient<OnboardingViewModel>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();

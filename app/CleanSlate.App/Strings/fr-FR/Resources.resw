@@ -826,4 +826,58 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="Action_DeleteForGood" xml:space="preserve">
     <value>Supprimer définitivement</value>
   </data>
+  <data name="NavStorage.Content" xml:space="preserve">
+    <value>Stockage</value>
+  </data>
+  <data name="StorageTitle.Text" xml:space="preserve">
+    <value>Stockage</value>
+  </data>
+  <data name="StorageIntro.Text" xml:space="preserve">
+    <value>La place disponible sur vos disques, et ce que chaque action de CleanSlate a changé. Mettre en quarantaine sur le même disque ne libère pas encore de place : elle revient à la purge, à la fin du délai, ou tout de suite avec la suppression immédiate.</value>
+  </data>
+  <data name="StorageDrivesTitle.Text" xml:space="preserve">
+    <value>Disques</value>
+  </data>
+  <data name="StorageFreeOf.Text" xml:space="preserve">
+    <value>libres sur</value>
+  </data>
+  <data name="StorageHeldTitle.Text" xml:space="preserve">
+    <value>En quarantaine</value>
+  </data>
+  <data name="StorageHeldHelp.Text" xml:space="preserve">
+    <value>Restaurable depuis Historique ; cette place sera libérée à la purge.</value>
+  </data>
+  <data name="StorageFreedTitle.Text" xml:space="preserve">
+    <value>Libéré définitivement</value>
+  </data>
+  <data name="StorageFreedHelp.Text" xml:space="preserve">
+    <value>Purges de la quarantaine et suppressions immédiates.</value>
+  </data>
+  <data name="StorageJournalTitle.Text" xml:space="preserve">
+    <value>Place libre avant et après chaque action</value>
+  </data>
+  <data name="StorageJournalHelp.Text" xml:space="preserve">
+    <value>Mesurée sur le disque juste avant et juste après : un autre programme qui écrit au même moment change aussi ce chiffre.</value>
+  </data>
+  <data name="StorageJournalEmpty.Text" xml:space="preserve">
+    <value>Aucune action pour l&apos;instant : la prochaine mise en quarantaine, purge ou désinstallation apparaîtra ici.</value>
+  </data>
+  <data name="StorageBefore.Text" xml:space="preserve">
+    <value>avant</value>
+  </data>
+  <data name="StorageAfter.Text" xml:space="preserve">
+    <value>après</value>
+  </data>
+  <data name="StorageOperation_Quarantine" xml:space="preserve">
+    <value>Mise en quarantaine</value>
+  </data>
+  <data name="StorageOperation_Purge" xml:space="preserve">
+    <value>Purge de la quarantaine</value>
+  </data>
+  <data name="StorageOperation_DeleteForGood" xml:space="preserve">
+    <value>Suppression définitive</value>
+  </data>
+  <data name="StorageOperation_Uninstall" xml:space="preserve">
+    <value>Désinstallation</value>
+  </data>
 </root>

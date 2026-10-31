@@ -1,4 +1,5 @@
 using CleanSlate.Interop;
+using CleanSlate.Presentation;
 using CleanSlate.Presentation.Services;
 
 namespace CleanSlate.App.Services;
@@ -12,15 +13,17 @@ namespace CleanSlate.App.Services;
 public sealed class EngineService : IEngineService, IDisposable
 {
     private readonly ISettingsService _settings;
+    private readonly IStorageService _storage;
     private readonly object _gate = new();
     private EngineClient? _client;
     private IReadOnlyList<string> _clientExclusions = [];
     private string? _clientDataDir;
 
     /// <summary>Creates the service.</summary>
-    public EngineService(ISettingsService settings)
+    public EngineService(ISettingsService settings, IStorageService storage)
     {
         _settings = settings;
+        _storage = storage;
     }
 
     private EngineClient Client
@@ -57,8 +60,13 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ScanOrphansAsync(options, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken) =>
-        Client.CleanAsync(plan, cancellationToken);
+    public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken) => plan.DryRun
+        ? Client.CleanAsync(plan, cancellationToken)
+        : _storage.MeasureAsync(
+            StorageOperation.Quarantine,
+            s => $"{s.Items.Count(i => i.Status is QuarantineStatus.Quarantined or QuarantineStatus.PendingReboot)} élément(s)",
+            () => Client.CleanAsync(plan, cancellationToken),
+            s => s.FreedBytes);
 
     /// <inheritdoc/>
     public Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken) =>
@@ -69,16 +77,26 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ListSessionsAsync(cancellationToken);
 
     /// <inheritdoc/>
-    public Task<UninstallResult> UninstallAsync(UninstallRequest request, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken) =>
-        Client.UninstallAsync(request, progress, cancellationToken);
+    public Task<UninstallResult> UninstallAsync(UninstallRequest request, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken) => request.DryRun
+        ? Client.UninstallAsync(request, progress, cancellationToken)
+        : _storage.MeasureAsync(
+            StorageOperation.Uninstall,
+            r => r.DisplayName,
+            () => Client.UninstallAsync(request, progress, cancellationToken),
+            _ => 0UL);
 
     /// <inheritdoc/>
     public Task<ScanReport> ScanAppLeftoversAsync(AppLeftoversRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
         Client.ScanAppLeftoversAsync(request, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken) =>
-        Client.PurgeAsync(request, cancellationToken);
+    public Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken) => request.DryRun
+        ? Client.PurgeAsync(request, cancellationToken)
+        : _storage.MeasureAsync(
+            request.SessionId is null ? StorageOperation.Purge : StorageOperation.DeleteForGood,
+            _ => request.SessionId is null ? $"sessions de plus de {request.OlderThanDays} jours" : "session supprimée aussitôt",
+            () => Client.PurgeAsync(request, cancellationToken),
+            r => r.FreedBytes);
 
     /// <inheritdoc/>
     public void Dispose()

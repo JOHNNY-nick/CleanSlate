@@ -92,6 +92,8 @@ public sealed class OrphansViewModelTests
         vm.FilterIndex = 3; // Low
         Assert.False(vm.Groups[0].IsVisible);
         Assert.True(vm.Groups[1].IsVisible);
+        // The list shows only the groups left: no empty slot (real PC, 31 Oct. 2026, D69).
+        Assert.Equal([vm.Groups[1]], vm.VisibleGroups);
 
         vm.FilterIndex = 2; // Medium
         Assert.True(vm.Groups[0].IsVisible);
@@ -100,6 +102,7 @@ public sealed class OrphansViewModelTests
 
         vm.FilterIndex = 0;
         Assert.All(vm.Groups.SelectMany(g => g.Items), i => Assert.True(i.IsVisible));
+        Assert.Equal(vm.Groups, vm.VisibleGroups);
     }
 
     [Fact]

@@ -74,6 +74,9 @@ public sealed partial class OrphansViewModel : ObservableObject
     /// <summary>Groups of the last scan, largest first.</summary>
     public ObservableCollection<LeftoverGroupViewModel> Groups { get; } = [];
 
+    /// <summary>Groups shown by the list: those with an item at the chosen confidence (D69).</summary>
+    public ObservableCollection<LeftoverGroupViewModel> VisibleGroups { get; } = [];
+
     /// <summary>True while a scan runs.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowIntro), nameof(ShowEmpty))]
@@ -282,6 +285,7 @@ public sealed partial class OrphansViewModel : ObservableObject
             if (group.Items.Count == 0)
             {
                 Groups.Remove(group);
+                VisibleGroups.Remove(group);
             }
         }
 
@@ -364,6 +368,14 @@ public sealed partial class OrphansViewModel : ObservableObject
             }
 
             group.IsVisible = group.Items.Any(i => i.IsVisible);
+        }
+
+        // The list binds to the visible groups only: a hidden group would
+        // still take an empty slot in the ListView (D69).
+        VisibleGroups.Clear();
+        foreach (LeftoverGroupViewModel group in Groups.Where(g => g.IsVisible))
+        {
+            VisibleGroups.Add(group);
         }
     }
 

@@ -124,7 +124,7 @@
         <Grid Grid.Row="3">
             <ListView
                 x:Uid="OrphansGroups"
-                ItemsSource="{x:Bind ViewModel.Groups}"
+                ItemsSource="{x:Bind ViewModel.VisibleGroups}"
                 SelectionMode="None">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">

@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
         ["Apps"] = typeof(AppsPage),
         ["Orphans"] = typeof(OrphansPage),
         ["History"] = typeof(HistoryPage),
+        ["Storage"] = typeof(StoragePage),
         ["Settings"] = typeof(SettingsPage),
     };
 
