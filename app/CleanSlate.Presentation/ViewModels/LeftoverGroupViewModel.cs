@@ -45,6 +45,13 @@ public sealed partial class LeftoverItemViewModel : ObservableObject
     /// <summary>Visible with the current confidence filter.</summary>
     [ObservableProperty]
     private bool _isVisible = true;
+
+    /// <summary>
+    /// Moved by a quarantine: hidden for good, but kept in its group's list, which is never
+    /// changed once shown (WinUI crash of 31 Oct. 2026, D70).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDone;
 }
 
 /// <summary>Leftovers of one guessed application (EF-09).</summary>

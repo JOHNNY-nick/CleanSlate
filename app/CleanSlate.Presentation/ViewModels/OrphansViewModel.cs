@@ -274,15 +274,20 @@ public sealed partial class OrphansViewModel : ObservableObject
         CleanedSizeText = Formats.Size(session.FreedBytes);
         PendingRebootCount = session.Items.Count(i => i.Status == QuarantineStatus.PendingReboot);
         CleanFailureCount = session.Items.Count(i => i.Status == QuarantineStatus.Failed);
+        // The groups' own lists are never changed once shown: removing an item from an
+        // ItemsRepeater inside an Expander crashed WinUI (COMException 0x80004005, D70).
+        // Moved items are hidden for good; a group left empty leaves the top-level lists.
         foreach (LeftoverGroupViewModel group in Groups.ToList())
         {
-            foreach (LeftoverItemViewModel item in group.Items.Where(i => moved.Contains(i.Leftover.Id)).ToList())
+            foreach (LeftoverItemViewModel item in group.Items.Where(i => moved.Contains(i.Leftover.Id)))
             {
                 item.PropertyChanged -= OnItemChanged;
-                group.Items.Remove(item);
+                item.IsChecked = false;
+                item.IsDone = true;
+                item.IsVisible = false;
             }
 
-            if (group.Items.Count == 0)
+            if (group.Items.All(i => i.IsDone))
             {
                 Groups.Remove(group);
                 VisibleGroups.Remove(group);
@@ -364,7 +369,7 @@ public sealed partial class OrphansViewModel : ObservableObject
         {
             foreach (LeftoverItemViewModel item in group.Items)
             {
-                item.IsVisible = wanted is null || item.Confidence == wanted;
+                item.IsVisible = !item.IsDone && (wanted is null || item.Confidence == wanted);
             }
 
             group.IsVisible = group.Items.Any(i => i.IsVisible);

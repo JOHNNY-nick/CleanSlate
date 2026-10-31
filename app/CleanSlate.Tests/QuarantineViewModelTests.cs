@@ -78,8 +78,37 @@ public sealed class QuarantineViewModelTests
         Assert.True(vm.ShowCleanResult);
         Assert.Equal(1, vm.CleanedCount);
         Assert.Equal(1, vm.CleanFailureCount);
-        Assert.Single(vm.Groups[0].Items);
-        Assert.Equal("k1", vm.Groups[0].Items[0].Leftover.Id);
+        LeftoverItemViewModel left = Assert.Single(vm.Groups[0].Items, i => i.IsVisible);
+        Assert.Equal("k1", left.Leftover.Id);
+    }
+
+    [Fact]
+    public async Task MovedItems_AreHidden_WithoutChangingTheGroupsItems()
+    {
+        // Crash on the owner's PC, 31 Oct. 2026 (D70): removing a moved item from a group's
+        // list, shown by an ItemsRepeater inside an Expander, threw COMException 0x80004005
+        // in WinUI. The nested lists are never changed: moved items are hidden instead.
+        var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings());
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
+            .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Failed)));
+        LeftoverGroupViewModel group = vm.Groups[0];
+        int changes = 0;
+        group.Items.CollectionChanged += (_, _) => changes++;
+
+        await vm.QuarantineCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, changes);
+        LeftoverItemViewModel moved = group.Items.Single(i => i.Leftover.Id == "h1");
+        Assert.True(moved.IsDone);
+        Assert.False(moved.IsVisible);
+        Assert.False(moved.IsChecked);
+        Assert.True(group.Items.Single(i => i.Leftover.Id == "k1").IsVisible);
+        Assert.Equal(1, vm.SelectedCount); // the failed item stays checked, ready to retry
+
+        // A filter never brings a moved item back.
+        vm.FilterIndex = 1;
+        vm.FilterIndex = 0;
+        Assert.False(moved.IsVisible);
     }
 
     [Fact]
