@@ -2,12 +2,12 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3. A1 et A2 sont atteints. Correction demandée par le porteur : la durée de quarantaine se choisit maintenant au premier lancement (D62, commit `16ebb99`). Elle se vérifie avec l'installeur réel, dans le Sandbox, avant A4.
-- **Prochaine action** : scénario Installer dans le Sandbox, avec les vérifications à la main listées dans la dernière réponse de Claude.
+- **Étape actuelle** : A3. A1 et A2 sont atteints. Le premier lancement voulu par le porteur est fait (D63, commit `673b9c6`) : accueil avec le logo, explication, acceptation, puis réglages de base (durée et emplacement de la quarantaine, dossier d'export). Il reste à le vérifier avec l'installeur réel, dans le Sandbox, avant A4.
+- **Prochaine action** : scénario Installer dans le Sandbox, avec la liste à cocher de la dernière réponse de Claude.
 - **Qui la fait** : le porteur.
 - **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
   `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`
-- **Durée** : environ 2 min de préparation, puis environ 15 min dans le Sandbox, en grande partie à la main.
+- **Durée** : environ 2 min de préparation, puis environ 20 min dans le Sandbox, en grande partie à la main.
 - **Réponse attendue** : « fait, tout OK », ou ce qui ne va pas.
 - **Question en attente pour le porteur** : proposer de désactiver la quarantaine ? Réponse par défaut : non (règle de sécurité n° 7), le délai minimal reste 1 jour.
 
@@ -73,7 +73,7 @@ Dernière mise à jour : 31 oct. 2026.
   - Méthodes : `cargo audit`, `cargo deny`, `dotnet list package --vulnerable`, les ACL des dossiers, la relecture des blocs `unsafe`, et du fuzzing ou des tests de propriétés.
   - Résultat : `docs/securite/audit.md`, avec une fiche par faille et un tableau récapitulatif. Pour chaque faille réelle, un test qui la reproduit, puis un commit `fix(security): …`. Toute correction qui change l'architecture ou une règle de sécurité est présentée au porteur avant.
 - [ ] **B2. Claude** :
-  - écran d'avertissement au premier lancement, avec une case « J'ai compris » avant de pouvoir désactiver la simulation ;
+  - ~~écran d'avertissement au premier lancement, avec une case « J'ai compris » avant de pouvoir désactiver la simulation~~ : fait en avance avec le premier lancement (D63) ;
   - dossiers connus via `SHGetKnownFolderPath` partout (Windows dans une autre langue, dossiers redirigés vers OneDrive) ;
   - versions cohérentes de la DLL, de la CLI, de l'exe et de l'installeur (`winresource` est autorisé comme dépendance de compilation) ;
   - `CHANGELOG.md` ;
