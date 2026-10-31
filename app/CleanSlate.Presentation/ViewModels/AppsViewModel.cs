@@ -134,10 +134,11 @@ public sealed partial class AppsViewModel : ObservableObject
 
     /// <summary>
     /// Win32 application with an uninstaller, or Store package installed by the user (removed for
-    /// this user, EF-04). Microsoft's and preinstalled packages are never proposed (D52).
+    /// this user, EF-04). Microsoft's and preinstalled packages are never proposed (D52), nor
+    /// Windows components and updates, shown with the system components (D65).
     /// </summary>
-    private bool CanUninstall() => SelectedApp?.App is { } app && (app.Kind == AppKind.Store
-        ? app.PackageFullName is not null && app.HiddenReason is null
+    private bool CanUninstall() => SelectedApp?.App is { } app && app.HiddenReason is null && (app.Kind == AppKind.Store
+        ? app.PackageFullName is not null
         : app.UninstallString is not null || app.IsMsi);
 
     partial void OnSearchTextChanged(string value) => Refresh();

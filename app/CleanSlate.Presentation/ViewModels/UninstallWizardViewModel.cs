@@ -68,6 +68,17 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     [ObservableProperty]
     private bool _quiet;
 
+    /// <summary>« Je comprends » checked for an important application (D65).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LaunchCommand))]
+    private bool _cautionAcknowledged;
+
+    /// <summary>Other programs or Windows may depend on the application (D65).</summary>
+    public bool HasCaution => App?.App.Caution is not null;
+
+    /// <summary>Why, turned into text by the view (<c>Caution_{value}</c>).</summary>
+    public string CautionKey => App?.App.Caution?.ToString() ?? string.Empty;
+
     /// <summary>Last uninstaller result.</summary>
     [ObservableProperty]
     private UninstallResult? _result;
@@ -237,6 +248,7 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         Step = 1;
         CreateRestorePoint = true;
         Quiet = false;
+        CautionAcknowledged = false;
         Result = null;
         ErrorCode = string.Empty;
         ErrorDetails = string.Empty;
@@ -250,10 +262,13 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSimulationMode));
         OnPropertyChanged(nameof(IsWin32));
         OnPropertyChanged(nameof(StillInstalled));
+        OnPropertyChanged(nameof(HasCaution));
+        OnPropertyChanged(nameof(CautionKey));
+        LaunchCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>Step 1 → 2 → 3 (or 4): runs the uninstaller, then looks for leftovers.</summary>
-    [RelayCommand(CanExecute = nameof(HasApp), IncludeCancelCommand = true)]
+    [RelayCommand(CanExecute = nameof(CanLaunch), IncludeCancelCommand = true)]
     private async Task LaunchAsync(CancellationToken cancellationToken)
     {
         if (App is null)
@@ -481,6 +496,9 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
     private void OpenHistory() => _navigation.OpenHistory();
 
     private bool HasApp() => App is not null;
+
+    // An important application waits for « Je comprends » (D65).
+    private bool CanLaunch() => HasApp() && (!HasCaution || CautionAcknowledged);
 
     private bool HasSelection() => SelectedCount > 0;
 

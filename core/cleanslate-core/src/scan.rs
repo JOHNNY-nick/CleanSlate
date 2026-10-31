@@ -1079,6 +1079,7 @@ pub(crate) mod tests {
             installer: InstallerKind::Unknown,
             package_full_name: None,
             package_family_name: None,
+            caution: None,
         }
     }
 

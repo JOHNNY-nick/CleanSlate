@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use chrono::NaiveDate;
 
 use crate::error::{CoreError, CoreResult};
-use crate::model::{AppKind, HiddenReason, InstalledApp, InstallerKind, RegistryView};
+use crate::model::{AppKind, Caution, HiddenReason, InstalledApp, InstallerKind, RegistryView};
 use crate::registry::{Hive, KeyView, RegData, RegKeyPath, Registry};
 
 /// Uninstall key of 64-bit applications (and of HKCU).
@@ -122,11 +122,14 @@ pub fn parse_entry(
         None
     };
 
+    let publisher = text("Publisher");
+    let caution = caution_for(&display_name, publisher.as_deref());
+
     Some(InstalledApp {
         id: stable_id(view, subkey),
         installer: installer_kind(is_msi, subkey, uninstall_string.as_deref()),
         display_name,
-        publisher: text("Publisher"),
+        publisher,
         version: text("DisplayVersion"),
         install_date: text("InstallDate").as_deref().and_then(parse_install_date),
         install_location: text("InstallLocation")
@@ -143,7 +146,86 @@ pub fn parse_entry(
         hidden_reason,
         package_full_name: None,
         package_family_name: None,
+        caution,
     })
+}
+
+/// Words of a security suite, a driver and a runtime, matched as whole words.
+const SECURITY_WORDS: &[&str] = &[
+    "antivirus",
+    "anti virus",
+    "antimalware",
+    "anti malware",
+    "security",
+    "endpoint",
+    "defender",
+    "firewall",
+    "bitdefender",
+    "kaspersky",
+    "norton",
+    "eset",
+    "avast",
+    "avg",
+    "mcafee",
+    "malwarebytes",
+    "sophos",
+    "trend micro",
+    "f secure",
+    "webroot",
+];
+const DRIVER_WORDS: &[&str] = &[
+    "driver",
+    "drivers",
+    "pilote",
+    "pilotes",
+    "chipset",
+    "firmware",
+    "management engine",
+];
+const RUNTIME_WORDS: &[&str] = &[
+    "runtime",
+    "redistributable",
+    "vcredist",
+    "visual c",
+    "net framework",
+    "directx",
+    "java",
+    "jre",
+    "jdk",
+    "openjdk",
+    "webview2",
+    "hosting bundle",
+];
+
+/// Why uninstalling this application deserves a warning (D65), from its name
+/// and publisher: a security suite, a driver, a runtime other programs need,
+/// or anything else published by Microsoft. `None` for an ordinary application.
+pub fn caution_for(display_name: &str, publisher: Option<&str>) -> Option<Caution> {
+    // Lower case, punctuation as spaces, padded: « Intel(R) Chipset » -> « intel r chipset ».
+    let words = |text: &str| {
+        let cleaned: String = text
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+            .collect();
+        format!(
+            " {} ",
+            cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+        )
+    };
+    let name = words(display_name);
+    let has = |list: &[&str]| list.iter().any(|w| name.contains(&format!(" {w} ")));
+    if has(SECURITY_WORDS) {
+        Some(Caution::Security)
+    } else if has(DRIVER_WORDS) {
+        Some(Caution::Driver)
+    } else if has(RUNTIME_WORDS) {
+        Some(Caution::Runtime)
+    } else if publisher.is_some_and(|p| words(p).starts_with(" microsoft ")) {
+        Some(Caution::Microsoft)
+    } else {
+        None
+    }
 }
 
 /// Stable identifier: FNV-1a 64-bit of the view and the lower-cased sub-key,
@@ -264,6 +346,83 @@ mod tests {
             .map(|(n, v)| ((*n).to_owned(), v.clone()))
             .collect();
         parse_entry(view, subkey, &values)
+    }
+
+    /// D65: applications other programs or Windows depend on get a warning before uninstall.
+    #[test]
+    fn important_applications_get_a_caution() {
+        let ms = Some("Microsoft Corporation");
+        let cases: [(&str, Option<&str>, Option<Caution>); 16] = [
+            ("PowerShell 7-x64", ms, Some(Caution::Microsoft)),
+            (
+                "Microsoft Edge WebView2 Runtime",
+                ms,
+                Some(Caution::Runtime),
+            ),
+            (
+                "Microsoft Visual C++ 2015-2022 Redistributable (x64) - 14.40.33810",
+                ms,
+                Some(Caution::Runtime),
+            ),
+            (
+                "Microsoft Windows Desktop Runtime - 8.0.11 (x64)",
+                ms,
+                Some(Caution::Runtime),
+            ),
+            (
+                "Java 8 Update 431",
+                Some("Oracle Corporation"),
+                Some(Caution::Runtime),
+            ),
+            (
+                "NVIDIA Graphics Driver 566.36",
+                Some("NVIDIA Corporation"),
+                Some(Caution::Driver),
+            ),
+            (
+                "Intel(R) Chipset Device Software",
+                Some("Intel(R) Corporation"),
+                Some(Caution::Driver),
+            ),
+            (
+                "Intel® Management Engine Components",
+                Some("Intel Corporation"),
+                Some(Caution::Driver),
+            ),
+            (
+                "Pilote audio Realtek",
+                Some("Realtek"),
+                Some(Caution::Driver),
+            ),
+            (
+                "Bitdefender Total Security",
+                Some("Bitdefender"),
+                Some(Caution::Security),
+            ),
+            (
+                "Malwarebytes version 5.2",
+                Some("Malwarebytes"),
+                Some(Caution::Security),
+            ),
+            (
+                "ESET Security",
+                Some("ESET, spol. s r.o."),
+                Some(Caution::Security),
+            ),
+            (
+                "Microsoft Defender for Endpoint",
+                ms,
+                Some(Caution::Security),
+            ),
+            ("VLC media player", Some("VideoLAN"), None),
+            ("Audacity 3.7", Some("Audacity Team"), None),
+            ("GIMP 3.2.6", None, None),
+        ];
+        for (name, publisher, expected) in cases {
+            assert_eq!(caution_for(name, publisher), expected, "{name}");
+        }
+        // Whole words only: « avg » is not in « Navigateur », « eset » not in « Reset ».
+        assert_eq!(caution_for("Navigateur Reset Tool", Some("Example")), None);
     }
 
     #[test]

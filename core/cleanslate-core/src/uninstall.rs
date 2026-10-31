@@ -253,6 +253,20 @@ pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
     Ok(command)
 }
 
+/// Refuses an entry hidden by default (D65): a Windows component
+/// (`SystemComponent = 1`) or an update belongs to another product and is
+/// never uninstalled on its own; Microsoft's and preinstalled Store packages
+/// neither (D52). An application with a [`crate::model::Caution`] stays
+/// allowed: the interface warns and asks for a confirmation.
+pub fn check_uninstallable(app: &InstalledApp) -> CoreResult<()> {
+    match app.hidden_reason {
+        Some(_) => Err(CoreError::Protected {
+            location: app.display_name.clone(),
+        }),
+        None => Ok(()),
+    }
+}
+
 /// How an uninstaller run ended.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RunOutcome {
@@ -563,7 +577,7 @@ pub fn wait_until(cancel: &AtomicBool, limit: Duration) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{AppKind, RegistryView};
+    use crate::model::{AppKind, Caution, HiddenReason, RegistryView};
 
     fn sys(name: &str) -> PathBuf {
         system32().join(name)
@@ -726,6 +740,7 @@ mod tests {
             installer: InstallerKind::Unknown,
             package_full_name: None,
             package_family_name: None,
+            caution: None,
         }
     }
 
@@ -759,6 +774,28 @@ mod tests {
                 .code(),
             "NO_UNINSTALLER"
         );
+    }
+
+    /// D65: a Windows component (`SystemComponent = 1`) or an update is never uninstalled
+    /// on its own; the warning of important applications is left to the interface.
+    #[test]
+    fn windows_components_and_updates_are_never_uninstalled() {
+        let mut component = app(Some(r#""C:\A\u.exe""#), None, None);
+        component.hidden_reason = Some(HiddenReason::SystemComponent);
+        assert_eq!(
+            check_uninstallable(&component).unwrap_err().code(),
+            "PROTECTED"
+        );
+        component.hidden_reason = Some(HiddenReason::Update);
+        assert_eq!(
+            check_uninstallable(&component).unwrap_err().code(),
+            "PROTECTED"
+        );
+
+        let mut important = app(Some(r#""C:\A\u.exe""#), None, None);
+        important.caution = Some(Caution::Runtime);
+        assert!(check_uninstallable(&important).is_ok());
+        assert!(check_uninstallable(&app(Some(r#""C:\A\u.exe""#), None, None)).is_ok());
     }
 
     /// EF-14, D60: GIMP 3 declares `"…\unins000.exe" /SILENT` (Sandbox run of 30 Oct. 2026).

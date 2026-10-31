@@ -100,6 +100,7 @@ impl StorePackage {
             installer: InstallerKind::Msix,
             package_full_name: Some(self.full_name.clone()),
             package_family_name: Some(self.family_name.clone()),
+            caution: None,
         }
     }
 }

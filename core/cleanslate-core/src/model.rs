@@ -106,6 +106,24 @@ pub struct InstalledApp {
     /// `PackageFamilyName` of a Store application.
     #[serde(default)]
     pub package_family_name: Option<String>,
+    /// Set when other programs or Windows may depend on the application: the
+    /// interface warns before uninstalling it (D65).
+    #[serde(default)]
+    pub caution: Option<Caution>,
+}
+
+/// Why uninstalling an application deserves a warning (D65).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Caution {
+    /// Antivirus or security suite: the PC may stay unprotected.
+    Security,
+    /// Driver or hardware component: a device may stop working.
+    Driver,
+    /// Runtime other programs need (Visual C++, .NET, WebView2, Java, DirectX).
+    Runtime,
+    /// Published by Microsoft: Windows or other programs may use it.
+    Microsoft,
 }
 
 /// Kind of leftover item.
@@ -557,6 +575,7 @@ mod tests {
             installer: InstallerKind::InnoSetup,
             package_full_name: None,
             package_family_name: None,
+            caution: None,
         }
     }
 

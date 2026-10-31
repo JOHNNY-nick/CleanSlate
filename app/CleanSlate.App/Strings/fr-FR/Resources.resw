@@ -817,4 +817,22 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="SettingsFolderError.Title" xml:space="preserve">
     <value>Le dossier n&apos;a pas pu être utilisé</value>
   </data>
+  <data name="WizardCaution.Title" xml:space="preserve">
+    <value>Application importante</value>
+  </data>
+  <data name="WizardCautionAcknowledge.Content" xml:space="preserve">
+    <value>Je comprends, désinstaller quand même</value>
+  </data>
+  <data name="Caution_Security" xml:space="preserve">
+    <value>C&apos;est un antivirus ou un logiciel de sécurité : sans lui, votre PC peut rester sans protection. Vérifiez que Microsoft Defender ou un autre antivirus prendra le relais.</value>
+  </data>
+  <data name="Caution_Driver" xml:space="preserve">
+    <value>C&apos;est un pilote ou un composant matériel : l&apos;écran, le son, le réseau ou un autre appareil peut cesser de fonctionner.</value>
+  </data>
+  <data name="Caution_Runtime" xml:space="preserve">
+    <value>D&apos;autres programmes ont besoin de ce composant pour démarrer (Visual C++, .NET, WebView2, Java, DirectX…). Ils pourraient ne plus s&apos;ouvrir.</value>
+  </data>
+  <data name="Caution_Microsoft" xml:space="preserve">
+    <value>Cette application est éditée par Microsoft : Windows ou d&apos;autres programmes peuvent l&apos;utiliser. Désinstallez-la seulement si vous savez que vous n&apos;en avez pas besoin.</value>
+  </data>
 </root>

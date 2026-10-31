@@ -79,6 +79,22 @@ public enum HiddenReason
     Preinstalled,
 }
 
+/// <summary>Why uninstalling an application deserves a warning (D65).</summary>
+[JsonConverter(typeof(SnakeCaseEnumConverter<Caution>))]
+public enum Caution
+{
+    /// <summary>Antivirus or security suite: the PC may stay unprotected.</summary>
+    Security,
+
+    /// <summary>Driver or hardware component: a device may stop working.</summary>
+    Driver,
+
+    /// <summary>Runtime other programs need (Visual C++, .NET, WebView2, Java, DirectX).</summary>
+    Runtime,
+
+    /// <summary>Published by Microsoft: Windows or other programs may use it.</summary>
+    Microsoft,
+}
 /// <summary>Installer technology.</summary>
 [JsonConverter(typeof(SnakeCaseEnumConverter<InstallerKind>))]
 public enum InstallerKind
@@ -117,7 +133,8 @@ public sealed record InstalledApp(
     HiddenReason? HiddenReason,
     InstallerKind Installer,
     string? PackageFullName = null,
-    string? PackageFamilyName = null);
+    string? PackageFamilyName = null,
+    Caution? Caution = null);
 
 /// <summary>Kind of leftover item.</summary>
 [JsonConverter(typeof(SnakeCaseEnumConverter<LeftoverKind>))]

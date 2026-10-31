@@ -458,6 +458,7 @@ impl Engine {
             }
             return self.uninstall_package(&app, request, &emit);
         }
+        crate::uninstall::check_uninstallable(&app)?;
         let command = build_command(&app, request.quiet)?;
         if !program_exists(&command.program) {
             return Err(CoreError::NoUninstaller {
