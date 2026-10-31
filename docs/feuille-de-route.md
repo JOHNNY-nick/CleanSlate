@@ -2,19 +2,19 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3. Depuis la dernière vérification :
-  - l'application n'a plus de mode simulation (D66) ;
-  - la suppression immédiate est une option décochée par défaut (D66) ;
-  - les applications importantes sont désinstallées seulement après un avertissement, et les composants de Windows jamais (D65) ;
-  - le script Installer est corrigé (D64).
+- **Étape actuelle** : A3. Les constats du run Installer sont corrigés (D67, commit `44eea35`).
+- **Nouveau constat** : l'analyse en lecture seule du vrai PC (`scan --dry-run`, 31 oct. 2026) propose 415 éléments, dont **102 précochés** (confiance élevée). Parmi eux, beaucoup sont des faux positifs :
+  - **outils de développement** sans entrée de désinstallation : pnpm, uv, npm, NuGet, Yarn, MSBuild, et les applications Scoop ;
+  - **applications installées** pour l'utilisateur : Obsidian, Notion, Zed, Cursor ? ;
+  - **données .NET et Windows** : IsolatedStorage ;
+  - **pilotes et matériel** : Khronos, Realtek, SoundResearch, Elantech, tap0901 ;
+  - **dossiers personnels** de Documents (Projets, Concours maths…), en confiance faible ;
+  - **PostgreSQL**, qui peut contenir des bases de données.
 
-  L'installeur est régénéré (commit `7ac17a0`).
-- **Prochaine action** : scénario Installer dans le Sandbox, avec la liste à cocher de la dernière réponse de Claude.
-- **Qui la fait** : le porteur.
-- **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
-  `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`
-- **Durée** : environ 2 min de préparation, puis environ 20 min dans le Sandbox, en grande partie à la main.
-- **Réponse attendue** : « fait, tout OK », ou ce qui ne va pas.
+  Le vrai PC n'est pas prêt pour un usage réel tant que ce n'est pas corrigé.
+- **Prochaine action** : Claude réduit ces faux positifs, avec des tests. Il vérifie chaque amélioration par une nouvelle analyse en lecture seule du vrai PC, la seule commande autorisée, sans Sandbox. Viennent ensuite un dernier scénario Installer, puis A4.
+- **Qui la fait** : Claude.
+- **Réponse attendue** : « suite ».
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
@@ -46,7 +46,7 @@ Dernière mise à jour : 31 oct. 2026.
   - GIMP déjà lancé, puis désinstallé en mode silencieux : répondre Non, et vérifier que `%APPDATA%\GIMP` est proposé comme reste ;
   - export des journaux sans le nom d'utilisateur en clair ;
   - fenêtre à la largeur minimale.
-- [ ] **A3. Claude** : corrections éventuelles, puis les scénarios nécessaires sont relancés.
+- [ ] **A3. Claude** : corrections éventuelles, puis les scénarios nécessaires sont relancés ; faux positifs de l'analyse du vrai PC réduits et vérifiés par `scan --dry-run` (lecture seule).
 - [ ] **A4. Porteur** : point de restauration Windows, puis installation de CleanSlate sur son PC (Claude donne les commandes).
 - [ ] **A5. Porteur** : utilisation progressive pendant une à deux semaines, dans cet ordre :
   1. relecture des listes, sans rien valider ;
