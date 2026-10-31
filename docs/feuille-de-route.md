@@ -2,13 +2,19 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A3. Le premier lancement est vérifié à la main dans le Sandbox (tout est bon, `docs/tests-acceptation.md` § 7.6). Le script Installer est corrigé (D64).
-- **Prochaine action** : le porteur répond à la question sur le mode simulation (dernière réponse de Claude). Claude fait ensuite le changement, puis le scénario Installer est relancé une seule fois pour tout vérifier.
-- **Qui la fait** : le porteur, une réponse écrite.
-- **Réponse attendue** : « d'accord » (réponse par défaut) ou une autre option.
-- **Questions en attente** :
-  - mode simulation : réponse par défaut B, le retirer de l'application, le moteur, la CLI et les tests gardant `dry_run = true` par défaut ;
-  - désactivation de la quarantaine : réponse par défaut non.
+- **Étape actuelle** : A3. Depuis la dernière vérification :
+  - l'application n'a plus de mode simulation (D66) ;
+  - la suppression immédiate est une option décochée par défaut (D66) ;
+  - les applications importantes sont désinstallées seulement après un avertissement, et les composants de Windows jamais (D65) ;
+  - le script Installer est corrigé (D64).
+
+  L'installeur est régénéré (commit `7ac17a0`).
+- **Prochaine action** : scénario Installer dans le Sandbox, avec la liste à cocher de la dernière réponse de Claude.
+- **Qui la fait** : le porteur.
+- **Commande**, depuis `C:\Users\HP\Downloads\CleanSlate-dossier`, aucun Sandbox ouvert :
+  `pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`
+- **Durée** : environ 2 min de préparation, puis environ 20 min dans le Sandbox, en grande partie à la main.
+- **Réponse attendue** : « fait, tout OK », ou ce qui ne va pas.
 
 Dernière mise à jour : 31 oct. 2026.
 ## Règles de pilotage
@@ -43,12 +49,12 @@ Dernière mise à jour : 31 oct. 2026.
 - [ ] **A3. Claude** : corrections éventuelles, puis les scénarios nécessaires sont relancés.
 - [ ] **A4. Porteur** : point de restauration Windows, puis installation de CleanSlate sur son PC (Claude donne les commandes).
 - [ ] **A5. Porteur** : utilisation progressive pendant une à deux semaines, dans cet ordre :
-  1. simulation et relecture ;
+  1. relecture des listes, sans rien valider ;
   2. petite quarantaine ;
   3. test de restauration ;
   4. élargissement.
 
-  Pas de services, de tâches ni de mode silencieux la première semaine. Pour chaque problème, le porteur écrit « Problème : … » et joint le zip de journaux exportés. Claude analyse le zip, reproduit le cas par un test sans aucune opération destructive sur la machine, corrige, et dit comment restaurer si besoin.
+  Il n'y a plus de mode simulation (D66) : relire sans valider en tient lieu. Pas de services, de tâches, de mode silencieux ni de suppression immédiate la première semaine. Pour chaque problème, le porteur écrit « Problème : … » et joint le zip de journaux exportés. Claude analyse le zip, reproduit le cas par un test sans aucune opération destructive sur la machine, corrige, et dit comment restaurer si besoin.
 - [ ] **A6.** « usage perso validé » → étape B.
 
 ## Étape B — Partager avec un ami (sur son propre PC)
