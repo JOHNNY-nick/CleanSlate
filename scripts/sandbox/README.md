@@ -83,8 +83,8 @@ pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch
 ```
 
 - **Durée** : 3 à 5 min de compilation de l'installeur, puis 5 à 10 min dans le Sandbox, presque tout à la main.
-- **Déroulé** : vérification du SHA-256 de l'installeur ; l'assistant s'ouvre, vous installez ; contrôles automatiques (dossier, raccourci, entrée de désinstallation) ; le script attend pendant que vous faites les vérifications du § 5, une quarantaine, puis la désinstallation depuis Paramètres → Applications ; appuyez sur Entrée dans la console ; contrôles de la désinstallation.
-- **À vérifier** : UAC, assistant en français, icône, licence MIT, À propos ; dans `rapport.html` : installé, raccourci, entrée, puis dossier supprimé et `%LOCALAPPDATA%\CleanSlate` conservé (D43).
+- **Déroulé** : vérification du SHA-256 de l'installeur, copié dans Téléchargements comme un fichier téléchargé ; l'assistant s'ouvre, vous installez (assistant annulé : relancez l'installeur depuis Téléchargements, le script attend 20 min) ; contrôles automatiques (dossier, raccourci, entrée de désinstallation) ; le script attend pendant que vous faites le premier lancement (trois écrans d'accueil, D63), les vérifications du § 5, puis la désinstallation depuis Paramètres → Applications ; **tapez « fini »** dans la console (une simple touche Entrée ne suffit pas) ; contrôles de la désinstallation.
+- **À vérifier** : UAC, assistant en français, icône, licence MIT, À propos ; dans `rapport.html` : installé, raccourci, entrée, puis dossier supprimé, réglages de l'utilisateur et dossier de quarantaine choisi conservés (D43).
 
 ## Ce qu'il ne faut pas faire pendant un test
 

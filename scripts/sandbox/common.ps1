@@ -293,6 +293,29 @@ function Wait-Program([System.Diagnostics.Process] $process, [int] $seconds) {
     return $process.WaitForExit($seconds * 1000)
 }
 
+# Pause for a manual step that a stray Enter cannot skip (Installer run of 31 Oct. 2026: the
+# pause ended after 1 s): keys typed earlier are discarded, then $word must be typed.
+# $reader replaces Read-Host in the tests.
+function Wait-Answer([string] $prompt, [string] $word, [scriptblock] $reader = { param($text) Read-Host $text }) {
+    try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
+    $reads = 0
+    do {
+        $answer = [string](& $reader "$prompt (tapez « $word »)")
+        $reads++
+    } until ($answer.Trim() -ieq $word)
+    return $reads
+}
+
+# Polls $condition every $interval s for at most $seconds; $true as soon as it holds.
+function Wait-Until([scriptblock] $condition, [int] $seconds, [int] $interval = 5) {
+    $limit = (Get-Date).AddSeconds($seconds)
+    do {
+        if (& $condition) { return $true }
+        if ($interval -gt 0) { Start-Sleep -Seconds $interval }
+    } while ((Get-Date) -lt $limit)
+    return [bool](& $condition)
+}
+
 # Runs a CleanSlate CLI with separate arguments (Invoke-Program: each argument arrives whole,
 # spaces included) and returns its JSON output. stderr is appended to cli-progression.txt.
 # The function is not called "Cli": that name is a built-in alias of Clear-Item, and an alias

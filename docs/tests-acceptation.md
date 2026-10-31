@@ -268,3 +268,21 @@ Un plantage de `msedge.exe` (02:32) est sans rapport avec CleanSlate.
 - **Export des journaux** : vérifié par le porteur. Le zip n'a pas été copié dans le dossier de résultats.
 - **Largeur minimale de la fenêtre** : vérifiée.
 - **Réserve, GIMP en mode silencieux** : la question de GIMP s'est bien affichée malgré `/VERYSILENT`. Le désinstalleur a duré 15 s, contre 2 s sans la question, et c'est le comportement attendu (D60). Le porteur a répondu Oui par erreur : GIMP a donc supprimé lui-même ses réglages. La seconde moitié, « réglages gardés → proposés comme restes », est déjà prouvée par le run `apps-20261030-234036` (`3.2` gardé, `Roaming\GIMP` retrouvé) : il n'y a pas lieu de refaire ce point.
+
+### 7.6 Installeur, premier lancement (run `installer-20261031-031238`, commit `2acb42c`)
+
+**Vérifications à la main, faites par le porteur : tout est bon.**
+- Installeur en français, demande d'autorisation administrateur (UAC), icône.
+- Trois écrans d'accueil (D63), dont l'acceptation obligatoire.
+- Durée de 7 jours, dossier refusé dans Documents, dossier `C:\CleanSlate-Q` accepté.
+- Réglages, export des journaux, relance sans les écrans d'accueil, désinstallation.
+
+**Contrôles automatiques non valables pour ce run** : le premier assistant s'est terminé avec le code 2 (installation annulée) et le script n'a pas attendu la seconde installation. La pause manuelle s'est terminée au bout de 1 s, sans doute à cause d'une touche Entrée en attente. « Installé », « raccourci » et « entrée » sont donc marqués « NON atteint » à tort ; le journal de CleanSlate montre l'application lancée à 03:16:45.
+
+Corrigé (D64) :
+- le script attend jusqu'à 20 min l'installation relancée ;
+- la pause n'accepte que le mot « fini » (`Wait-Answer`, `Wait-Until`, testés dans `sandbox-uninstall.tests.ps1`) ;
+- l'installeur est copié dans Téléchargements, plus sur le Bureau. Sur le Bureau, sa copie, avec l'icône de CleanSlate, ressemblait à une deuxième icône à côté du raccourci créé par l'option « Créer une icône sur le Bureau » ;
+- les contrôles de la désinstallation portent sur `settings.json` et sur le dossier de quarantaine choisi.
+
+Ce scénario est à relancer.

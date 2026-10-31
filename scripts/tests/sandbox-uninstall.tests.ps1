@@ -51,6 +51,13 @@ try {
     $p = Start-Process "$env:windir\System32\PING.EXE" '-n 4 127.0.0.1' -PassThru -WindowStyle Hidden
     Check 'Wait-Program : délai dépassé => $false' (Wait-Program $p 1) @($false)
     Check 'Wait-Program : programme terminé dans le délai => $true' (Wait-Program $p 30) @($true)
+
+    # Manual pause of the Installer scenario: an empty or wrong answer never ends it.
+    $script:answers = [System.Collections.Generic.Queue[string]]::new([string[]]@('', 'oui', '  FINI '))
+    Check 'Wait-Answer : Entrée seule et autre mot ignorés, « fini » attendu' (Wait-Answer 'Désinstallation terminée ?' 'fini' { param($text) $script:answers.Dequeue() }) @(3)
+    $script:calls = 0
+    Check 'Wait-Until : vrai dès que la condition est remplie' (Wait-Until { $script:calls++; $script:calls -ge 3 } 30 0) @($true)
+    Check 'Wait-Until : faux après le délai' (Wait-Until { $false } 1 0) @($false)
 }
 catch {
     $failed++

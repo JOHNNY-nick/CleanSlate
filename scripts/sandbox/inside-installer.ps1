@@ -20,7 +20,9 @@ Assert-Sandbox
 Start-Run 'installer'
 
 $out = $Run.Out
-$desktop = [Environment]::GetFolderPath('Desktop')
+$downloads = (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path
+if (-not $downloads) { $downloads = Join-Path $env:USERPROFILE 'Downloads' }
+New-Item -ItemType Directory -Force $downloads | Out-Null
 $prepared = Get-Content "$Repo\artifacts\sandbox\run\prepare.json" -Raw -Encoding utf8 | ConvertFrom-Json
 $meta = @(
     "Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')",
@@ -49,14 +51,23 @@ if (-not $actual -or $actual -ne $expected) {
     exit 1
 }
 
-Invoke-Step 'Copie de l''installeur sur le Bureau' { Copy-Item $setup.FullName $desktop -Force } -NoInventory
+# In Téléchargements, as a downloaded setup: the Desktop then only shows the shortcut the
+# setup creates (31 Oct. 2026: the copy on the Desktop looked like a second icon).
+Invoke-Step 'Copie de l''installeur dans Téléchargements' { Copy-Item $setup.FullName $downloads -Force } -NoInventory
 
-# 2. The wizard, by hand. WaitForExit waits for the setup only, not for CleanSlate started at the end.
+# 2. The wizard, by hand. WaitForExit waits for the setup only, not for CleanSlate started at the
+# end. A cancelled wizard (exit code 2 on 31 Oct. 2026) can be run again from Téléchargements:
+# the script then waits up to 20 min for CleanSlate to be installed.
 Invoke-Step 'Installation de CleanSlate (assistant, à la main)' {
     Write-Host 'Suivez l''assistant (§ 5, étapes 1 et 2) ; ce script attend sa fermeture.' -ForegroundColor Yellow
-    $p = Start-Process (Join-Path $desktop $setup.Name) -PassThru
+    $p = Start-Process (Join-Path $downloads $setup.Name) -PassThru
     $p.WaitForExit()
     Write-Host "code de sortie $($p.ExitCode)"
+    if (-not (Test-Path "$installDir\CleanSlate.App.exe")) {
+        Write-Host "Installation non faite (code $($p.ExitCode)) : relancez $($setup.Name) depuis Téléchargements ; le script attend 20 min." -ForegroundColor Yellow
+        if (-not (Wait-Until { Test-Path "$installDir\CleanSlate.App.exe" } 1200)) { throw 'CleanSlate n''a pas été installé dans les 20 min' }
+        Start-Sleep -Seconds 5   # the setup finishes writing its entries
+    }
 }
 
 # 3. Automatic checks of the installation.
@@ -70,16 +81,21 @@ $checks += [pscustomobject]@{ Name = 'UAC, assistant en français, icône, licen
 Invoke-Step 'Vérifications § 5 puis désinstallation de CleanSlate (à la main)' {
     Write-Host @'
 À faire maintenant, à la main :
-  1. Réglages > À propos : icône et version ;
-  2. une quarantaine en mode simulation désactivé (§ 2) pour créer %LOCALAPPDATA%\CleanSlate ;
-  3. fermer CleanSlate, puis Paramètres > Applications > CleanSlate > Désinstaller.
+  1. premier lancement : les trois écrans d'accueil (D63), puis Réglages > À propos : icône et version ;
+  2. fermer CleanSlate, puis Paramètres > Applications > CleanSlate > Désinstaller.
 '@ -ForegroundColor Yellow
-    Read-Host 'Appuyez sur Entrée quand la désinstallation est terminée' | Out-Null
+    Wait-Answer 'Désinstallation terminée ?' 'fini' | Out-Null
 }
 $checks += [pscustomobject]@{ Name = 'C:\Program Files\CleanSlate supprimé'; Measure = $(if (Test-Path $installDir) { 'dossier encore présent' } else { 'absent' }); Status = $(if (Test-Path $installDir) { 'ko' } else { 'ok' }) }
 $checks += [pscustomobject]@{ Name = 'Entrée de désinstallation retirée'; Measure = "$(@(Uninstall-Entry).Count) entrée(s)"; Status = $(if (@(Uninstall-Entry).Count) { 'ko' } else { 'ok' }) }
-$kept = Test-Path "$env:LOCALAPPDATA\CleanSlate"
-$checks += [pscustomobject]@{ Name = '%LOCALAPPDATA%\CleanSlate conservé (D43)'; Measure = $(if ($kept) { 'présent' } else { 'absent (aucune quarantaine faite ?)' }); Status = $(if ($kept) { 'ok' } else { 'ko' }) }
+# The first launch writes settings.json: the user's data and choices survive the uninstall (D43).
+$settingsFile = "$env:LOCALAPPDATA\CleanSlate\settings.json"
+$kept = Test-Path $settingsFile
+$checks += [pscustomobject]@{ Name = 'Réglages de l''utilisateur conservés (D43)'; Measure = $(if ($kept) { $settingsFile } else { 'absents : premier lancement non terminé ?' }); Status = $(if ($kept) { 'ok' } else { 'ko' }) }
+$chosen = if ($kept) { (Get-Content $settingsFile -Raw -Encoding utf8 | ConvertFrom-Json).QuarantineFolder } else { $null }
+if ($chosen) {
+    $checks += [pscustomobject]@{ Name = 'Dossier de quarantaine choisi conservé (D43, D63)'; Measure = $chosen; Status = $(if (Test-Path -LiteralPath $chosen) { 'ok' } else { 'ko' }) }
+}
 
 Write-Report 'Installeur — résultats dans Windows Sandbox' $meta $checks ([ordered]@{})
 Stop-Run
