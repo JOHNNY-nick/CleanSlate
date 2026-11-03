@@ -2,11 +2,21 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. Le porteur a demandé trois tâches, avec un arrêt pour validation après chacune. **Tâche 1 faite : thèmes Clair, Sombre et Multicolore** (D71, commit ci-dessus).
+- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Tâche 1 faite : thèmes Clair, Sombre et Multicolore** (D71, commit `a1e4abb`), en attente de validation.
 - **Prochaine action** : le porteur ferme CleanSlate et répond « fermé » ; Claude construit l'installeur, le porteur réinstalle par-dessus et valide le thème Multicolore.
 - **Qui la fait** : le porteur.
 - **Réponse attendue** : « fermé », puis, après réinstallation, « thème OK » ou ce qui ne va pas.
-- **Ensuite**, une tâche à la fois, avec validation : (2) barre de progression pendant la mise en quarantaine des restes ; (3) critères de confiance : raccourcis qui fonctionnent, registre de Windows Installer, gestionnaires de paquets.
+- **File des tâches**, dans cet ordre sauf avis contraire du porteur :
+  2. barre de progression pendant la mise en quarantaine des restes ;
+  3. critères de confiance plus pointus :
+     - raccourcis qui fonctionnent ;
+     - registre de Windows Installer ;
+     - gestionnaires de paquets ;
+     - associations de fichiers et « App Paths » ;
+     - usage récent des programmes.
+
+     S'y ajoute une section de l'application qui explique comment le niveau de confiance est calculé ;
+  4. **carte du stockage** dans l'onglet Stockage : carte visuelle (rectangles proportionnels à la taille) des dossiers et fichiers les plus lourds, avec leur nature (Windows, programmes, données personnelles, caches, quarantaine, restes) et leurs détails. Le long journal avant / après passe dans un volet repliable.
 
 Dernière mise à jour : 3 nov. 2026.
 ## Règles de pilotage
