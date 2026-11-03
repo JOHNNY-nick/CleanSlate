@@ -325,11 +325,13 @@
                 <Color x:Key="StorageOtherBrush">#FFF176</Color>
                 <Color x:Key="StorageTileTextBrush">#1B1740</Color>
                 <!-- Background blobs (MainWindow.xaml): decoration only. -->
-                <Color x:Key="Blob0">#FF5252</Color>
-                <Color x:Key="Blob1">#FFD740</Color>
-                <Color x:Key="Blob2">#69F0AE</Color>
-                <Color x:Key="Blob3">#448AFF</Color>
-                <Color x:Key="Blob4">#E040FB</Color>            </ResourceDictionary>
+                <!-- Paint splashes (D75): saturated, like the references in docs/design/reference-multicolore. -->
+                <Color x:Key="Blob0">#E53935</Color>
+                <Color x:Key="Blob1">#FDD835</Color>
+                <Color x:Key="Blob2">#43A047</Color>
+                <Color x:Key="Blob3">#1E88E5</Color>
+                <Color x:Key="Blob4">#8E24AA</Color>
+            </ResourceDictionary>
             <!-- Shapes and spacing (docs/design.md § 3). -->
             <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
             <Thickness x:Key="PageMargin">40,24,40,24</Thickness>

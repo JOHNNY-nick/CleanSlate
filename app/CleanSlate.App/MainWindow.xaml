@@ -19,6 +19,15 @@
             IsSettingsVisible="False"
             PaneDisplayMode="Left"
             SelectionChanged="OnSelectionChanged">
+            <!-- Multicolore (D75): paint splash in the empty part of the menu; decoration only. -->
+            <NavigationView.PaneFooter>
+                <Canvas
+                    x:Name="PaneSplash"
+                    Height="240"
+                    AutomationProperties.AccessibilityView="Raw"
+                    IsHitTestVisible="False"
+                    SizeChanged="OnPaneSplashSizeChanged" />
+            </NavigationView.PaneFooter>
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Uid="NavHome" Tag="Home">
                 <NavigationViewItem.Icon>
