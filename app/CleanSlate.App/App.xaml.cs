@@ -1,4 +1,5 @@
 using CleanSlate.App.Services;
+using CleanSlate.Presentation;
 using CleanSlate.Presentation.Services;
 using CleanSlate.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +97,13 @@ public partial class App : Application
         var window = GetService<MainWindow>();
         _window = window;
         var settings = GetService<ISettingsService>();
+        // « Suivre Windows » is no longer offered (D71): it becomes what Windows shows now.
+        AppTheme resolved = ThemePalette.Resolve(settings.Theme, RequestedTheme == ApplicationTheme.Dark);
+        if (resolved != settings.Theme)
+        {
+            settings.Theme = resolved;
+        }
+
         window.ApplyTheme(settings.Theme);
         settings.Changed += (_, _) => window.DispatcherQueue.TryEnqueue(() => window.ApplyTheme(settings.Theme));
         window.Closed += (_, _) => _host.Dispose();

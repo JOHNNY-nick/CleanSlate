@@ -36,6 +36,13 @@
                     <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#FFFFFF" />
+                    <!-- WinUI accent brushes as tokens, so that Multicolore can recolor them (D71). -->
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#0F766E" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#14857C" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#115E59" />
+                    <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#115E59" />
+                    <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#0D4D49" />
+                    <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#0F766E" />
                     <!-- Teal accent for every WinUI control (selection, radio buttons…). -->
                     <Color x:Key="SystemAccentColor">#0F766E</Color>
                     <Color x:Key="SystemAccentColorLight1">#14857C</Color>
@@ -70,6 +77,12 @@
                     <SolidColorBrush x:Key="AccentButtonForeground" Color="#0B2B28" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#0B2B28" />
                     <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#0B2B28" />
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#4FB8AD" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#6CCBC1" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#2A9D93" />
+                    <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#8ED9D1" />
+                    <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#B3E8E2" />
+                    <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#6CCBC1" />
                     <!-- Teal accent for every WinUI control (selection, radio buttons…). -->
                     <Color x:Key="SystemAccentColor">#4FB8AD</Color>
                     <Color x:Key="SystemAccentColorLight1">#6CCBC1</Color>
@@ -101,6 +114,41 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
+            <!--
+                Multicolore theme (D71): the light tokens recolored with the book's palette
+                (book/book.css). Applied by MainWindow.ApplyTheme; contrasts checked by ThemeTests.
+            -->
+            <ResourceDictionary x:Key="ColorfulPalette">
+                <Color x:Key="AccentBrush">#6C4DFF</Color>
+                <Color x:Key="AccentHoverBrush">#4B2FD6</Color>
+                <Color x:Key="AccentSubtleBrush">#EFEBFF</Color>
+                <Color x:Key="OnAccentBrush">#FFFFFF</Color>
+                <Color x:Key="WindowBackgroundBrush">#EAE5FF</Color>
+                <Color x:Key="SurfaceBrush">#FFFFFF</Color>
+                <Color x:Key="BorderBrush">#DCD6F7</Color>
+                <Color x:Key="ControlBorderBrush">#C9C1F0</Color>
+                <Color x:Key="TextPrimaryBrush">#1B1740</Color>
+                <Color x:Key="TextSecondaryBrush">#5E5B78</Color>
+                <Color x:Key="DangerBrush">#C81D25</Color>
+                <Color x:Key="ConfidenceHighForegroundBrush">#0F6E4B</Color>
+                <Color x:Key="ConfidenceHighBackgroundBrush">#DDF3E9</Color>
+                <Color x:Key="ConfidenceMediumForegroundBrush">#C2185B</Color>
+                <Color x:Key="ConfidenceMediumBackgroundBrush">#FFE0EA</Color>
+                <Color x:Key="ConfidenceLowForegroundBrush">#5A5680</Color>
+                <Color x:Key="ConfidenceLowBackgroundBrush">#ECEFF4</Color>
+                <Color x:Key="AccentButtonBackground">#6C4DFF</Color>
+                <Color x:Key="AccentButtonBackgroundPointerOver">#4B2FD6</Color>
+                <Color x:Key="AccentButtonBackgroundPressed">#4B2FD6</Color>
+                <Color x:Key="AccentButtonForeground">#FFFFFF</Color>
+                <Color x:Key="AccentButtonForegroundPointerOver">#FFFFFF</Color>
+                <Color x:Key="AccentButtonForegroundPressed">#FFFFFF</Color>
+                <Color x:Key="AccentFillColorDefaultBrush">#6C4DFF</Color>
+                <Color x:Key="AccentFillColorSecondaryBrush">#7A5DFF</Color>
+                <Color x:Key="AccentFillColorTertiaryBrush">#4B2FD6</Color>
+                <Color x:Key="AccentTextFillColorPrimaryBrush">#4B2FD6</Color>
+                <Color x:Key="AccentTextFillColorSecondaryBrush">#3A22AE</Color>
+                <Color x:Key="AccentTextFillColorTertiaryBrush">#6C4DFF</Color>
+            </ResourceDictionary>
             <!-- Shapes and spacing (docs/design.md § 3). -->
             <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
             <Thickness x:Key="PageMargin">40,24,40,24</Thickness>

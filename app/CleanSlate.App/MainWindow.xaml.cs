@@ -75,16 +75,46 @@ public sealed partial class MainWindow : Window
     /// <summary>Applies the theme of the settings (ENF-08).</summary>
     public void ApplyTheme(Presentation.Services.AppTheme theme)
     {
-        if (Content is FrameworkElement root)
+        if (Content is not Panel root)
         {
-            root.RequestedTheme = theme switch
-            {
-                Presentation.Services.AppTheme.Light => ElementTheme.Light,
-                Presentation.Services.AppTheme.Dark => ElementTheme.Dark,
-                _ => ElementTheme.Default,
-            };
+            return;
         }
+
+        // Multicolore (D71): the light tokens take the colors of App.xaml's ColorfulPalette;
+        // Clair gets its own colors back. The brushes are shared, so every page follows.
+        bool colorful = theme == Presentation.Services.AppTheme.Colorful;
+        var resources = Application.Current.Resources;
+        if (resources.ThemeDictionaries.TryGetValue("Light", out object? lightValue) && lightValue is ResourceDictionary light
+            && resources.TryGetValue(Presentation.ThemePalette.ColorfulKey, out object? paletteValue) && paletteValue is ResourceDictionary palette)
+        {
+            foreach (string token in Presentation.ThemePalette.Tokens)
+            {
+                if (light.TryGetValue(token, out object? brushValue) && brushValue is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
+                {
+                    _lightColors.TryAdd(token, brush.Color);
+                    brush.Color = colorful && palette.TryGetValue(token, out object? color) && color is Windows.UI.Color c
+                        ? c
+                        : _lightColors[token];
+                }
+            }
+
+            // The lavender window replaces Mica, which would hide it.
+            root.Background = colorful && light.TryGetValue("WindowBackgroundBrush", out object? background)
+                ? background as Microsoft.UI.Xaml.Media.Brush
+                : null;
+        }
+
+        SystemBackdrop = colorful ? null : SystemBackdrop ?? new Microsoft.UI.Xaml.Media.MicaBackdrop();
+        root.RequestedTheme = theme switch
+        {
+            Presentation.Services.AppTheme.Dark => ElementTheme.Dark,
+            Presentation.Services.AppTheme.System => ElementTheme.Default,
+            _ => ElementTheme.Light,
+        };
     }
+
+    // Light colors of App.xaml, to restore them when leaving Multicolore.
+    private readonly Dictionary<string, Windows.UI.Color> _lightColors = [];
 
     /// <summary>Shows the uninstall wizard (reached from the Applications page).</summary>
     public void ShowUninstallWizard() => ContentFrame.Navigate(typeof(UninstallWizardPage));

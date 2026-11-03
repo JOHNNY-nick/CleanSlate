@@ -384,9 +384,6 @@
   <data name="SettingsTheme.Header" xml:space="preserve">
     <value>Thème</value>
   </data>
-  <data name="SettingsThemeSystem.Content" xml:space="preserve">
-    <value>Suivre Windows</value>
-  </data>
   <data name="SettingsThemeLight.Content" xml:space="preserve">
     <value>Clair</value>
   </data>
@@ -879,5 +876,8 @@ Joignez ce fichier si vous signalez le problème.</value>
   </data>
   <data name="StorageOperation_Uninstall" xml:space="preserve">
     <value>Désinstallation</value>
+  </data>
+  <data name="SettingsThemeColorful.Content" xml:space="preserve">
+    <value>Multicolore</value>
   </data>
 </root>

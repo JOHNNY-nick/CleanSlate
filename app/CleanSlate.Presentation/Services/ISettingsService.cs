@@ -11,6 +11,9 @@ public enum AppTheme
 
     /// <summary>Always dark.</summary>
     Dark = 2,
+
+    /// <summary>Light base with the book's colors (D71).</summary>
+    Colorful = 3,
 }
 
 /// <summary>User settings (Réglages page).</summary>

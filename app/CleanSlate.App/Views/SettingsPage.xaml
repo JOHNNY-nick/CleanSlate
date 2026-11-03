@@ -78,9 +78,9 @@
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <RadioButtons x:Uid="SettingsTheme" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}">
-                    <RadioButton x:Uid="SettingsThemeSystem" />
                     <RadioButton x:Uid="SettingsThemeLight" />
                     <RadioButton x:Uid="SettingsThemeDark" />
+                    <RadioButton x:Uid="SettingsThemeColorful" />
                 </RadioButtons>
             </Border>
 

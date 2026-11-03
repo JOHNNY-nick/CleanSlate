@@ -24,7 +24,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _exportFolder = settings.ExportFolder is { Length: > 0 } export ? export : folders?.DefaultExportFolder ?? string.Empty;
         _deleteImmediately = settings.DeleteImmediately;
         _quarantineDays = settings.QuarantineDays;
-        _themeIndex = (int)settings.Theme;
+        _themeIndex = ThemePalette.IndexOf(settings.Theme);
         Exclusions = new ObservableCollection<string>(settings.Exclusions);
     }
 
@@ -40,7 +40,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _quarantineDays;
 
-    /// <summary>Theme: 0 follows Windows, 1 light, 2 dark.</summary>
+    /// <summary>Theme: 0 Clair, 1 Sombre, 2 Multicolore (D71).</summary>
     [ObservableProperty]
     private int _themeIndex;
 
@@ -276,7 +276,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnDeleteImmediatelyChanged(bool value) => _settings.DeleteImmediately = value;
 
-    partial void OnThemeIndexChanged(int value) => _settings.Theme = Enum.IsDefined(typeof(AppTheme), value) ? (AppTheme)value : AppTheme.System;
+    partial void OnThemeIndexChanged(int value) => _settings.Theme = ThemePalette.FromIndex(value);
 
     partial void OnQuarantineDaysChanged(double value)
     {

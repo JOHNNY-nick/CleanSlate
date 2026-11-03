@@ -226,7 +226,7 @@ public sealed class QuarantineViewModelTests
         settings.Received(1).RemoveExclusion(@"C:\Users\Ana\AppData\Roaming\KeepMe");
         Assert.Empty(vm.Exclusions);
 
-        vm.ThemeIndex = 2;
+        vm.ThemeIndex = 1;
         settings.Received().Theme = AppTheme.Dark;
     }
 
