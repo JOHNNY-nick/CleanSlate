@@ -2,7 +2,7 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Faits le 3 nov. 2026, en attente de validation** : thème Multicolore revu et badges visibles (D72), carte du stockage (D73), mode de développement en simulation et captures d'écran (D74), éclaboussures de peinture du Multicolore d'après les références (D75). Captures : `artifacts\captures6-11-03\` (24 images : chaque page en Clair, Sombre et Multicolore, l'assistant, la carte et un niveau de détail).
+- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Faits le 3 nov. 2026, en attente de validation** : thème Multicolore revu et badges visibles (D72), carte du stockage (D73), mode de développement en simulation et captures d'écran (D74), éclaboussures de peinture du Multicolore d'après les références (D75). Captures : `artifacts\captures\2026-11-03\` (24 images : chaque page en Clair, Sombre et Multicolore, l'assistant, la carte et un niveau de détail).
 - **Prochaine action** : le porteur regarde les captures, réinstalle par-dessus avec l'installeur du 3 nov. 2026 (`artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `4C61B72A0B5012AAEC5A1B8EF01C034C8F684A0569C7B5EEE9C0EB0A681FBA84`), ouvre Stockage, clique sur « Actualiser », puis valide.
 - **Qui la fait** : le porteur.
 - **Réponse attendue** : « thème, badges et carte OK », ou ce qui ne va pas.
