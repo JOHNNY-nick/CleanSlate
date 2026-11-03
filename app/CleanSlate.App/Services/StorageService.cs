@@ -11,8 +11,7 @@ namespace CleanSlate.App.Services;
 /// </summary>
 public sealed class StorageService : IStorageService
 {
-    private static readonly string FilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanSlate", "storage.json");
+    private static readonly string FilePath = Path.Combine(DevMode.SettingsFolder, "storage.json");
 
     private readonly ISettingsService _settings;
     private readonly IFolderService _folders;

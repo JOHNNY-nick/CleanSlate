@@ -254,7 +254,16 @@ public sealed partial class MainWindow : Window
         {
             NavView.SelectedItem = item;
         }
+
+        // Already selected (e.g. back from the wizard): no selection change, open it anyway.
+        if (Pages.TryGetValue(tag, out Type? page) && ContentFrame.CurrentSourcePageType != page)
+        {
+            ContentFrame.Navigate(page);
+        }
     }
+
+    /// <summary>Page shown in the content frame.</summary>
+    public object? CurrentPage => ContentFrame.Content;
 
     private void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {

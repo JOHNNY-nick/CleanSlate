@@ -142,19 +142,38 @@
                             IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
                             Visibility="{x:Bind IsVisible, Mode=OneWay}">
                             <Expander.Header>
-                                <StackPanel Padding="0,8" Spacing="2">
-                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}">
-                                        <Run x:Uid="OrphansProbably" />
-                                        <Run Text="{x:Bind Label}" />
-                                    </TextBlock>
-                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
-                                        <Run Text="{x:Bind PublisherPrefix}" />
-                                        <Run Text="{x:Bind ItemCount}" />
-                                        <Run x:Uid="OrphansItems" />
-                                        <Run Text="·" />
-                                        <Run Text="{x:Bind TotalText}" />
-                                    </TextBlock>
-                                </StackPanel>
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Padding="0,8" Spacing="2">
+                                        <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}">
+                                            <Run x:Uid="OrphansProbably" />
+                                            <Run Text="{x:Bind Label}" />
+                                        </TextBlock>
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                                            <Run Text="{x:Bind PublisherPrefix}" />
+                                            <Run Text="{x:Bind ItemCount}" />
+                                            <Run x:Uid="OrphansItems" />
+                                            <Run Text="·" />
+                                            <Run Text="{x:Bind TotalText}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <!-- Best confidence of the group, readable folded: colored badge and its word. -->
+                                    <Border
+                                        Grid.Column="1"
+                                        Padding="8,2"
+                                        VerticalAlignment="Center"
+                                        Background="{x:Bind TopConfidence, Converter={StaticResource ConfidenceBrush}, ConverterParameter=Background}"
+                                        CornerRadius="4">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{x:Bind TopConfidence, Converter={StaticResource ConfidenceBrush}, ConverterParameter=Foreground}"
+                                            Text="{x:Bind TopConfidence, Converter={StaticResource ResourceString}, ConverterParameter=Confidence}" />
+                                    </Border>
+                                </Grid>
                             </Expander.Header>
                             <ItemsRepeater ItemsSource="{x:Bind Items}">
                                 <ItemsRepeater.ItemTemplate>
@@ -256,6 +275,7 @@
                         Message="{x:Bind conv:Texts.One('Format_CleanFailures', ViewModel.CleanFailureCount), Mode=OneWay}"
                         Severity="Warning" />
                 </StackPanel>
+
             </Grid>
         </Border>
     </Grid>

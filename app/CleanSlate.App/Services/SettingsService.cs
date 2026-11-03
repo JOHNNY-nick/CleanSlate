@@ -10,8 +10,7 @@ namespace CleanSlate.App.Services;
 /// </summary>
 public sealed class SettingsService : ISettingsService
 {
-    private static readonly string Folder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanSlate");
+    private static readonly string Folder = DevMode.SettingsFolder;
 
     private static readonly string FilePath = Path.Combine(Folder, "settings.json");
 

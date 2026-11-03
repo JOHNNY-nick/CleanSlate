@@ -112,13 +112,27 @@ public partial class App : Application
     /// </summary>
     private static async Task StartAsync(MainWindow window)
     {
+        if (DevMode.Options.CaptureDir is not null)
+        {
+            GetService<ISettingsService>().FirstRunDone = true; // settings of the dev folder
+        }
+
         if (!GetService<ISettingsService>().FirstRunDone)
         {
             await window.ShowOnboardingAsync();
         }
 
         window.ShowHome();
-        await PurgeOldSessionsAsync();
+        if (DevMode.Options.CaptureDir is { } captures)
+        {
+            await Capture.RunAsync(window, captures);
+            return;
+        }
+
+        if (!DevMode.Options.Simulation)
+        {
+            await PurgeOldSessionsAsync();
+        }
     }
 
     /// <summary>Automatic purge at startup (EF-19).</summary>

@@ -84,6 +84,12 @@ public sealed partial class LeftoverGroupViewModel : ObservableObject
     /// <summary>Number of items.</summary>
     public int ItemCount => Items.Count;
 
+    /// <summary>
+    /// Highest confidence of the group, shown as a badge on its header: the badges are seen
+    /// at first glance, even with the group folded (D72).
+    /// </summary>
+    public Confidence TopConfidence => Group.Items.Count == 0 ? Confidence.Low : Group.Items.Min(i => i.Confidence);
+
     /// <summary>Total size, e.g. « 412 Mo ».</summary>
     public string TotalText { get; }
 

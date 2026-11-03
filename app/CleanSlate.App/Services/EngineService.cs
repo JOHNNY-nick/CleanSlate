@@ -8,7 +8,8 @@ namespace CleanSlate.App.Services;
 /// <see cref="IEngineService"/> backed by <see cref="EngineClient"/>. The engine is created on
 /// first use with <c>dry_run = false</c>, given explicitly: the application has no simulation
 /// mode (D66), while the engine, the CLI and the tests keep <c>dry_run = true</c> by default
-/// (safety rule 5). It is recreated when the exclusions or the data folder change.
+/// (safety rule 5). Only the development mode of a Debug build creates it in simulation (D74).
+/// It is recreated when the exclusions or the data folder change.
 /// </summary>
 public sealed class EngineService : IEngineService, IDisposable
 {
@@ -37,7 +38,7 @@ public sealed class EngineService : IEngineService, IDisposable
                 if (_client is null || !_clientExclusions.SequenceEqual(exclusions) || _clientDataDir != dataDir)
                 {
                     _client?.Dispose();
-                    _client = new EngineClient(new EngineConfig(DryRun: false, DataDir: dataDir) { Exclusions = exclusions });
+                    _client = new EngineClient(new EngineConfig(DryRun: DevMode.Options.EngineDryRun, DataDir: dataDir) { Exclusions = exclusions });
                     _clientExclusions = exclusions.ToList();
                     _clientDataDir = dataDir;
                 }

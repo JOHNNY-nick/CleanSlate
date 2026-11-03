@@ -53,6 +53,7 @@ public sealed partial class StoragePage : Page
             var label = new StackPanel { Spacing = 2, Visibility = tile.ShowLabel ? Visibility.Visible : Visibility.Collapsed };
             label.Children.Add(new TextBlock { Text = tile.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = text, TextTrimming = TextTrimming.CharacterEllipsis });
             label.Children.Add(new TextBlock { Text = tile.SizeText, Foreground = text, FontSize = 12 });
+            var fill = Brushes.Convert(tile.Category, typeof(Brush), string.Empty, string.Empty) as Brush;
             var button = new Button
             {
                 Width = Math.Max(1, tile.Width - 2),
@@ -60,13 +61,24 @@ public sealed partial class StoragePage : Page
                 Padding = new Thickness(6, 4, 6, 4),
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 VerticalContentAlignment = VerticalAlignment.Top,
-                Background = Brushes.Convert(tile.Category, typeof(Brush), string.Empty, string.Empty) as Brush,
+                Background = fill,
                 BorderBrush = text,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Content = label,
                 Tag = tile,
             };
+            // The category color stays under the pointer and when pressed: the Button style
+            // would otherwise swap it for its neutral gray; the border thickens instead.
+            foreach (string state in new[] { "PointerOver", "Pressed" })
+            {
+                button.Resources[$"ButtonBackground{state}"] = fill;
+                button.Resources[$"ButtonForeground{state}"] = text;
+                button.Resources[$"ButtonBorderBrush{state}"] = text;
+            }
+
+            button.PointerEntered += (_, _) => button.BorderThickness = new Thickness(3);
+            button.PointerExited += (_, _) => button.BorderThickness = new Thickness(1);
             ToolTipService.SetToolTip(button, tile.ToolTip);
             AutomationProperties.SetName(button, tile.ToolTip.Replace('\n', ' '));
             button.Click += (_, _) => ViewModel.Open(tile);
