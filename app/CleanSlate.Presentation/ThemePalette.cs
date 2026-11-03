@@ -4,15 +4,15 @@ using CleanSlate.Presentation.Services;
 namespace CleanSlate.Presentation;
 
 /// <summary>
-/// Themes of the Réglages page (D71): Clair, Sombre and Multicolore. Multicolore (App.xaml,
-/// <see cref="ColorfulKey"/>) is the light
-/// base recolored with the book's palette (<c>book/book.css</c>): violet accent, ink text,
-/// lavender window, and the book's green, pink and plum for the confidence levels. Every text
-/// keeps a WCAG contrast of at least 4.5:1 on its background (7:1 for the main text).
+/// Themes of the Réglages page (D71, D72): Clair, Sombre and Multicolore. Multicolore (App.xaml,
+/// <see cref="ColorfulKey"/>) puts colors everywhere on the light base: a red-yellow-green-blue-
+/// violet window, a rainbow band on top of every card, gradient titles and main buttons, one
+/// color per menu icon, vivid confidence badges. Every text keeps a WCAG contrast of at least
+/// 4.5:1 on each color of its background (7:1 for the main text, 3:1 for the large titles).
 /// </summary>
 public static class ThemePalette
 {
-    /// <summary>Color tokens of App.xaml recolored by the Multicolore theme.</summary>
+    /// <summary>Tokens of App.xaml (colors, gradients, the card outline) changed by Multicolore.</summary>
     public static readonly string[] Tokens =
     [
         "AccentBrush", "AccentHoverBrush", "AccentSubtleBrush", "OnAccentBrush",
@@ -25,31 +25,32 @@ public static class ThemePalette
         "AccentButtonForeground", "AccentButtonForegroundPointerOver", "AccentButtonForegroundPressed",
         "AccentFillColorDefaultBrush", "AccentFillColorSecondaryBrush", "AccentFillColorTertiaryBrush",
         "AccentTextFillColorPrimaryBrush", "AccentTextFillColorSecondaryBrush", "AccentTextFillColorTertiaryBrush",
+        "TitleBrush", "CardBorderThickness",
+        "NavHomeBrush", "NavAppsBrush", "NavOrphansBrush", "NavHistoryBrush", "NavStorageBrush", "NavSettingsBrush",
+        "PageHeaderForegroundBrush", "PageHeaderStripBrush", "ProgressBarForeground", "ContentSurfaceBrush", "PaneBackgroundBrush", "OnDangerBrush",
+        "PageHeaderHomeBrush", "PageHeaderAppsBrush", "PageHeaderOrphansBrush", "PageHeaderHistoryBrush", "PageHeaderStorageBrush", "PageHeaderSettingsBrush", "PageHeaderWizardBrush",
     ];
+
+    /// <summary>
+    /// Theme dictionary of App.xaml holding the tokens shown for <paramref name="theme"/>
+    /// (Multicolore recolors the light one; Système follows Windows). Badges must be looked up
+    /// there: Application.Resources answers with Windows' theme, whatever was chosen (D72).
+    /// </summary>
+    public static string DictionaryKey(AppTheme theme, bool windowsIsDark) => theme switch
+    {
+        AppTheme.Dark => "Dark",
+        AppTheme.System => windowsIsDark ? "Dark" : "Light",
+        _ => "Light",
+    };
 
     /// <summary>Key of the Multicolore palette in App.xaml (one <c>Color</c> per token).</summary>
     public const string ColorfulKey = "ColorfulPalette";
 
-    /// <summary>Position in the Réglages radio buttons: Clair, Sombre, Multicolore.</summary>
-    public static int IndexOf(AppTheme theme) => theme switch
-    {
-        AppTheme.Dark => 1,
-        AppTheme.Colorful => 2,
-        _ => 0,
-    };
+    /// <summary>Position in the Réglages radio buttons: Système, Clair, Sombre, Multicolore (D72).</summary>
+    public static int IndexOf(AppTheme theme) => Enum.IsDefined(theme) ? (int)theme : 0;
 
     /// <summary>Theme of a radio button position.</summary>
-    public static AppTheme FromIndex(int index) => index switch
-    {
-        1 => AppTheme.Dark,
-        2 => AppTheme.Colorful,
-        _ => AppTheme.Light,
-    };
-
-    /// <summary>« Suivre Windows » (former choice) becomes what Windows shows now.</summary>
-    public static AppTheme Resolve(AppTheme stored, bool windowsIsDark) =>
-        stored == AppTheme.System ? (windowsIsDark ? AppTheme.Dark : AppTheme.Light) : stored;
-
+    public static AppTheme FromIndex(int index) => Enum.IsDefined(typeof(AppTheme), index) ? (AppTheme)index : AppTheme.System;
     /// <summary>WCAG 2 contrast ratio of two « #RRGGBB » colors, 1 to 21.</summary>
     public static double Contrast(string first, string second)
     {

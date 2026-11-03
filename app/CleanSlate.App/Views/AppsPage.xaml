@@ -22,7 +22,9 @@
 
         <!-- Title and count -->
         <StackPanel Spacing="2">
-            <TextBlock x:Uid="AppsTitle" Style="{StaticResource TitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}" />
+            <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderAppsBrush}">
+                <TextBlock x:Uid="AppsTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
+            </Border>
             <TextBlock Style="{StaticResource SecondaryTextBlockStyle}">
                 <Run Text="{x:Bind ViewModel.VisibleCount, Mode=OneWay}" />
                 <Run x:Uid="AppsCountSuffix" />

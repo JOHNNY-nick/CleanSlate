@@ -14,7 +14,9 @@
     <!-- « Stockage » (D69): disks, quarantine, space freed, free space around each action. -->
     <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource PageMargin}" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
-            <TextBlock x:Uid="StorageTitle" Style="{StaticResource PageTitleTextBlockStyle}" />
+            <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderStorageBrush}">
+                <TextBlock x:Uid="StorageTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
+            </Border>
             <TextBlock x:Uid="StorageIntro" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
 
             <Border Style="{StaticResource CardBorderStyle}">

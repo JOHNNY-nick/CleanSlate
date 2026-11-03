@@ -27,7 +27,9 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
-                <TextBlock x:Uid="OrphansTitle" Style="{StaticResource TitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}" />
+                <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderOrphansBrush}">
+                    <TextBlock x:Uid="OrphansTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
+                </Border>
                 <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Visibility="{x:Bind ViewModel.HasScanned, Mode=OneWay}">
                     <Run x:Uid="OrphansSummaryDate" />
                     <Run Text="{x:Bind ViewModel.ScanDateText, Mode=OneWay}" />
@@ -225,10 +227,14 @@
                 <!-- The label says what will happen: quarantine or deletion for good (D67). -->
                 <Button
                     Grid.Column="2"
-                    Background="{ThemeResource DangerBrush}"
+                    AutomationProperties.Name="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}"
                     Command="{x:Bind ViewModel.QuarantineCommand}"
-                    Content="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}"
-                    Foreground="White" />
+                    Style="{StaticResource DangerButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE74D;" />
+                        <TextBlock Text="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}" />
+                    </StackPanel>
+                </Button>
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.ShowCleanResult, Mode=OneWay}">
                     <InfoBar
                         IsClosable="False"

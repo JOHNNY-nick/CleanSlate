@@ -11,6 +11,8 @@
 
     <!-- First launch (D63): the welcome screens take the whole window until they are completed. -->
     <Grid>
+        <!-- Multicolore (D72): colored blobs behind everything; decoration only, never under text. -->
+        <Canvas x:Name="Blobs" AutomationProperties.AccessibilityView="Raw" IsHitTestVisible="False" Visibility="Collapsed" />
         <NavigationView
             x:Name="NavView"
             IsBackButtonVisible="Collapsed"
@@ -18,33 +20,44 @@
             PaneDisplayMode="Left"
             SelectionChanged="OnSelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Uid="NavHome" Tag="Home" Icon="Home" />
+                <NavigationViewItem x:Uid="NavHome" Tag="Home">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Foreground="{ThemeResource NavHomeBrush}" Symbol="Home" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
                 <NavigationViewItem x:Uid="NavApps" Tag="Apps">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE71D;" />
+                        <FontIcon Foreground="{ThemeResource NavAppsBrush}" Glyph="&#xE71D;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Uid="NavOrphans" Tag="Orphans">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE721;" />
+                        <FontIcon Foreground="{ThemeResource NavOrphansBrush}" Glyph="&#xE721;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Uid="NavHistory" Tag="History">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE81C;" />
+                        <FontIcon Foreground="{ThemeResource NavHistoryBrush}" Glyph="&#xE81C;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Uid="NavStorage" Tag="Storage">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xEDA2;" />
+                        <FontIcon Foreground="{ThemeResource NavStorageBrush}" Glyph="&#xEDA2;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem x:Uid="NavSettings" Tag="Settings" Icon="Setting" />
+                <NavigationViewItem x:Uid="NavSettings" Tag="Settings">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Foreground="{ThemeResource NavSettingsBrush}" Symbol="Setting" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
-            <Frame x:Name="ContentFrame" />
+            <!-- Plain surface under every page: text never sits on a blob (D72). -->
+            <Border x:Name="ContentSurface" Background="{ThemeResource ContentSurfaceBrush}" CornerRadius="12">
+                <Frame x:Name="ContentFrame" Navigated="OnContentNavigated" />
+            </Border>
         </NavigationView>
         <Frame x:Name="OnboardingFrame" Visibility="Collapsed" />
     </Grid>

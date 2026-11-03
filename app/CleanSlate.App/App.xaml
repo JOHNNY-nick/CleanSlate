@@ -22,13 +22,36 @@
                     <SolidColorBrush x:Key="ControlBorderBrush" Color="#D1D1D1" />
                     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1A1A1A" />
                     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5C5C5C" />
+                    <!-- Titles, menu icons and card outline: recolored by Multicolore (D72). -->
+                    <SolidColorBrush x:Key="TitleBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavHomeBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavAppsBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavOrphansBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavHistoryBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavStorageBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="NavSettingsBrush" Color="#1A1A1A" />
+                    <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
+                    <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="#1A1A1A" />
+                    <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderHomeBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderAppsBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderOrphansBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderHistoryBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderStorageBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderSettingsBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderWizardBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="ProgressBarForeground" Color="#0F766E" />
+                    <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#00FFFFFF" />
                     <SolidColorBrush x:Key="DangerBrush" Color="#C42B1C" />
+                    <SolidColorBrush x:Key="OnDangerBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ConfidenceHighForegroundBrush" Color="#0E700E" />
-                    <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="#DFF6DD" />
+                    <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="#BFEBBB" />
                     <SolidColorBrush x:Key="ConfidenceMediumForegroundBrush" Color="#8A5100" />
-                    <SolidColorBrush x:Key="ConfidenceMediumBackgroundBrush" Color="#FFF4CE" />
+                    <SolidColorBrush x:Key="ConfidenceMediumBackgroundBrush" Color="#FFDF70" />
                     <SolidColorBrush x:Key="ConfidenceLowForegroundBrush" Color="#5C5C5C" />
-                    <SolidColorBrush x:Key="ConfidenceLowBackgroundBrush" Color="#EDEDED" />
+                    <SolidColorBrush x:Key="ConfidenceLowBackgroundBrush" Color="#E0E0E0" />
                     <!-- Accent buttons use the teal tokens instead of the Windows accent. -->
                     <SolidColorBrush x:Key="AccentButtonBackground" Color="#0F766E" />
                     <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#115E59" />
@@ -63,13 +86,36 @@
                     <SolidColorBrush x:Key="ControlBorderBrush" Color="#4A4A4A" />
                     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C5C5C5" />
+                    <!-- Titles, menu icons and card outline: recolored by Multicolore (D72). -->
+                    <SolidColorBrush x:Key="TitleBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavHomeBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavAppsBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavOrphansBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavHistoryBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavStorageBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavSettingsBrush" Color="#FFFFFF" />
+                    <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
+                    <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderHomeBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderAppsBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderOrphansBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderHistoryBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderStorageBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderSettingsBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderWizardBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="ProgressBarForeground" Color="#4FB8AD" />
+                    <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#00000000" />
                     <SolidColorBrush x:Key="DangerBrush" Color="#E0473A" />
+                    <SolidColorBrush x:Key="OnDangerBrush" Color="#1A0000" />
                     <SolidColorBrush x:Key="ConfidenceHighForegroundBrush" Color="#6CCB5F" />
-                    <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="#393D1B" />
+                    <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="#3F4A1E" />
                     <SolidColorBrush x:Key="ConfidenceMediumForegroundBrush" Color="#FCE100" />
-                    <SolidColorBrush x:Key="ConfidenceMediumBackgroundBrush" Color="#433519" />
+                    <SolidColorBrush x:Key="ConfidenceMediumBackgroundBrush" Color="#554215" />
                     <SolidColorBrush x:Key="ConfidenceLowForegroundBrush" Color="#C5C5C5" />
-                    <SolidColorBrush x:Key="ConfidenceLowBackgroundBrush" Color="#3A3A3A" />
+                    <SolidColorBrush x:Key="ConfidenceLowBackgroundBrush" Color="#4A4A4A" />
                     <!-- Accent buttons use the teal tokens instead of the Windows accent. -->
                     <SolidColorBrush x:Key="AccentButtonBackground" Color="#4FB8AD" />
                     <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#6CCBC1" />
@@ -104,7 +150,30 @@
                     <SolidColorBrush x:Key="ControlBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <!-- Titles, menu icons and card outline: recolored by Multicolore (D72). -->
+                    <SolidColorBrush x:Key="TitleBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavHomeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavAppsBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavOrphansBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavHistoryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavStorageBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="NavSettingsBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
+                    <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderHomeBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderAppsBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderOrphansBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderHistoryBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderStorageBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderSettingsBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PageHeaderWizardBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="ProgressBarForeground" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#00000000" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#00000000" />
                     <SolidColorBrush x:Key="DangerBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="OnDangerBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="ConfidenceHighForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="ConfidenceHighBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ConfidenceMediumForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -115,56 +184,159 @@
             </ResourceDictionary.ThemeDictionaries>
 
             <!--
-                Multicolore theme (D71): the light tokens recolored with the book's palette
-                (book/book.css). Applied by MainWindow.ApplyTheme; contrasts checked by ThemeTests.
+                Multicolore theme (D71, D72): « plenty of colors everywhere ». Window in a soft
+                red-yellow-green-blue-violet gradient, a rainbow band on top of every card, titles
+                and main buttons in gradients, one color per menu icon, vivid confidence badges.
+                Applied by MainWindow.ApplyTheme; colors and contrasts checked by ThemeTests.
             -->
             <ResourceDictionary x:Key="ColorfulPalette">
-                <Color x:Key="AccentBrush">#6C4DFF</Color>
-                <Color x:Key="AccentHoverBrush">#4B2FD6</Color>
-                <Color x:Key="AccentSubtleBrush">#EFEBFF</Color>
+                <Color x:Key="AccentBrush">#7B2FF7</Color>
+                <Color x:Key="AccentHoverBrush">#5B12D6</Color>
+                <Color x:Key="AccentSubtleBrush">#F1E6FF</Color>
                 <Color x:Key="OnAccentBrush">#FFFFFF</Color>
-                <Color x:Key="WindowBackgroundBrush">#EAE5FF</Color>
+                <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Offset="0" Color="#FFE1E1" />
+                    <GradientStop Offset="0.25" Color="#FFF4C2" />
+                    <GradientStop Offset="0.5" Color="#DDF7E2" />
+                    <GradientStop Offset="0.75" Color="#DCEBFF" />
+                    <GradientStop Offset="1" Color="#EEDDFF" />
+                </LinearGradientBrush>
                 <Color x:Key="SurfaceBrush">#FFFFFF</Color>
-                <Color x:Key="BorderBrush">#DCD6F7</Color>
-                <Color x:Key="ControlBorderBrush">#C9C1F0</Color>
+                <LinearGradientBrush x:Key="BorderBrush" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#E53935" />
+                    <GradientStop Offset="0.25" Color="#FDD835" />
+                    <GradientStop Offset="0.5" Color="#43A047" />
+                    <GradientStop Offset="0.75" Color="#1E88E5" />
+                    <GradientStop Offset="1" Color="#8E24AA" />
+                </LinearGradientBrush>
+                <Thickness x:Key="CardBorderThickness">1,6,1,1</Thickness>
+                <Color x:Key="ControlBorderBrush">#B9A6F2</Color>
                 <Color x:Key="TextPrimaryBrush">#1B1740</Color>
-                <Color x:Key="TextSecondaryBrush">#5E5B78</Color>
-                <Color x:Key="DangerBrush">#C81D25</Color>
-                <Color x:Key="ConfidenceHighForegroundBrush">#0F6E4B</Color>
-                <Color x:Key="ConfidenceHighBackgroundBrush">#DDF3E9</Color>
-                <Color x:Key="ConfidenceMediumForegroundBrush">#C2185B</Color>
-                <Color x:Key="ConfidenceMediumBackgroundBrush">#FFE0EA</Color>
-                <Color x:Key="ConfidenceLowForegroundBrush">#5A5680</Color>
-                <Color x:Key="ConfidenceLowBackgroundBrush">#ECEFF4</Color>
-                <Color x:Key="AccentButtonBackground">#6C4DFF</Color>
-                <Color x:Key="AccentButtonBackgroundPointerOver">#4B2FD6</Color>
-                <Color x:Key="AccentButtonBackgroundPressed">#4B2FD6</Color>
+                <Color x:Key="TextSecondaryBrush">#4E4A6B</Color>
+                <LinearGradientBrush x:Key="TitleBrush" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#C62828" />
+                    <GradientStop Offset="0.25" Color="#D84315" />
+                    <GradientStop Offset="0.5" Color="#2E7D32" />
+                    <GradientStop Offset="0.75" Color="#1565C0" />
+                    <GradientStop Offset="1" Color="#6A1B9A" />
+                </LinearGradientBrush>
+                <Color x:Key="DangerBrush">#B71C1C</Color>
+                <Color x:Key="OnDangerBrush">#FFFFFF</Color>
+                <Color x:Key="ConfidenceHighForegroundBrush">#1B5E20</Color>
+                <Color x:Key="ConfidenceHighBackgroundBrush">#A5EFB8</Color>
+                <Color x:Key="ConfidenceMediumForegroundBrush">#6D4C00</Color>
+                <Color x:Key="ConfidenceMediumBackgroundBrush">#FFE066</Color>
+                <Color x:Key="ConfidenceLowForegroundBrush">#0D47A1</Color>
+                <Color x:Key="ConfidenceLowBackgroundBrush">#CFE3FF</Color>
+                <LinearGradientBrush x:Key="AccentButtonBackground" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#7B2FF7" />
+                    <GradientStop Offset="1" Color="#1565C0" />
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="AccentButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#5B12D6" />
+                    <GradientStop Offset="1" Color="#0D47A1" />
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="AccentButtonBackgroundPressed" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#5B12D6" />
+                    <GradientStop Offset="1" Color="#0D47A1" />
+                </LinearGradientBrush>
                 <Color x:Key="AccentButtonForeground">#FFFFFF</Color>
                 <Color x:Key="AccentButtonForegroundPointerOver">#FFFFFF</Color>
                 <Color x:Key="AccentButtonForegroundPressed">#FFFFFF</Color>
-                <Color x:Key="AccentFillColorDefaultBrush">#6C4DFF</Color>
-                <Color x:Key="AccentFillColorSecondaryBrush">#7A5DFF</Color>
-                <Color x:Key="AccentFillColorTertiaryBrush">#4B2FD6</Color>
-                <Color x:Key="AccentTextFillColorPrimaryBrush">#4B2FD6</Color>
-                <Color x:Key="AccentTextFillColorSecondaryBrush">#3A22AE</Color>
-                <Color x:Key="AccentTextFillColorTertiaryBrush">#6C4DFF</Color>
-            </ResourceDictionary>
+                <Color x:Key="AccentFillColorDefaultBrush">#7B2FF7</Color>
+                <Color x:Key="AccentFillColorSecondaryBrush">#8E44FF</Color>
+                <Color x:Key="AccentFillColorTertiaryBrush">#5B12D6</Color>
+                <Color x:Key="AccentTextFillColorPrimaryBrush">#5B12D6</Color>
+                <Color x:Key="AccentTextFillColorSecondaryBrush">#4A0FB0</Color>
+                <Color x:Key="AccentTextFillColorTertiaryBrush">#7B2FF7</Color>
+                <Color x:Key="NavHomeBrush">#1E88E5</Color>
+                <Color x:Key="NavAppsBrush">#43A047</Color>
+                <Color x:Key="NavOrphansBrush">#FB8C00</Color>
+                <Color x:Key="NavHistoryBrush">#8E24AA</Color>
+                <Color x:Key="NavStorageBrush">#E53935</Color>
+                <Color x:Key="NavSettingsBrush">#D81B60</Color>
+                <!-- Page headers: one saturated color per page, white title (D72). -->
+                <Color x:Key="PageHeaderForegroundBrush">#FFFFFF</Color>
+                <Color x:Key="PageHeaderHomeBrush">#1565C0</Color>
+                <Color x:Key="PageHeaderAppsBrush">#2E7D32</Color>
+                <Color x:Key="PageHeaderOrphansBrush">#BF360C</Color>
+                <Color x:Key="PageHeaderHistoryBrush">#6A1B9A</Color>
+                <Color x:Key="PageHeaderStorageBrush">#C62828</Color>
+                <Color x:Key="PageHeaderSettingsBrush">#AD1457</Color>
+                <Color x:Key="PageHeaderWizardBrush">#00695C</Color>
+                <LinearGradientBrush x:Key="PageHeaderStripBrush" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#E53935" />
+                    <GradientStop Offset="0.25" Color="#FDD835" />
+                    <GradientStop Offset="0.5" Color="#43A047" />
+                    <GradientStop Offset="0.75" Color="#1E88E5" />
+                    <GradientStop Offset="1" Color="#8E24AA" />
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="ProgressBarForeground" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#E53935" />
+                    <GradientStop Offset="0.25" Color="#FDD835" />
+                    <GradientStop Offset="0.5" Color="#43A047" />
+                    <GradientStop Offset="0.75" Color="#1E88E5" />
+                    <GradientStop Offset="1" Color="#8E24AA" />
+                </LinearGradientBrush>
+                <!-- Text always sits on a plain surface, never on a blob of the background. -->
+                <Color x:Key="ContentSurfaceBrush">#FFFFFF</Color>
+                <Color x:Key="PaneBackgroundBrush">#FFFFFF</Color>
+                <!-- Cards: each one its own pale color and band, in turn (MainWindow.TintCards). -->
+                <Color x:Key="CardTint0">#FFEBEE</Color>
+                <Color x:Key="CardTint1">#FFF8E1</Color>
+                <Color x:Key="CardTint2">#E8F5E9</Color>
+                <Color x:Key="CardTint3">#E3F2FD</Color>
+                <Color x:Key="CardTint4">#F3E5F5</Color>
+                <Color x:Key="CardBand0">#E53935</Color>
+                <Color x:Key="CardBand1">#FDD835</Color>
+                <Color x:Key="CardBand2">#43A047</Color>
+                <Color x:Key="CardBand3">#1E88E5</Color>
+                <Color x:Key="CardBand4">#8E24AA</Color>
+                <!-- Background blobs (MainWindow.xaml): decoration only. -->
+                <Color x:Key="Blob0">#FF5252</Color>
+                <Color x:Key="Blob1">#FFD740</Color>
+                <Color x:Key="Blob2">#69F0AE</Color>
+                <Color x:Key="Blob3">#448AFF</Color>
+                <Color x:Key="Blob4">#E040FB</Color>            </ResourceDictionary>
             <!-- Shapes and spacing (docs/design.md § 3). -->
             <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
             <Thickness x:Key="PageMargin">40,24,40,24</Thickness>
             <FontFamily x:Key="PathFontFamily">Cascadia Mono</FontFamily>
 
             <Style x:Key="PageTitleTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
-                <Setter Property="Foreground" Value="{ThemeResource TextPrimaryBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource TitleBrush}" />
                 <Setter Property="Margin" Value="0,0,0,16" />
             </Style>
-            <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            <!-- Page header: a colored band in Multicolore, invisible in the other themes (D72). -->
+            <Style x:Key="PageHeaderBorderStyle" TargetType="Border">
+                <Setter Property="BorderBrush" Value="{ThemeResource PageHeaderStripBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,6" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16,10,16,10" />
+                <Setter Property="Margin" Value="0,0,0,16" />
+            </Style>
+            <Style x:Key="PageHeaderTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource PageHeaderForegroundBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <!--
+                Buttons that move or delete (EF-16, D72): plain dark red, white bold label, an
+                icon and a dark outline, so that they never pass for the decorative reds.
+            -->
+            <Style x:Key="DangerButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{ThemeResource DangerBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource OnDangerBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource TextPrimaryBrush}" />
+                <Setter Property="BorderThickness" Value="2" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Padding" Value="14,6,14,6" />
+            </Style>            <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
                 <Setter Property="Foreground" Value="{ThemeResource TextSecondaryBrush}" />
             </Style>
             <Style x:Key="CardBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{ThemeResource SurfaceBrush}" />
                 <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="BorderThickness" Value="{ThemeResource CardBorderThickness}" />
                 <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
                 <Setter Property="Padding" Value="24" />
             </Style>

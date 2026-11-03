@@ -24,7 +24,9 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
-                <TextBlock x:Uid="HistoryTitle" Style="{StaticResource TitleTextBlockStyle}" Foreground="{ThemeResource TextPrimaryBrush}" />
+                <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderHistoryBrush}">
+                    <TextBlock x:Uid="HistoryTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
+                </Border>
                 <TextBlock x:Uid="HistorySubtitle" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
             </StackPanel>
             <Button x:Uid="HistoryPurge" Grid.Column="1" VerticalAlignment="Top" Command="{x:Bind ViewModel.PurgeCommand}" />

@@ -880,4 +880,7 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="SettingsThemeColorful.Content" xml:space="preserve">
     <value>Multicolore</value>
   </data>
+  <data name="SettingsThemeSystem.Content" xml:space="preserve">
+    <value>Système</value>
+  </data>
 </root>

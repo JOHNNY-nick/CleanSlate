@@ -40,7 +40,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _quarantineDays;
 
-    /// <summary>Theme: 0 Clair, 1 Sombre, 2 Multicolore (D71).</summary>
+    /// <summary>Theme: 0 Système, 1 Clair, 2 Sombre, 3 Multicolore (D72).</summary>
     [ObservableProperty]
     private int _themeIndex;
 

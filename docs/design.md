@@ -44,9 +44,26 @@ Ces valeurs sont des ressources XAML (`ThemeDictionaries` Light / Dark dans `app
 | `TextPrimaryBrush` | #1A1A1A | #FFFFFF | Texte |
 | `TextSecondaryBrush` | #5C5C5C | #C5C5C5 | Légendes, métadonnées |
 | `DangerBrush` | #C42B1C | #E0473A | Boutons de suppression uniquement |
-| `ConfidenceHigh…Brush` (texte / fond) | #0E700E / #DFF6DD | #6CCB5F / #393D1B | Badge « Élevée » |
-| `ConfidenceMedium…Brush` (texte / fond) | #8A5100 / #FFF4CE | #FCE100 / #433519 | Badge « Moyenne » |
-| `ConfidenceLow…Brush` (texte / fond) | #5C5C5C / #EDEDED | #C5C5C5 / #3A3A3A | Badge « Faible » |
+| `ConfidenceHigh…Brush` (texte / fond) | #0E700E / #BFEBBB | #6CCB5F / #3F4A1E | Badge « Élevée » |
+| `ConfidenceMedium…Brush` (texte / fond) | #8A5100 / #FFDF70 | #FCE100 / #554215 | Badge « Moyenne » |
+| `ConfidenceLow…Brush` (texte / fond) | #5C5C5C / #E0E0E0 | #C5C5C5 / #4A4A4A | Badge « Faible » |
+
+Les fonds des badges se distinguent de la carte qui les porte (contraste d'au moins 1,25:1, D72) et portent toujours leur libellé (« Élevée », « Moyenne », « Faible ») : la couleur ne suffit jamais. Les convertisseurs prennent les pinceaux dans le thème choisi dans CleanSlate, jamais dans celui de Windows (`ThemePalette.DictionaryKey`).
+
+### 3.0 Thèmes : Système, Clair, Sombre, Multicolore (D71, D72)
+
+Réglages → Thème propose quatre choix, appliqués aussitôt à toutes les pages : **Système** (suit Windows), **Clair**, **Sombre**, **Multicolore**.
+
+**Multicolore** met beaucoup de couleurs partout, sur la base claire :
+- fond de fenêtre en dégradé doux (rouge, jaune, vert, bleu, violet) et grandes taches colorées (`Blob0` à `Blob4`), purement décoratives, jamais sous du texte ;
+- contenu des pages posé sur une surface blanche unie (`ContentSurfaceBrush`), volet de navigation uni (`PaneBackgroundBrush`) : **aucun texte n'est posé sur une tache** ;
+- en-tête de chaque page dans une bande de sa couleur (`PageHeader…Brush` : Accueil bleu #1565C0, Applications vert #2E7D32, Restes orphelins orange #BF360C, Historique violet #6A1B9A, Stockage rouge #C62828, Réglages framboise #AD1457, assistant vert d'eau #00695C), titre blanc, et sous elle une bande arc-en-ciel (`PageHeaderStripBrush`) : les cinq couleurs sont visibles sur chaque page ;
+- cartes de couleurs différentes, à tour de rôle : fond pâle (`CardTint0` à `CardTint4`) et bandeau supérieur vif (`CardBand0` à `CardBand4`) ;
+- icônes du menu, chacune de sa couleur (`Nav…Brush`), barres de progression en arc-en-ciel (`ProgressBarForeground`), boutons principaux en dégradé violet → bleu, badges de confiance vert / jaune / bleu vifs.
+
+**Lisibilité** (vérifiée par `ThemeTests`) : tout texte a un contraste d'au moins 4,5:1 avec chaque couleur de son fond (7:1 pour le texte principal, 3:1 pour les grands titres).
+
+**Sécurité** : les boutons qui mettent en quarantaine ou suppriment (`DangerButtonStyle`) restent reconnaissables malgré le rouge décoratif : rouge foncé uni #B71C1C (jamais en dégradé), libellé blanc en gras et explicite (« Mettre en quarantaine », « Supprimer définitivement »), icône de corbeille, contour foncé de 2 px. Les éléments décoratifs (taches, bandes) sont masqués au Narrateur et ne prennent pas le focus ; tout reste utilisable au clavier.
 
 **Typographie** : Segoe UI Variable via les styles WinUI (`TitleTextBlockStyle` 28/600, `SubtitleTextBlockStyle` 20/600, `BodyTextBlockStyle` 14/400, `CaptionTextBlockStyle` 12/400) ; chemins en Cascadia Mono 13.
 
