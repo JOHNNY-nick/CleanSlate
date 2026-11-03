@@ -3,9 +3,9 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Tâche 1 faite : thèmes Clair, Sombre et Multicolore** (D71, commit `a1e4abb`), en attente de validation.
-- **Prochaine action** : le porteur ferme CleanSlate et répond « fermé » ; Claude construit l'installeur, le porteur réinstalle par-dessus et valide le thème Multicolore.
+- **Prochaine action** : le porteur réinstalle par-dessus avec l'installeur du 3 nov. 2026 (SHA-256 `F761820380B01F68384D48948FDC0199C4A70C83D9585E9307C5E1C082C7351D`), puis valide le thème Multicolore.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « fermé », puis, après réinstallation, « thème OK » ou ce qui ne va pas.
+- **Réponse attendue** : « thème OK », ou ce qui ne va pas.
 - **File des tâches**, dans cet ordre sauf avis contraire du porteur :
   2. barre de progression pendant la mise en quarantaine des restes ;
   3. critères de confiance plus pointus :
