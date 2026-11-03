@@ -23,4 +23,10 @@ public interface INavigationService
 
     /// <summary>Opens the Orphans page, and starts a scan if asked.</summary>
     void OpenOrphans(bool startScan);
+
+    /// <summary>Opens the Applications page (from the storage map, D73).</summary>
+    void OpenApps();
+
+    /// <summary>Opens the Stockage page (from the Home preview, D73).</summary>
+    void OpenStorage();
 }

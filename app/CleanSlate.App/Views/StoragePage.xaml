@@ -9,91 +9,106 @@
 
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />
+        <conv:StorageCategoryBrushConverter x:Key="CategoryBrush" />
     </Page.Resources>
 
-    <!-- « Stockage » (D69): disks, quarantine, space freed, free space around each action. -->
+    <!-- « Stockage » (D73): drive bars, then the map of what takes the space. Read-only. -->
     <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="{StaticResource PageMargin}" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
+        <StackPanel Margin="{StaticResource PageMargin}" Spacing="16">
             <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderStorageBrush}">
                 <TextBlock x:Uid="StorageTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
             </Border>
-            <TextBlock x:Uid="StorageIntro" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+
+            <!-- One bar per drive: used / free, with the figures. -->
+            <Border Style="{StaticResource CardBorderStyle}">
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Drives}">
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DriveBar">
+                            <StackPanel Padding="0,4" Spacing="6">
+                                <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap">
+                                    <Run FontWeight="SemiBold" Text="{x:Bind Name}" />
+                                    <Run Text="  " />
+                                    <Run Text="{x:Bind Text}" />
+                                </TextBlock>
+                                <ProgressBar Height="10" AutomationProperties.Name="{x:Bind Text}" Maximum="100" Value="{x:Bind UsedPercent}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </Border>
+
+            <!-- After a cleanup: one short line, never the detail of the calculation (it is in Historique). -->
+            <TextBlock
+                FontWeight="SemiBold"
+                Foreground="{ThemeResource TextPrimaryBrush}"
+                Text="{x:Bind ViewModel.LastCleanupText, Mode=OneWay}"
+                TextWrapping="Wrap"
+                Visibility="{x:Bind conv:Texts.IsSet(ViewModel.LastCleanupText), Mode=OneWay}" />
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="12">
-                    <TextBlock x:Uid="StorageDrivesTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Drives}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock x:Uid="StorageMapTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.LastComputedText, Mode=OneWay}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button x:Uid="StorageMapRefresh" Command="{x:Bind ViewModel.RefreshCommand}" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Uid="StorageMapCancel" Command="{x:Bind ViewModel.RefreshCancelCommand}" Visibility="{x:Bind ViewModel.IsComputing, Mode=OneWay}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.IsComputing, Mode=OneWay}">
+                        <ProgressBar IsIndeterminate="True" x:Uid="StorageMapProgress" />
+                        <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.ProgressText, Mode=OneWay}" />
+                    </StackPanel>
+                    <TextBlock x:Uid="StorageMapIntro" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ShowIntro, Mode=OneWay}" />
+                    <InfoBar IsClosable="False" IsOpen="{x:Bind conv:Texts.HasText(ViewModel.ErrorText), Mode=OneWay}" Severity="Error" Message="{x:Bind ViewModel.ErrorText, Mode=OneWay}" />
+
+                    <!-- Breadcrumb: back to any level above. -->
+                    <ItemsRepeater x:Name="BreadcrumbList" ItemsSource="{x:Bind ViewModel.Breadcrumb}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Horizontal" Spacing="4" />
+                        </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DriveRow">
-                                <StackPanel Padding="0,4" Spacing="4">
-                                    <TextBlock TextWrapping="Wrap">
-                                        <Run FontWeight="SemiBold" Text="{x:Bind Name}" />
-                                        <Run Text="  " />
-                                        <Run Text="{x:Bind FreeText}" />
-                                        <Run x:Uid="StorageFreeOf" />
-                                        <Run Text="{x:Bind TotalText}" />
-                                    </TextBlock>
-                                    <ProgressBar Maximum="100" Value="{x:Bind UsedPercent}" />
-                                </StackPanel>
+                            <DataTemplate x:DataType="vm:BreadcrumbItem">
+                                <HyperlinkButton Click="OnBreadcrumb" Content="{x:Bind Name}" Tag="{x:Bind}" />
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
-                </StackPanel>
-            </Border>
 
-            <Grid ColumnSpacing="16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel Spacing="4">
-                        <TextBlock x:Uid="StorageHeldTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
-                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind ViewModel.QuarantineHeldText, Mode=OneWay}" />
-                        <TextBlock x:Uid="StorageHeldHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
-                    <StackPanel Spacing="4">
-                        <TextBlock x:Uid="StorageFreedTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
-                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind ViewModel.FreedForGoodText, Mode=OneWay}" />
-                        <TextBlock x:Uid="StorageFreedHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-            </Grid>
+                    <!-- The treemap: drawn by the code-behind from ViewModel.Tiles (view logic only). -->
+                    <Canvas
+                        x:Name="MapCanvas"
+                        Height="440"
+                        HorizontalAlignment="Stretch"
+                        x:Uid="StorageMapCanvas"
+                        SizeChanged="OnMapSizeChanged"
+                        Visibility="{x:Bind ViewModel.HasMap, Mode=OneWay}" />
 
-            <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="8">
-                    <TextBlock x:Uid="StorageJournalTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <TextBlock x:Uid="StorageJournalHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                    <TextBlock x:Uid="StorageJournalEmpty" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Entries}">
+                    <!-- Legend: every category by name and size, never by color only. -->
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Legend}" Visibility="{x:Bind ViewModel.HasMap, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="240" MinColumnSpacing="12" MinRowSpacing="6" />
+                        </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:StorageEntryRow">
-                                <StackPanel Padding="0,6" Spacing="2">
-                                    <TextBlock TextWrapping="Wrap">
-                                        <Run FontWeight="SemiBold" Text="{x:Bind Operation, Converter={StaticResource ResourceString}, ConverterParameter=StorageOperation}" />
+                            <DataTemplate x:DataType="vm:LegendItem">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="16" Height="16" Background="{x:Bind Category, Converter={StaticResource CategoryBrush}}" BorderBrush="{ThemeResource TextSecondaryBrush}" BorderThickness="1" CornerRadius="3" />
+                                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap">
+                                        <Run Text="{x:Bind Category, Converter={StaticResource ResourceString}, ConverterParameter=StorageCategory}" />
                                         <Run Text=" · " />
-                                        <Run Text="{x:Bind Detail}" />
-                                    </TextBlock>
-                                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap">
-                                        <Run Text="{x:Bind DateText}" />
-                                        <Run Text=" · " />
-                                        <Run Text="{x:Bind Drive}" />
-                                        <Run Text=" · " />
-                                        <Run x:Uid="StorageBefore" />
-                                        <Run Text="{x:Bind BeforeText}" />
-                                        <Run Text=" → " />
-                                        <Run x:Uid="StorageAfter" />
-                                        <Run Text="{x:Bind AfterText}" />
-                                        <Run Text=" (" />
-                                        <Run Text="{x:Bind DifferenceText}" />
-                                        <Run Text=")" />
+                                        <Run Text="{x:Bind SizeText}" />
                                     </TextBlock>
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
+                    <TextBlock x:Uid="StorageMapHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.HasMap, Mode=OneWay}" />
                 </StackPanel>
             </Border>
         </StackPanel>

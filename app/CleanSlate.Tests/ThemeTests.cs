@@ -179,6 +179,22 @@ public sealed class ThemeTests
         }
     }
 
+    /// <summary>Names written in the rectangles of the storage map stay readable on each category (D73).</summary>
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    [InlineData(ThemePalette.ColorfulKey)]
+    public void StorageMapLabels_AreReadableOnEveryCategory(string dictionary)
+    {
+        XElement d = ThemeDictionary(dictionary);
+        string text = ColorOf(d, "StorageTileTextBrush")[0];
+        foreach (string category in new[] { "Applications", "Leftovers", "Quarantine", "UserFiles", "System", "Other" })
+        {
+            string fill = ColorOf(d, $"Storage{category}Brush")[0];
+            Assert.True(ThemePalette.Contrast(text, fill) >= 4.5, $"{dictionary} {category}: {ThemePalette.Contrast(text, fill):0.00}");
+        }
+    }
+
     [Fact]
     public void ChoosingMulticolore_IsSaved()
     {

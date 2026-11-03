@@ -58,6 +58,17 @@ public sealed class EngineClient : IDisposable
         return Task.Run(() => WithEngine(engine => ScanOrphans(engine, json, progress, cancellationToken)));
     }
 
+    /// <summary>
+    /// Storage map of a drive, read-only (D73). Cancelling stops the walk; the map comes
+    /// back flagged <see cref="DiskMap.Cancelled"/> with partial sizes (no exception).
+    /// </summary>
+    public Task<DiskMap> DiskMapAsync(DiskMapRequest request, IProgress<DiskMapProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(request, EngineJsonContext.Default.DiskMapRequest);
+        return Task.Run(() => WithEngine(engine => DiskMapNative(engine, json, progress, cancellationToken)));
+    }
+
     /// <summary>Quarantines items of the last scan (EF-17); simulated unless both the engine and the plan say otherwise.</summary>
     public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken = default) =>
         CallWithInput(JsonSerializer.SerializeToUtf8Bytes(plan, EngineJsonContext.Default.CleanPlan), CleanNative, EngineJsonContext.Default.EngineResponseSession, cancellationToken);
@@ -218,6 +229,52 @@ public sealed class EngineClient : IDisposable
         }
 
         return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseScanReport);
+    }
+
+    private static unsafe DiskMap DiskMapNative(IntPtr engine, byte[] json, IProgress<DiskMapProgress>? progress, CancellationToken cancellationToken)
+    {
+        GCHandle context = progress is null ? default : GCHandle.Alloc(progress);
+        ByteBuffer* buffer;
+        try
+        {
+            using CancellationTokenRegistration registration =
+                cancellationToken.Register(() => NativeMethods.cs_cancel((EngineHandle*)engine));
+            fixed (byte* request = json)
+            {
+                delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback = progress is null ? null : &OnDiskMapProgress;
+                void* ctx = progress is null ? null : (void*)GCHandle.ToIntPtr(context);
+                buffer = NativeMethods.cs_disk_map((EngineHandle*)engine, request, json.Length, callback, ctx);
+            }
+        }
+        finally
+        {
+            // The engine never calls the callback after cs_disk_map returned.
+            if (context.IsAllocated)
+            {
+                context.Free();
+            }
+        }
+
+        return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseDiskMap);
+    }
+
+    /// <summary>Progress callback of the storage map (possibly from a worker thread).</summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void OnDiskMapProgress(void* ctx, byte* json, int len)
+    {
+        // An exception must never cross into native code.
+        try
+        {
+            if (GCHandle.FromIntPtr((IntPtr)ctx).Target is IProgress<DiskMapProgress> progress
+                && JsonSerializer.Deserialize(new ReadOnlySpan<byte>(json, len), EngineJsonContext.Default.DiskMapProgress) is { } value)
+            {
+                progress.Report(value);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CleanSlate disk map progress dropped: {ex.Message}");
+        }
     }
 
     /// <summary>Progress callback called by the engine (possibly from a worker thread).</summary>

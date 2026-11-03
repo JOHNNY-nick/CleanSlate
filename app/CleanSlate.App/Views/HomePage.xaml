@@ -9,6 +9,7 @@
 
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />
+        <conv:StorageCategoryBrushConverter x:Key="CategoryBrush" />
     </Page.Resources>
 
     <ScrollViewer>
@@ -60,6 +61,44 @@
                     </StackPanel>
                 </Border>
             </Grid>
+
+            <!-- Compact storage preview (D73): the system drive and its largest categories. -->
+            <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.HasStorageDrive, Mode=OneWay}">
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Uid="HomeStorageTitle" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                        <Button x:Uid="HomeStorageOpen" Grid.Column="1" Command="{x:Bind ViewModel.OpenStorageCommand}" />
+                    </Grid>
+                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap">
+                        <Run FontWeight="SemiBold" Text="{x:Bind ViewModel.StorageDrive.Name, Mode=OneWay}" />
+                        <Run Text="  " />
+                        <Run Text="{x:Bind ViewModel.StorageDrive.Text, Mode=OneWay}" />
+                    </TextBlock>
+                    <ProgressBar Height="10" AutomationProperties.Name="{x:Bind ViewModel.StorageDrive.Text, Mode=OneWay}" Maximum="100" Value="{x:Bind ViewModel.StorageDrive.UsedPercent, Mode=OneWay}" />
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.StorageSummary}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="220" MinColumnSpacing="12" MinRowSpacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LegendItem">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="14" Height="14" Background="{x:Bind Category, Converter={StaticResource CategoryBrush}}" BorderBrush="{ThemeResource TextSecondaryBrush}" BorderThickness="1" CornerRadius="3" />
+                                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap">
+                                        <Run Text="{x:Bind Category, Converter={StaticResource ResourceString}, ConverterParameter=StorageCategory}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{x:Bind SizeText}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.LastCleanupText, Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind conv:Texts.IsSet(ViewModel.LastCleanupText), Mode=OneWay}" />
+                </StackPanel>
+            </Border>
 
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="8">

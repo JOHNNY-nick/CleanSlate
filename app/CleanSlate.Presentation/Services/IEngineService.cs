@@ -37,4 +37,7 @@ public interface IEngineService
 
     /// <summary>Deletes for good the old sessions (EF-19).</summary>
     Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Storage map of a drive, read-only (D73).</summary>
+    Task<DiskMap> DiskMapAsync(DiskMapRequest request, IProgress<DiskMapProgress>? progress, CancellationToken cancellationToken);
 }

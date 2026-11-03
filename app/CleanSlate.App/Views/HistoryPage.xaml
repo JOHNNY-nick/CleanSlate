@@ -115,6 +115,30 @@
                                         </DataTemplate>
                                     </ItemsRepeater.ItemTemplate>
                                 </ItemsRepeater>
+                                <!-- Free space before and after, folded (D73): the detail that « Stockage » no longer shows. -->
+                                <Expander x:Uid="HistoryStorageExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{x:Bind HasStorageRows}">
+                                    <StackPanel Spacing="4">
+                                        <ItemsRepeater ItemsSource="{x:Bind StorageRows}">
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SessionStorageRow">
+                                                    <TextBlock Padding="0,2" Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap">
+                                                        <Run Text="{x:Bind Operation, Converter={StaticResource ResourceString}, ConverterParameter=StorageOperation}" />
+                                                        <Run Text="·" />
+                                                        <Run FontWeight="SemiBold" Text="{x:Bind Drive}" />
+                                                        <Run Text="·" />
+                                                        <Run x:Uid="StorageBefore" />
+                                                        <Run Text="{x:Bind BeforeText}" />
+                                                        <Run Text="→" />
+                                                        <Run x:Uid="StorageAfter" />
+                                                        <Run Text="{x:Bind AfterText}" />
+                                                        <Run Text="(" /><Run Text="{x:Bind DifferenceText}" /><Run Text=")" />
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                        <TextBlock x:Uid="HistoryStorageHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Expander>
                                 <Button x:Uid="HistoryRestore" Click="OnRestoreClick" IsEnabled="{x:Bind CanRestore}" Tag="{x:Bind}" />
                             </StackPanel>
                         </Expander>

@@ -25,6 +25,12 @@ public sealed class NavigationService : INavigationService
     public void OpenHome() => Window.ShowPage("Home");
 
     /// <inheritdoc/>
+    public void OpenApps() => Window.ShowPage("Apps");
+
+    /// <inheritdoc/>
+    public void OpenStorage() => Window.ShowPage("Storage");
+
+    /// <inheritdoc/>
     public void OpenSettings() => Window.ShowPage("Settings");
 
     /// <inheritdoc/>

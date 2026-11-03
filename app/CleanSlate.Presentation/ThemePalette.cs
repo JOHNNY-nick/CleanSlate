@@ -29,6 +29,7 @@ public static class ThemePalette
         "NavHomeBrush", "NavAppsBrush", "NavOrphansBrush", "NavHistoryBrush", "NavStorageBrush", "NavSettingsBrush",
         "PageHeaderForegroundBrush", "PageHeaderStripBrush", "ProgressBarForeground", "ContentSurfaceBrush", "PaneBackgroundBrush", "OnDangerBrush",
         "PageHeaderHomeBrush", "PageHeaderAppsBrush", "PageHeaderOrphansBrush", "PageHeaderHistoryBrush", "PageHeaderStorageBrush", "PageHeaderSettingsBrush", "PageHeaderWizardBrush",
+        "StorageApplicationsBrush", "StorageLeftoversBrush", "StorageQuarantineBrush", "StorageUserFilesBrush", "StorageSystemBrush", "StorageOtherBrush", "StorageTileTextBrush",
     ];
 
     /// <summary>

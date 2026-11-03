@@ -31,6 +31,14 @@
                     <SolidColorBrush x:Key="NavStorageBrush" Color="#1A1A1A" />
                     <SolidColorBrush x:Key="NavSettingsBrush" Color="#1A1A1A" />
                     <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Storage map (D73): one color per category, names always written too. -->
+                    <SolidColorBrush x:Key="StorageApplicationsBrush" Color="#BBDEFB" />
+                    <SolidColorBrush x:Key="StorageLeftoversBrush" Color="#FFCC80" />
+                    <SolidColorBrush x:Key="StorageQuarantineBrush" Color="#E1BEE7" />
+                    <SolidColorBrush x:Key="StorageUserFilesBrush" Color="#C8E6C9" />
+                    <SolidColorBrush x:Key="StorageSystemBrush" Color="#CFD8DC" />
+                    <SolidColorBrush x:Key="StorageOtherBrush" Color="#FFF59D" />
+                    <SolidColorBrush x:Key="StorageTileTextBrush" Color="#1A1A1A" />
                     <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
                     <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="#1A1A1A" />
                     <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00FFFFFF" />
@@ -95,6 +103,14 @@
                     <SolidColorBrush x:Key="NavStorageBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="NavSettingsBrush" Color="#FFFFFF" />
                     <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Storage map (D73): one color per category, names always written too. -->
+                    <SolidColorBrush x:Key="StorageApplicationsBrush" Color="#1565C0" />
+                    <SolidColorBrush x:Key="StorageLeftoversBrush" Color="#BF360C" />
+                    <SolidColorBrush x:Key="StorageQuarantineBrush" Color="#6A1B9A" />
+                    <SolidColorBrush x:Key="StorageUserFilesBrush" Color="#2E7D32" />
+                    <SolidColorBrush x:Key="StorageSystemBrush" Color="#455A64" />
+                    <SolidColorBrush x:Key="StorageOtherBrush" Color="#5D4037" />
+                    <SolidColorBrush x:Key="StorageTileTextBrush" Color="#FFFFFF" />
                     <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
                     <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00000000" />
@@ -159,6 +175,14 @@
                     <SolidColorBrush x:Key="NavStorageBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="NavSettingsBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <Thickness x:Key="CardBorderThickness">1</Thickness>
+                    <!-- Storage map (D73): one color per category, names always written too. -->
+                    <SolidColorBrush x:Key="StorageApplicationsBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageLeftoversBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageQuarantineBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageUserFilesBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageSystemBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageOtherBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="StorageTileTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <!-- Page headers, progress, content surface and pane: Multicolore fills them (D72). -->
                     <SolidColorBrush x:Key="PageHeaderForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="PageHeaderStripBrush" Color="#00000000" />
@@ -292,6 +316,14 @@
                 <Color x:Key="CardBand2">#43A047</Color>
                 <Color x:Key="CardBand3">#1E88E5</Color>
                 <Color x:Key="CardBand4">#8E24AA</Color>
+                <!-- Storage map: vivid category colors, dark ink names (≥ 4,5:1). -->
+                <Color x:Key="StorageApplicationsBrush">#64B5F6</Color>
+                <Color x:Key="StorageLeftoversBrush">#FFB74D</Color>
+                <Color x:Key="StorageQuarantineBrush">#BA68C8</Color>
+                <Color x:Key="StorageUserFilesBrush">#81C784</Color>
+                <Color x:Key="StorageSystemBrush">#B0BEC5</Color>
+                <Color x:Key="StorageOtherBrush">#FFF176</Color>
+                <Color x:Key="StorageTileTextBrush">#1B1740</Color>
                 <!-- Background blobs (MainWindow.xaml): decoration only. -->
                 <Color x:Key="Blob0">#FF5252</Color>
                 <Color x:Key="Blob1">#FFD740</Color>
@@ -330,7 +362,8 @@
                 <Setter Property="BorderThickness" Value="2" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Padding" Value="14,6,14,6" />
-            </Style>            <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            </Style>
+            <Style x:Key="SecondaryTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
                 <Setter Property="Foreground" Value="{ThemeResource TextSecondaryBrush}" />
             </Style>
             <Style x:Key="CardBorderStyle" TargetType="Border">

@@ -829,36 +829,6 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="StorageTitle.Text" xml:space="preserve">
     <value>Stockage</value>
   </data>
-  <data name="StorageIntro.Text" xml:space="preserve">
-    <value>La place disponible sur vos disques, et ce que chaque action de CleanSlate a changé. Mettre en quarantaine sur le même disque ne libère pas encore de place : elle revient à la purge, à la fin du délai, ou tout de suite avec la suppression immédiate.</value>
-  </data>
-  <data name="StorageDrivesTitle.Text" xml:space="preserve">
-    <value>Disques</value>
-  </data>
-  <data name="StorageFreeOf.Text" xml:space="preserve">
-    <value>libres sur</value>
-  </data>
-  <data name="StorageHeldTitle.Text" xml:space="preserve">
-    <value>En quarantaine</value>
-  </data>
-  <data name="StorageHeldHelp.Text" xml:space="preserve">
-    <value>Restaurable depuis Historique ; cette place sera libérée à la purge.</value>
-  </data>
-  <data name="StorageFreedTitle.Text" xml:space="preserve">
-    <value>Libéré définitivement</value>
-  </data>
-  <data name="StorageFreedHelp.Text" xml:space="preserve">
-    <value>Purges de la quarantaine et suppressions immédiates.</value>
-  </data>
-  <data name="StorageJournalTitle.Text" xml:space="preserve">
-    <value>Place libre avant et après chaque action</value>
-  </data>
-  <data name="StorageJournalHelp.Text" xml:space="preserve">
-    <value>Mesurée sur le disque juste avant et juste après : un autre programme qui écrit au même moment change aussi ce chiffre.</value>
-  </data>
-  <data name="StorageJournalEmpty.Text" xml:space="preserve">
-    <value>Aucune action pour l&apos;instant : la prochaine mise en quarantaine, purge ou désinstallation apparaîtra ici.</value>
-  </data>
   <data name="StorageBefore.Text" xml:space="preserve">
     <value>avant</value>
   </data>
@@ -882,5 +852,56 @@ Joignez ce fichier si vous signalez le problème.</value>
   </data>
   <data name="SettingsThemeSystem.Content" xml:space="preserve">
     <value>Système</value>
+  </data>
+  <data name="StorageMapTitle.Text" xml:space="preserve">
+    <value>Carte du stockage</value>
+  </data>
+  <data name="StorageMapRefresh.Content" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="StorageMapCancel.Content" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="StorageMapProgress.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Calcul de la carte du stockage en cours</value>
+  </data>
+  <data name="StorageMapCanvas.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Carte du stockage : un rectangle par dossier, sa surface est proportionnelle à sa taille</value>
+  </data>
+  <data name="StorageMapIntro.Text" xml:space="preserve">
+    <value>Choisissez « Actualiser » pour calculer ce qui occupe votre disque. Le calcul lit seulement le disque, il ne supprime rien, et peut prendre quelques minutes.</value>
+  </data>
+  <data name="StorageMapHelp.Text" xml:space="preserve">
+    <value>Survolez un rectangle pour voir son nom complet, sa taille et sa part du disque. Cliquez pour descendre d’un niveau (trois au plus) ; un reste orphelin ouvre « Restes orphelins », une application ouvre « Applications ». Rien n’est supprimé depuis cette carte.</value>
+  </data>
+  <data name="StorageCategory_Applications" xml:space="preserve">
+    <value>Applications installées</value>
+  </data>
+  <data name="StorageCategory_Leftovers" xml:space="preserve">
+    <value>Restes orphelins (récupérables)</value>
+  </data>
+  <data name="StorageCategory_Quarantine" xml:space="preserve">
+    <value>Quarantaine de CleanSlate (récupérable après purge)</value>
+  </data>
+  <data name="StorageCategory_UserFiles" xml:space="preserve">
+    <value>Fichiers utilisateur</value>
+  </data>
+  <data name="StorageCategory_System" xml:space="preserve">
+    <value>Windows et système</value>
+  </data>
+  <data name="StorageCategory_Other" xml:space="preserve">
+    <value>Autres</value>
+  </data>
+  <data name="HomeStorageTitle.Text" xml:space="preserve">
+    <value>Stockage</value>
+  </data>
+  <data name="HomeStorageOpen.Content" xml:space="preserve">
+    <value>Voir la carte du stockage</value>
+  </data>
+  <data name="HistoryStorageExpander.Header" xml:space="preserve">
+    <value>Place libre avant et après</value>
+  </data>
+  <data name="HistoryStorageHelp.Text" xml:space="preserve">
+    <value>Mesurée sur le disque juste avant et juste après : un autre programme qui écrit au même moment change aussi ce chiffre.</value>
   </data>
 </root>

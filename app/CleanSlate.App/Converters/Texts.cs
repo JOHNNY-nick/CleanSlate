@@ -20,4 +20,11 @@ public static class Texts
     /// <summary>Text <paramref name="key"/> with <c>{0}</c> and <c>{1}</c> filled.</summary>
     public static string Two(string key, object? first, object? second) =>
         string.Format(French, Loader.GetString(key), first, second);
+
+    /// <summary>Visible when <paramref name="text"/> is not empty.</summary>
+    public static Microsoft.UI.Xaml.Visibility IsSet(string? text) =>
+        string.IsNullOrEmpty(text) ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+
+    /// <summary>True when <paramref name="text"/> is not empty (InfoBar.IsOpen).</summary>
+    public static bool HasText(string? text) => !string.IsNullOrEmpty(text);
 }

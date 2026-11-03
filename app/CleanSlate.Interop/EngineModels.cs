@@ -371,6 +371,51 @@ public sealed record UninstallResult(
 /// </summary>
 public sealed record AppLeftoversRequest(string AppId, bool UninstallerMissing = false);
 
+/// <summary>What a part of the disk is, on the storage map (D73).</summary>
+[JsonConverter(typeof(SnakeCaseEnumConverter<StorageCategory>))]
+public enum StorageCategory
+{
+    /// <summary>Program Files, per-user programs, install folders of installed applications.</summary>
+    Applications,
+
+    /// <summary>Orphan leftovers of the last scan: recoverable with CleanSlate.</summary>
+    Leftovers,
+
+    /// <summary>CleanSlate's quarantine: given back when it is purged.</summary>
+    Quarantine,
+
+    /// <summary>Documents, Pictures, Videos, Music, Downloads, Desktop, OneDrive.</summary>
+    UserFiles,
+
+    /// <summary>Windows, page files, restore points, recycle bin, unreadable parts.</summary>
+    System,
+
+    /// <summary>Anything else.</summary>
+    Other,
+}
+
+/// <summary>Request of <c>cs_disk_map</c> (D73).</summary>
+/// <param name="Root">Root of the drive, « C:\ ».</param>
+/// <param name="MaxDepth">Levels kept below the root, 1 to 3.</param>
+public sealed record DiskMapRequest(string Root, byte MaxDepth = 3);
+
+/// <summary>One rectangle of the storage map: a folder, a big file or a group of small items.</summary>
+public sealed record DiskMapNode(
+    string Name,
+    string Path,
+    ulong SizeBytes,
+    ulong Files,
+    StorageCategory Category,
+    IReadOnlyList<DiskMapNode> Children,
+    bool IsGroup,
+    bool IsFolder);
+
+/// <summary>Result of <c>cs_disk_map</c>.</summary>
+public sealed record DiskMap(DiskMapNode Root, ulong TotalBytes, ulong FreeBytes, ulong Denied, ulong DurationMs, bool Cancelled);
+
+/// <summary>Progress of the storage map.</summary>
+public sealed record DiskMapProgress(ulong Files, ulong Bytes, string Current);
+
 /// <summary>System.Text.Json source generation, snake_case like the Rust side.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(EngineConfig))]
@@ -389,6 +434,9 @@ public sealed record AppLeftoversRequest(string AppId, bool UninstallerMissing =
 [JsonSerializable(typeof(UninstallProgress))]
 [JsonSerializable(typeof(AppLeftoversRequest))]
 [JsonSerializable(typeof(EngineResponse<UninstallResult>))]
+[JsonSerializable(typeof(DiskMapRequest))]
+[JsonSerializable(typeof(DiskMapProgress))]
+[JsonSerializable(typeof(EngineResponse<DiskMap>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext
 {
 }

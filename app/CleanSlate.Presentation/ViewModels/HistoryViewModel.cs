@@ -39,12 +39,25 @@ public sealed partial class SessionItemViewModel : ObservableObject
     private bool _isChecked;
 }
 
+/// <summary>Free space of one disk around one action of a session (D73).</summary>
+/// <param name="Operation">What CleanSlate did (text from the resources).</param>
+/// <param name="Drive">« C: ».</param>
+/// <param name="BeforeText">Free space before.</param>
+/// <param name="AfterText">Free space after.</param>
+/// <param name="DifferenceText">« +2 Go », « −300 Mo » or « 0 octets ».</param>
+public sealed record SessionStorageRow(StorageOperation Operation, string Drive, string BeforeText, string AfterText, string DifferenceText);
+
 /// <summary>One past session (EF-20).</summary>
 public sealed class SessionViewModel
 {
     /// <summary>Wraps a session.</summary>
-    public SessionViewModel(Session session, int quarantineDays)
+    public SessionViewModel(Session session, int quarantineDays, IEnumerable<StorageEntry>? journal = null)
     {
+        StorageRows = (journal ?? [])
+            .Where(e => e.SessionId == session.Id)
+            .OrderBy(e => e.When)
+            .Select(e => new SessionStorageRow(e.Operation, e.Drive, Formats.Size(e.FreeBefore), Formats.Size(e.FreeAfter), StorageMeasure.Difference(e.FreeBefore, e.FreeAfter)))
+            .ToList();
         Session = session;
         DateText = Formats.Date(DateOnly.FromDateTime(session.CreatedAt.LocalDateTime));
         PurgeDateText = Formats.Date(DateOnly.FromDateTime(session.CreatedAt.LocalDateTime.AddDays(quarantineDays)));
@@ -76,6 +89,15 @@ public sealed class SessionViewModel
     /// <summary>Items of the session.</summary>
     public ObservableCollection<SessionItemViewModel> Items { get; }
 
+    /// <summary>
+    /// Free space before and after each action of this session, by disk (D73): the detail of
+    /// the calculation lives here, folded, never on « Stockage ».
+    /// </summary>
+    public IReadOnlyList<SessionStorageRow> StorageRows { get; }
+
+    /// <summary>The session has a storage measure.</summary>
+    public bool HasStorageRows => StorageRows.Count > 0;
+
     /// <summary>At least one item can still be restored.</summary>
     public bool CanRestore => Items.Any(i => i.IsRestorable);
 }
@@ -87,10 +109,12 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private readonly ISettingsService _settings;
     private readonly INavigationService _navigation;
+    private readonly IStorageService? _storage;
 
     /// <summary>Creates the ViewModel.</summary>
-    public HistoryViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings, INavigationService navigation)
+    public HistoryViewModel(IEngineService engine, IDialogService dialogs, ISettingsService settings, INavigationService navigation, IStorageService? storage = null)
     {
+        _storage = storage;
         _engine = engine;
         _dialogs = dialogs;
         _settings = settings;
@@ -156,10 +180,11 @@ public sealed partial class HistoryViewModel : ObservableObject
         try
         {
             IReadOnlyList<Session> sessions = await _engine.ListSessionsAsync(cancellationToken);
+            IReadOnlyList<StorageEntry> journal = _storage?.Journal() ?? [];
             Sessions.Clear();
             foreach (Session session in sessions)
             {
-                Sessions.Add(new SessionViewModel(session, _settings.QuarantineDays));
+                Sessions.Add(new SessionViewModel(session, _settings.QuarantineDays, journal));
             }
 
             HasError = false;

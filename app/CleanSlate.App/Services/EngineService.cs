@@ -60,14 +60,22 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ScanOrphansAsync(options, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken) => plan.DryRun
-        ? Client.CleanAsync(plan, cancellationToken)
-        : _storage.MeasureAsync(
+    public async Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken)
+    {
+        if (plan.DryRun)
+        {
+            return await Client.CleanAsync(plan, cancellationToken);
+        }
+
+        Session session = await _storage.MeasureAsync(
             StorageOperation.Quarantine,
             s => $"{s.Items.Count(i => i.Status is QuarantineStatus.Quarantined or QuarantineStatus.PendingReboot)} élément(s)",
             () => Client.CleanAsync(plan, cancellationToken),
-            s => s.FreedBytes);
-
+            s => s.FreedBytes,
+            s => s.Id);
+        _storage.RecordCleaned(session);
+        return session;
+    }
     /// <inheritdoc/>
     public Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken) =>
         Client.RestoreAsync(request, cancellationToken);
@@ -90,13 +98,29 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ScanAppLeftoversAsync(request, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken) => request.DryRun
-        ? Client.PurgeAsync(request, cancellationToken)
-        : _storage.MeasureAsync(
+    public async Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken)
+    {
+        if (request.DryRun)
+        {
+            return await Client.PurgeAsync(request, cancellationToken);
+        }
+
+        PurgeResult result = await _storage.MeasureAsync(
             request.SessionId is null ? StorageOperation.Purge : StorageOperation.DeleteForGood,
             _ => request.SessionId is null ? $"sessions de plus de {request.OlderThanDays} jours" : "session supprimée aussitôt",
             () => Client.PurgeAsync(request, cancellationToken),
-            r => r.FreedBytes);
+            r => r.FreedBytes,
+            _ => request.SessionId);
+        if (result.FreedBytes > 0)
+        {
+            _storage.RecordPurged(result.FreedBytes);
+        }
+
+        return result;
+    }
+    /// <inheritdoc/>
+    public Task<DiskMap> DiskMapAsync(DiskMapRequest request, IProgress<DiskMapProgress>? progress, CancellationToken cancellationToken) =>
+        Client.DiskMapAsync(request, progress, cancellationToken);
 
     /// <inheritdoc/>
     public void Dispose()

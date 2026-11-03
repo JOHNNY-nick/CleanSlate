@@ -79,37 +79,10 @@ public sealed class StorageTests
     }
 
     [Fact]
-    public async Task ThePage_ShowsDisks_QuarantineHeld_FreedForGood_AndEachAction()
+    public void Difference_IsSigned()
     {
-        var storage = Substitute.For<IStorageService>();
-        storage.Drives().Returns([new DriveSpace("C:", 500 * Gb, 120 * Gb)]);
-        storage.Journal().Returns(
-        [
-            new StorageEntry(T0, StorageOperation.Quarantine, "C:", 120 * Gb, 120 * Gb, 3 * Gb, "12 éléments"),
-            new StorageEntry(T0.AddMinutes(5), StorageOperation.DeleteForGood, "C:", 120 * Gb, 121 * Gb, 1 * Gb, "1 session"),
-            new StorageEntry(T0.AddMinutes(9), StorageOperation.Purge, "C:", 121 * Gb, 123 * Gb, 2 * Gb, "30 jours"),
-        ]);
-        var engine = Substitute.For<IEngineService>();
-        var held = new QuarantinedItem("a", LeftoverKind.Folder, @"C:\A", @"C:\Q\a", 3 * Gb, null, null, T0, null, QuarantineStatus.Quarantined, null);
-        var restored = held with { Id = "b", Status = QuarantineStatus.Restored };
-        engine.ListSessionsAsync(Arg.Any<CancellationToken>()).Returns(
-            [new Session(Guid.NewGuid(), T0, Origin.Orphans, [held, restored], 6 * Gb, [], SessionStatus.Partial, false)]);
-        var vm = new StorageViewModel(storage, engine);
-
-        await vm.LoadCommand.ExecuteAsync(null);
-
-        DriveRow c = Assert.Single(vm.Drives);
-        Assert.Equal("120 Go", c.FreeText);
-        Assert.Equal("500 Go", c.TotalText);
-        Assert.Equal(76, c.UsedPercent);
-        Assert.Equal("3 Go", vm.QuarantineHeldText);
-        Assert.Equal("3 Go", vm.FreedForGoodText); // purge + immediate deletion
-        Assert.Equal(3, vm.Entries.Count);
-        StorageEntryRow latest = vm.Entries[0]; // most recent first
-        Assert.Equal(StorageOperation.Purge, latest.Operation);
-        Assert.Equal("121 Go", latest.BeforeText);
-        Assert.Equal("123 Go", latest.AfterText);
-        Assert.Equal("+2 Go", latest.DifferenceText);
-        Assert.Equal("0 octets", vm.Entries[2].DifferenceText);
+        Assert.Equal("+2 Go", StorageMeasure.Difference(121 * Gb, 123 * Gb));
+        Assert.Equal("−1 Go", StorageMeasure.Difference(3 * Gb, 2 * Gb));
+        Assert.Equal("0 octets", StorageMeasure.Difference(Gb, Gb));
     }
 }

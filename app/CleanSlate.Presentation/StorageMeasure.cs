@@ -24,6 +24,7 @@ public enum StorageOperation
 /// <param name="FreeAfter">Free bytes after the action.</param>
 /// <param name="ReportedBytes">Size handled, as counted by the engine.</param>
 /// <param name="Detail">Short description: application, number of items, delay.</param>
+/// <param name="SessionId">Quarantine session concerned, to show the detail in Historique (D73).</param>
 public sealed record StorageEntry(
     DateTimeOffset When,
     StorageOperation Operation,
@@ -31,7 +32,8 @@ public sealed record StorageEntry(
     ulong FreeBefore,
     ulong FreeAfter,
     ulong ReportedBytes,
-    string Detail);
+    string Detail,
+    Guid? SessionId = null);
 
 /// <summary>A disk of the PC: total and free space.</summary>
 /// <param name="Name">« C: ».</param>
@@ -58,7 +60,8 @@ public static class StorageMeasure
         Func<DateTimeOffset> clock,
         Action<StorageEntry> record,
         Func<Task<T>> action,
-        Func<T, ulong> reported)
+        Func<T, ulong> reported,
+        Func<T, Guid?>? sessionOf = null)
     {
         var before = drives
             .Select(d => d.ToUpperInvariant())
@@ -74,11 +77,16 @@ public static class StorageMeasure
         string detail = describe(result);
         foreach ((string drive, ulong free) in before)
         {
-            record(new StorageEntry(when, operation, drive, free, freeSpace(drive), reported(result), detail));
+            record(new StorageEntry(when, operation, drive, free, freeSpace(drive), reported(result), detail, sessionOf?.Invoke(result)));
         }
 
         return result;
     }
+
+    /// <summary>« +2 Go », « −300 Mo », « 0 octets ».</summary>
+    public static string Difference(ulong before, ulong after) => after == before
+        ? Formats.Size(0)
+        : after > before ? $"+{Formats.Size(after - before)}" : $"−{Formats.Size(before - after)}";
 
     /// <summary>Adds an entry and keeps the <paramref name="max"/> most recent ones.</summary>
     public static IReadOnlyList<StorageEntry> Append(IEnumerable<StorageEntry> journal, StorageEntry entry, int max = MaxEntries) =>

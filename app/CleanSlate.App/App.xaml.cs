@@ -31,11 +31,11 @@ public partial class App : Application
                 services.AddSingleton<IEngineService, EngineService>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<ILogExportService, LogExportService>();
-        services.AddSingleton<IFolderService, FolderService>();
-        services.AddSingleton<IStorageService, StorageService>();
-        services.AddTransient<StorageViewModel>();
-        services.AddTransient<OnboardingViewModel>();
+                services.AddSingleton<ILogExportService, LogExportService>();
+                services.AddSingleton<IFolderService, FolderService>();
+                services.AddSingleton<IStorageService, StorageService>();
+                services.AddTransient<StorageMapViewModel>();
+                services.AddTransient<OnboardingViewModel>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();
                 services.AddTransient(sp => new HomeViewModel(
@@ -43,7 +43,8 @@ public partial class App : Application
                     sp.GetRequiredService<ISettingsService>(),
                     sp.GetRequiredService<INavigationService>(),
                     sp.GetRequiredService<OrphansViewModel>(),
-                    IsElevated()));
+                    IsElevated(),
+                    sp.GetRequiredService<IStorageService>()));
                 services.AddTransient<AppsViewModel>();
                 // Singleton: scan results survive navigation between pages.
                 services.AddSingleton<OrphansViewModel>();

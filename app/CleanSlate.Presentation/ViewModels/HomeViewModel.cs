@@ -13,6 +13,7 @@ public sealed partial class HomeViewModel : ObservableObject
     private readonly ISettingsService? _settings;
     private readonly INavigationService? _navigation;
     private readonly OrphansViewModel? _orphans;
+    private readonly IStorageService? _storage;
 
     /// <summary>Creates the ViewModel.</summary>
     public HomeViewModel(
@@ -20,8 +21,10 @@ public sealed partial class HomeViewModel : ObservableObject
         ISettingsService? settings = null,
         INavigationService? navigation = null,
         OrphansViewModel? orphans = null,
-        bool isElevated = true)
+        bool isElevated = true,
+        IStorageService? storage = null)
     {
+        _storage = storage;
         _engine = engine;
         _settings = settings;
         _navigation = navigation;
@@ -59,6 +62,21 @@ public sealed partial class HomeViewModel : ObservableObject
 
     /// <summary>The 3 most recent sessions.</summary>
     public ObservableCollection<SessionViewModel> RecentSessions { get; } = [];
+
+    /// <summary>Compact storage preview (D73): the system drive.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStorageDrive))]
+    private DriveBar? _storageDrive;
+
+    /// <summary>A drive is shown in the preview.</summary>
+    public bool HasStorageDrive => StorageDrive is not null;
+
+    /// <summary>The three largest categories of the last map.</summary>
+    public ObservableCollection<LegendItem> StorageSummary { get; } = [];
+
+    /// <summary>« + 1,2 Go libérés par le dernier nettoyage », or empty.</summary>
+    [ObservableProperty]
+    private string _lastCleanupText = string.Empty;
 
     /// <summary>No session yet.</summary>
     public bool HasNoSession => RecentSessions.Count == 0;
@@ -103,8 +121,39 @@ public sealed partial class HomeViewModel : ObservableObject
             LastScanText = _orphans.ScanDateText;
         }
 
-
+        LoadStorage();
     }
+
+    // The system drive and, once a map was computed, its three largest categories.
+    private void LoadStorage()
+    {
+        if (_storage is null)
+        {
+            return;
+        }
+
+        string system = Path.GetPathRoot(Environment.SystemDirectory)?.TrimEnd('\\') ?? "C:";
+        IReadOnlyList<DriveSpace> drives = _storage.Drives();
+        DriveSpace? drive = drives.FirstOrDefault(d => string.Equals(d.Name, system, StringComparison.OrdinalIgnoreCase)) ?? drives.FirstOrDefault();
+        StorageDrive = drive is null ? null : StorageMapViewModel.BarOf(drive);
+        StorageSummary.Clear();
+        if (drive is not null && _storage.CachedMap(drive.Name) is { } cached)
+        {
+            foreach (LegendItem item in StorageMapViewModel.CategoryTotals(cached.Map.Root)
+                .Where(i => i.SizeBytes > 0)
+                .OrderByDescending(i => i.SizeBytes)
+                .Take(3))
+            {
+                StorageSummary.Add(item);
+            }
+        }
+
+        LastCleanupText = StorageMapViewModel.LastCleanup(_storage.Journal());
+    }
+
+    /// <summary>« Voir la carte du stockage ».</summary>
+    [RelayCommand]
+    private void OpenStorage() => _navigation?.OpenStorage();
 
     /// <summary>« Analyser les restes » (design § 4.1, step 1).</summary>
     [RelayCommand]
