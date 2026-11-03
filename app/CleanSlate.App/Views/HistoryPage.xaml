@@ -82,8 +82,7 @@
                                             <Run Text="·" />
                                             <Run Text="{x:Bind FreedText}" />
                                             <Run Text="·" />
-                                            <Run x:Uid="HistoryPurgeOn" />
-                                            <Run Text="{x:Bind PurgeDateText}" />
+                                            <Run Text="{x:Bind PurgeNote}" />
                                         </TextBlock>
                                     </StackPanel>
                                     <TextBlock

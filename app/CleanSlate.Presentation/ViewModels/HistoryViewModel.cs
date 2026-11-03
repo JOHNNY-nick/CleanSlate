@@ -74,6 +74,18 @@ public sealed class SessionViewModel
     /// <summary>Date of the automatic purge.</summary>
     public string PurgeDateText { get; }
 
+    /// <summary>
+    /// What happens to the session: « purge le 30 nov. 2026 » while it waits in quarantine;
+    /// once purged (the delay passed, « Purger », or the immediate deletion of D66) no future
+    /// date is shown any more, and it says that nothing can be restored.
+    /// </summary>
+    public string PurgeNote => Session.Status switch
+    {
+        SessionStatus.Purged => "supprimée définitivement, plus restaurable",
+        SessionStatus.Restored => "restaurée",
+        _ => $"purge le {PurgeDateText}",
+    };
+
     /// <summary>Space freed.</summary>
     public string FreedText { get; }
 
