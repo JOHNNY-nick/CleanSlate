@@ -2,10 +2,10 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Tâche 1 faite : thèmes Clair, Sombre et Multicolore** (D71, commit `a1e4abb`), en attente de validation.
-- **Prochaine action** : le porteur réinstalle par-dessus avec l'installeur du 3 nov. 2026 (SHA-256 `F761820380B01F68384D48948FDC0199C4A70C83D9585E9307C5E1C082C7351D`), puis valide le thème Multicolore.
+- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Faits le 3 nov. 2026, en attente de validation** : thème Multicolore revu et badges visibles (D72), carte du stockage (D73), mode de développement en simulation et captures d'écran (D74). Captures : `artifacts\captures6-11-03\` (24 images : chaque page en Clair, Sombre et Multicolore, l'assistant, la carte et un niveau de détail).
+- **Prochaine action** : le porteur regarde les captures, réinstalle par-dessus avec l'installeur du 3 nov. 2026 (`artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `A525E74229F410B645CA6E480B8C5A84B012B1F8C33A27406EA3210ECBA4B4E6`), ouvre Stockage, clique sur « Actualiser », puis valide.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « thème OK », ou ce qui ne va pas.
+- **Réponse attendue** : « thème, badges et carte OK », ou ce qui ne va pas.
 - **File des tâches**, dans cet ordre sauf avis contraire du porteur :
   2. barre de progression pendant la mise en quarantaine des restes ;
   3. critères de confiance plus pointus :
@@ -15,8 +15,7 @@
      - associations de fichiers et « App Paths » ;
      - usage récent des programmes.
 
-     S'y ajoute une section de l'application qui explique comment le niveau de confiance est calculé ;
-  4. **carte du stockage** dans l'onglet Stockage : carte visuelle (rectangles proportionnels à la taille) des dossiers et fichiers les plus lourds, avec leur nature (Windows, programmes, données personnelles, caches, quarantaine, restes) et leurs détails. Le long journal avant / après passe dans un volet repliable.
+     S'y ajoute une section de l'application qui explique comment le niveau de confiance est calculé.
 
 Dernière mise à jour : 3 nov. 2026.
 ## Règles de pilotage

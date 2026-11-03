@@ -1,6 +1,6 @@
 # Dossier de design — CleanSlate
 
-Dernière mise à jour : 29 oct. 2026
+Dernière mise à jour : 3 nov. 2026
 
 ## 1. Maquettes
 
@@ -64,6 +64,8 @@ Réglages → Thème propose quatre choix, appliqués aussitôt à toutes les pa
 **Lisibilité** (vérifiée par `ThemeTests`) : tout texte a un contraste d'au moins 4,5:1 avec chaque couleur de son fond (7:1 pour le texte principal, 3:1 pour les grands titres).
 
 **Sécurité** : les boutons qui mettent en quarantaine ou suppriment (`DangerButtonStyle`) restent reconnaissables malgré le rouge décoratif : rouge foncé uni #B71C1C (jamais en dégradé), libellé blanc en gras et explicite (« Mettre en quarantaine », « Supprimer définitivement »), icône de corbeille, contour foncé de 2 px. Les éléments décoratifs (taches, bandes) sont masqués au Narrateur et ne prennent pas le focus ; tout reste utilisable au clavier.
+
+**Carte du stockage** (D73) : une couleur par catégorie, dans chaque thème (`StorageApplicationsBrush`, `StorageLeftoversBrush`, `StorageQuarantineBrush`, `StorageUserFilesBrush`, `StorageSystemBrush`, `StorageOtherBrush`), texte des rectangles `StorageTileTextBrush` ≥ 4,5:1 sur chacune. La couleur ne suffit jamais : la légende nomme chaque catégorie avec sa taille, chaque rectangle porte son nom et sa taille quand il est assez grand, et son nom complet, sa taille et sa part du disque au survol et pour le Narrateur. Sous le pointeur, un rectangle garde sa couleur et son contour s'épaissit. Restes orphelins : le badge de la meilleure confiance du groupe figure aussi sur son en-tête, visible groupe replié.
 
 **Typographie** : Segoe UI Variable via les styles WinUI (`TitleTextBlockStyle` 28/600, `SubtitleTextBlockStyle` 20/600, `BodyTextBlockStyle` 14/400, `CaptionTextBlockStyle` 12/400) ; chemins en Cascadia Mono 13.
 
