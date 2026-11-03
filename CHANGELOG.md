@@ -25,7 +25,8 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
   - le fond de la fenêtre et les en-têtes de page sont colorés ;
   - les cartes sont de couleurs différentes ;
   - chaque icône du menu a sa propre couleur ;
-  - les barres de progression sont en arc-en-ciel.
+  - les barres de progression sont en arc-en-ciel ;
+  - des éclaboussures de peinture vives aux cinq couleurs apparaissent dans le menu, à droite des en-têtes et autour du contenu, d'après les références du porteur ; aucun texte n'est posé dessus (D75).
 
   Le choix **Système** est de retour dans Réglages (D72).
 

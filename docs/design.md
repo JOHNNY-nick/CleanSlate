@@ -55,7 +55,7 @@ Les fonds des badges se distinguent de la carte qui les porte (contraste d'au mo
 Réglages → Thème propose quatre choix, appliqués aussitôt à toutes les pages : **Système** (suit Windows), **Clair**, **Sombre**, **Multicolore**.
 
 **Multicolore** met beaucoup de couleurs partout, sur la base claire :
-- fond de fenêtre en dégradé doux (rouge, jaune, vert, bleu, violet) et grandes taches colorées (`Blob0` à `Blob4`), purement décoratives, jamais sous du texte ;
+- fond de fenêtre en dégradé doux (rouge, jaune, vert, bleu, violet) et **éclaboussures de peinture** vives (D75, d'après les références de `docs/design/reference-multicolore/`) aux cinq couleurs (`Blob0` à `Blob4`) : dans la partie vide du menu, à droite de chaque en-tête de page et dans le cadre de 28 px autour du contenu ; purement décoratives, jamais sous du texte (le titre garde la couleur unie de son en-tête derrière lui) ;
 - contenu des pages posé sur une surface blanche unie (`ContentSurfaceBrush`), volet de navigation uni (`PaneBackgroundBrush`) : **aucun texte n'est posé sur une tache** ;
 - en-tête de chaque page dans une bande de sa couleur (`PageHeader…Brush` : Accueil bleu #1565C0, Applications vert #2E7D32, Restes orphelins orange #BF360C, Historique violet #6A1B9A, Stockage rouge #C62828, Réglages framboise #AD1457, assistant vert d'eau #00695C), titre blanc, et sous elle une bande arc-en-ciel (`PageHeaderStripBrush`) : les cinq couleurs sont visibles sur chaque page ;
 - cartes de couleurs différentes, à tour de rôle : fond pâle (`CardTint0` à `CardTint4`) et bandeau supérieur vif (`CardBand0` à `CardBand4`) ;
