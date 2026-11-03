@@ -2,16 +2,13 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. Le plantage après une mise en quarantaine est corrigé (D70, commit `8289f13`). Installeur `artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `FB87E71A480CF78A2081C0D9C5B162589677C1FD0A5E892D29B6CBBACDE3BCB1` (avec D69 et D70).
-- **Prochaine action** : le porteur réinstalle par-dessus (commandes dans la dernière réponse de Claude).
+- **Étape actuelle** : A5, usage réel. Le porteur a demandé trois tâches, avec un arrêt pour validation après chacune. **Tâche 1 faite : thèmes Clair, Sombre et Multicolore** (D71, commit ci-dessus).
+- **Prochaine action** : le porteur ferme CleanSlate et répond « fermé » ; Claude construit l'installeur, le porteur réinstalle par-dessus et valide le thème Multicolore.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « réinstallé », puis « suite » pour les demandes en attente.
-- **Demandes en attente**, faites par Claude après la réinstallation :
-  1. barre de progression pendant la mise en quarantaine des restes ;
-  2. thèmes Clair, Sombre et Multicolore (couleurs du livre) ;
-  3. critères de confiance : raccourcis qui fonctionnent, registre de Windows Installer, gestionnaires de paquets.
+- **Réponse attendue** : « fermé », puis, après réinstallation, « thème OK » ou ce qui ne va pas.
+- **Ensuite**, une tâche à la fois, avec validation : (2) barre de progression pendant la mise en quarantaine des restes ; (3) critères de confiance : raccourcis qui fonctionnent, registre de Windows Installer, gestionnaires de paquets.
 
-Dernière mise à jour : 31 oct. 2026.
+Dernière mise à jour : 3 nov. 2026.
 ## Règles de pilotage
 
 - Claude pilote : à la fin de **chaque** réponse, il donne la prochaine action, qui la fait, la commande exacte et le dossier d'où la lancer, la durée et ce qu'il faut lui répondre.
