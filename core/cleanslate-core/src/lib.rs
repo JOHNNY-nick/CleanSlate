@@ -4,6 +4,7 @@
 //! code: the `cleanslate-ffi` crate exposes it to C#, and `cleanslate-cli`
 //! drives it from the command line.
 
+pub mod disk_map;
 pub mod engine;
 pub mod error;
 pub mod fs;

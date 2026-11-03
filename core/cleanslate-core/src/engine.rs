@@ -9,6 +9,7 @@ use std::time::Instant;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::disk_map::{Categorizer, DiskMap, DiskMapEnv, DiskMapProgress, DiskMapRequest};
 use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
@@ -267,6 +268,14 @@ impl Engine {
         progress: &(dyn Fn(&ScanProgress) + Sync),
     ) -> CoreResult<ScanReport> {
         let _guard = self.begin()?;
+        self.scan_orphans_unguarded(options, progress)
+    }
+
+    fn scan_orphans_unguarded(
+        &self,
+        options: &ScanOptions,
+        progress: &(dyn Fn(&ScanProgress) + Sync),
+    ) -> CoreResult<ScanReport> {
         let apps = self.list_apps()?;
         let extra = if self.probe_system {
             let mut exes = crate::system::service_executables(self.registry());
@@ -290,6 +299,75 @@ impl Engine {
         let report = scan_orphans(&env, options, progress);
         self.remember(&report);
         Ok(report)
+    }
+
+    /// Storage map of a drive, read-only (D73): sizes on disk, categories, the leftovers of
+    /// the last orphan scan (one is run first, read-only, if none was made by this engine)
+    /// and CleanSlate's data folder as the quarantine.
+    pub fn disk_map(
+        &self,
+        request: &DiskMapRequest,
+        progress: &(dyn Fn(&DiskMapProgress) + Sync),
+    ) -> CoreResult<DiskMap> {
+        let _guard = self.begin()?;
+        let apps = self.list_apps()?;
+        let has_report = self
+            .last_report
+            .lock()
+            .map(|l| !l.is_empty())
+            .unwrap_or(false);
+        if !has_report {
+            self.scan_orphans_unguarded(&ScanOptions::default(), &|_| {})?;
+        }
+        let leftovers: Vec<String> = self
+            .last_report
+            .lock()
+            .map(|last| {
+                last.values()
+                    .filter(|i| {
+                        matches!(
+                            i.kind,
+                            crate::model::LeftoverKind::Folder | crate::model::LeftoverKind::File
+                        )
+                    })
+                    .map(|i| i.location.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let installs: Vec<std::path::PathBuf> = apps
+            .iter()
+            .filter_map(|a| a.install_location.clone())
+            .collect();
+        let data_dir = self.data_dir();
+        let categorizer =
+            Categorizer::new(&self.folders, &installs, &leftovers, data_dir.as_deref());
+        let space = if self.probe_system {
+            crate::native::volume_space(&request.root)
+        } else {
+            None
+        };
+        let env = DiskMapEnv {
+            fs: self.fs(),
+            categorizer: &categorizer,
+            cluster: space.map_or(4096, |s| s.cluster.max(1)),
+            cancel: &self.cancel,
+        };
+        let map = crate::disk_map::build(
+            &env,
+            request,
+            space.map_or(0, |s| s.total),
+            space.map_or(0, |s| s.free),
+            progress,
+        );
+        tracing::info!(
+            root = %request.root.display(),
+            bytes = map.root.size_bytes,
+            denied = map.denied,
+            ms = map.duration_ms,
+            cancelled = map.cancelled,
+            "disk map done"
+        );
+        Ok(map)
     }
 
     /// Keeps the items of `report` so that `clean` can find them by id.
@@ -955,6 +1033,67 @@ mod tests {
                 .code(),
             "BUSY"
         );
+    }
+
+    /// D73: the storage map finds the leftovers by itself (read-only orphan scan) and shows
+    /// them as recoverable; a map after a clean sees the folder gone.
+    #[test]
+    fn disk_map_shows_leftovers_and_follows_a_clean() {
+        use crate::disk_map::StorageCategory;
+        use crate::fs::strip_verbatim;
+        use crate::model::Origin;
+
+        let parent =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\engine-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        let tool = base.join(r"Users\Ana\AppData\Roaming\OldTool");
+        std::fs::create_dir_all(&tool).unwrap();
+        std::fs::write(tool.join("cache.bin"), vec![0u8; 50_000]).unwrap();
+        let area = TestRegistryKey::new();
+        let engine = Engine::with_folders(
+            EngineConfig {
+                dry_run: false,
+                data_dir: Some(base.join("data")),
+                exclusions: vec![],
+            },
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            KnownFolders::under(&base),
+        );
+        let request = DiskMapRequest {
+            root: base.clone(),
+            max_depth: 3,
+        };
+        fn find<'a>(
+            n: &'a crate::disk_map::DiskMapNode,
+            path: &std::path::Path,
+        ) -> Option<&'a crate::disk_map::DiskMapNode> {
+            if std::path::Path::new(&n.path) == path {
+                return Some(n);
+            }
+            n.children.iter().find_map(|c| find(c, path))
+        }
+
+        let map = engine.disk_map(&request, &|_| {}).unwrap();
+        let leftover = find(&map.root, &tool).expect("leftover on the map");
+        assert_eq!(leftover.category, StorageCategory::Leftovers);
+        assert!(leftover.size_bytes >= 50_000);
+
+        // Quarantine it, then map again: the leftover is gone, the data folder holds it.
+        let report = engine
+            .scan_orphans(&ScanOptions::default(), &|_| {})
+            .unwrap();
+        let id = report.groups[0].items[0].id.clone();
+        let mut plan = CleanPlan::new(vec![id], Origin::Orphans);
+        plan.dry_run = false;
+        engine.clean(&plan).unwrap();
+        let after = engine.disk_map(&request, &|_| {}).unwrap();
+        assert!(find(&after.root, &tool).is_none());
+        let data = find(&after.root, &base.join("data")).expect("data folder on the map");
+        assert_eq!(data.category, StorageCategory::Quarantine);
+        assert!(data.size_bytes >= 50_000);
     }
 
     /// D67, Installer run of 31 Oct. 2026: an item left in place stays on screen; trying it

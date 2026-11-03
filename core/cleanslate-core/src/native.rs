@@ -213,3 +213,63 @@ mod tests {
         assert_eq!(move_path(&from, &to), Err(2), "ERROR_FILE_NOT_FOUND");
     }
 }
+
+/// Space of the volume holding a folder (D73).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VolumeSpace {
+    /// Size of the volume, in bytes.
+    pub total: u64,
+    /// Free bytes.
+    pub free: u64,
+    /// Allocation unit (cluster), in bytes.
+    pub cluster: u64,
+}
+
+/// Bytes a compressed or sparse file really takes on disk (`GetCompressedFileSizeW`, D73).
+pub fn compressed_size(path: &Path) -> Option<u64> {
+    use windows::Win32::Foundation::{GetLastError, NO_ERROR};
+    use windows::Win32::Storage::FileSystem::GetCompressedFileSizeW;
+    let path = wide(path);
+    let mut high = 0u32;
+    // SAFETY: NUL-terminated path that lives for the call; out-pointer to a local.
+    let low = unsafe { GetCompressedFileSizeW(PCWSTR(path.as_ptr()), Some(&mut high)) };
+    // SAFETY: reads the calling thread's last error, right after the call.
+    if low == u32::MAX && unsafe { GetLastError() } != NO_ERROR {
+        return None;
+    }
+    Some((u64::from(high) << 32) | u64::from(low))
+}
+
+/// Total, free and cluster size of the volume holding `root` (D73).
+pub fn volume_space(root: &Path) -> Option<VolumeSpace> {
+    use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDiskFreeSpaceW};
+    let path = wide(root);
+    let (mut free, mut total) = (0u64, 0u64);
+    // SAFETY: NUL-terminated path that lives for the call; out-pointers to locals.
+    unsafe {
+        GetDiskFreeSpaceExW(
+            PCWSTR(path.as_ptr()),
+            Some(&mut free),
+            Some(&mut total),
+            None,
+        )
+    }
+    .ok()?;
+    let (mut sectors, mut bytes) = (0u32, 0u32);
+    // SAFETY: same path; out-pointers to locals; the cluster counts are not asked.
+    unsafe {
+        GetDiskFreeSpaceW(
+            PCWSTR(path.as_ptr()),
+            Some(&mut sectors),
+            Some(&mut bytes),
+            None,
+            None,
+        )
+    }
+    .ok()?;
+    Some(VolumeSpace {
+        total,
+        free,
+        cluster: u64::from(sectors) * u64::from(bytes),
+    })
+}

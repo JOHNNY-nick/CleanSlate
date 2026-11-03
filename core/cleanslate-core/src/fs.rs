@@ -15,6 +15,11 @@ use crate::error::{CoreError, CoreResult};
 
 /// `FILE_ATTRIBUTE_REPARSE_POINT`: symbolic link, junction, mount point…
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+/// Data stored compressed or sparse: its size on disk differs from its length.
+const FILE_ATTRIBUTE_SPARSE_OR_COMPRESSED: u32 = 0x200 | 0x800;
+/// Cloud placeholder whose data is not on the disk (`OFFLINE`, `RECALL_ON_OPEN`,
+/// `RECALL_ON_DATA_ACCESS`).
+const FILE_ATTRIBUTE_NOT_ON_DISK: u32 = 0x1000 | 0x4_0000 | 0x40_0000;
 
 /// Metadata of a file or folder, read without following links.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +30,10 @@ pub struct EntryMetadata {
     pub is_reparse_point: bool,
     /// Size in bytes (0 for a folder).
     pub len: u64,
+    /// Bytes the data really takes on the disk, before rounding to clusters (D73): 0 for a
+    /// cloud file not downloaded (OneDrive), the compressed size of a compressed or sparse
+    /// file, else `len`.
+    pub on_disk: u64,
     /// Last modification time, when available.
     pub modified: Option<DateTime<Utc>>,
 }
@@ -84,14 +93,24 @@ pub fn strip_verbatim(path: &Path) -> PathBuf {
 pub struct RealFileSystem;
 
 impl RealFileSystem {
-    fn convert(meta: &fs::Metadata) -> EntryMetadata {
+    fn convert(path: &Path, meta: &fs::Metadata) -> EntryMetadata {
         use std::os::windows::fs::MetadataExt;
-        let is_reparse_point = meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+        let attributes = meta.file_attributes();
+        let is_reparse_point = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+        let len = if meta.is_dir() { 0 } else { meta.len() };
+        let on_disk = if meta.is_dir() || attributes & FILE_ATTRIBUTE_NOT_ON_DISK != 0 {
+            0
+        } else if attributes & FILE_ATTRIBUTE_SPARSE_OR_COMPRESSED != 0 {
+            crate::native::compressed_size(path).unwrap_or(len)
+        } else {
+            len
+        };
         EntryMetadata {
             // A reparse point is reported as such, never as a folder to walk.
             is_dir: meta.is_dir() && !is_reparse_point,
             is_reparse_point,
-            len: if meta.is_dir() { 0 } else { meta.len() },
+            len,
+            on_disk,
             modified: meta.modified().ok().map(DateTime::<Utc>::from),
         }
     }
@@ -101,7 +120,7 @@ impl FileSystem for RealFileSystem {
     fn metadata(&self, path: &Path) -> CoreResult<EntryMetadata> {
         // symlink_metadata never follows links or junctions.
         let meta = fs::symlink_metadata(path).map_err(|e| CoreError::from_io(path, e))?;
-        Ok(Self::convert(&meta))
+        Ok(Self::convert(path, &meta))
     }
 
     fn read_dir(&self, path: &Path) -> CoreResult<Vec<DirEntry>> {
@@ -115,10 +134,14 @@ impl FileSystem for RealFileSystem {
         for entry in fs::read_dir(path).map_err(|e| CoreError::from_io(path, e))? {
             let entry = entry.map_err(|e| CoreError::from_io(path, e))?;
             let child = entry.path();
-            let meta = fs::symlink_metadata(&child).map_err(|e| CoreError::from_io(&child, e))?;
+            // On Windows, DirEntry::metadata comes from the directory listing itself: no
+            // file is opened and links are not followed (D73: a whole disk stays fast).
+            let meta = entry
+                .metadata()
+                .map_err(|e| CoreError::from_io(&child, e))?;
             entries.push(DirEntry {
                 name: entry.file_name(),
-                metadata: Self::convert(&meta),
+                metadata: Self::convert(&child, &meta),
                 path: child,
             });
         }
@@ -184,10 +207,23 @@ impl FakeFileSystem {
         len: u64,
         modified: Option<DateTime<Utc>>,
     ) -> &mut Self {
+        self.add_file_on_disk(path, len, len, modified)
+    }
+
+    /// Adds a file whose data takes `on_disk` bytes on the disk (compressed file, or 0 for a
+    /// cloud file not downloaded), creating its parent folders.
+    pub fn add_file_on_disk(
+        &mut self,
+        path: impl AsRef<Path>,
+        len: u64,
+        on_disk: u64,
+        modified: Option<DateTime<Utc>>,
+    ) -> &mut Self {
         let meta = EntryMetadata {
             is_dir: false,
             is_reparse_point: false,
             len,
+            on_disk,
             modified,
         };
         self.insert(path.as_ref(), meta);
@@ -217,6 +253,7 @@ impl FakeFileSystem {
             is_dir: !is_reparse_point,
             is_reparse_point,
             len: 0,
+            on_disk: 0,
             modified,
         }
     }

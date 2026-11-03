@@ -436,6 +436,43 @@ pub unsafe extern "C" fn cs_scan_app_leftovers(
     })
 }
 
+/// Storage map of a drive, read-only (D73): `data` is a `DiskMap`. `request` is a
+/// `DiskMapRequest` JSON; progress events are `DiskMapProgress` JSON; `cs_cancel` stops it.
+/// Returns `BUSY` if another long operation runs on this engine.
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` readable bytes;
+/// `callback` may be null.
+#[no_mangle]
+pub unsafe extern "C" fn cs_disk_map(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let bytes = unsafe { input_bytes(request, len) }?;
+        let request: cleanslate_core::disk_map::DiskMapRequest = serde_json::from_slice(bytes)?;
+        let progress = |event: &cleanslate_core::disk_map::DiskMapProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.disk_map(&request, &progress)
+    })
+}
+
 /// Asks the running long operation of `engine` to stop (EF-11). Safe to
 /// call from any thread while the operation runs. Null is ignored.
 ///
@@ -734,6 +771,36 @@ mod tests {
         assert_eq!(value["error"]["code"], "NOT_FOUND");
         let value = take(unsafe { cs_uninstall(engine, ptr::null(), 0, None, ptr::null_mut()) });
         assert_eq!(value["error"]["code"], "INVALID_INPUT");
+        unsafe { cs_engine_free(engine) };
+    }
+
+    /// D73: the storage map answers through the envelope, malformed input included.
+    #[test]
+    fn disk_map_reports_errors_safely() {
+        let engine = fake_engine();
+        let value = take(unsafe { cs_disk_map(engine, ptr::null(), 0, None, ptr::null_mut()) });
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
+        let bad = br#"{"max_depth":3}"#;
+        let value = take(unsafe {
+            cs_disk_map(
+                engine,
+                bad.as_ptr(),
+                bad.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["error"]["code"], "INVALID_INPUT");
+        let value = take(unsafe {
+            cs_disk_map(
+                ptr::null(),
+                bad.as_ptr(),
+                bad.len() as i32,
+                None,
+                ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["ok"], false);
         unsafe { cs_engine_free(engine) };
     }
 

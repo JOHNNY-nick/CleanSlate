@@ -130,6 +130,18 @@ namespace CleanSlate.Interop
         internal static extern ByteBuffer* cs_scan_app_leftovers(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
 
         /// <summary>
+        ///  Storage map of a drive, read-only (D73): `data` is a `DiskMap`. `request` is a
+        ///  `DiskMapRequest` JSON; progress events are `DiskMapProgress` JSON; `cs_cancel` stops it.
+        ///  Returns `BUSY` if another long operation runs on this engine.
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` readable bytes;
+        ///  `callback` may be null.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_disk_map", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_disk_map(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
+
+        /// <summary>
         ///  Asks the running long operation of `engine` to stop (EF-11). Safe to
         ///  call from any thread while the operation runs. Null is ignored.
         ///
