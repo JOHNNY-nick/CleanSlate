@@ -215,6 +215,9 @@ public sealed partial class ManagerViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasAnalysis;
 
+    /// <summary>Folder or drive analyzed: the system drive by default.</summary>
+    public string AnalysisRoot { get; set; } = (Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\").ToUpperInvariant();
+
     /// <summary>Expert mode (Réglages).</summary>
     public bool ExpertMode => _settings.ExpertMode;
 
@@ -255,8 +258,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         try
         {
             var progress = new Progress<ManagerProgress>(p => ProgressText = string.Format(French, "{0:N0} fichiers · {1}", p.Files, Formats.Size(p.Bytes)));
-            string root = (Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\").ToUpperInvariant();
-            _analysis = await _manager.AnalyzeAsync(root, progress, cancellationToken);
+            _analysis = await _manager.AnalyzeAsync(AnalysisRoot, progress, cancellationToken);
             HasAnalysis = true;
             Fill(Largest, _analysis.Largest.Select(Row));
             Fill(Categories, _analysis.Categories.Select(c => string.Format(French, "{0} · {1} · {2:N0} fichier(s)", CategoryName(c.Category), Formats.Size(c.SizeBytes), c.Files)));

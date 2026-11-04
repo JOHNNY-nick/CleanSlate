@@ -47,6 +47,12 @@ internal static class Capture
             App.GetService<IStorageService>().SaveMap("C:", map);
             log.Add($"carte: {(DateTimeOffset.Now - started).TotalSeconds:0} s, {map.Denied} dossiers refusés");
             InstalledApp? app = (await engine.ListAppsAsync(CancellationToken.None)).FirstOrDefault(a => a.HiddenReason is null);
+            if (DevMode.Options.CaptureSet == "gestionnaire")
+            {
+                await ManagerTabs(window, Path.Combine(folder, "gestionnaire"), settings, log);
+                return;
+            }
+
             if (DevMode.Options.CaptureSet == "multicolore-v2")
             {
                 await AllPages(window, Path.Combine(folder, "multicolore-v2"), settings, log);
@@ -109,6 +115,43 @@ internal static class Capture
         {
             await File.WriteAllLinesAsync(Path.Combine(folder, "capture.log"), log);
             window.Close();
+        }
+    }
+
+    // Every tab of the Gestionnaire (D79), in Clair, after a read-only analysis of C:.
+    private static async Task ManagerTabs(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        settings.Theme = AppTheme.Light;
+        await Task.Delay(1000);
+        window.ShowPage("Manager");
+        await Task.Delay(3000);
+        if (window.CurrentPage is not ManagerPage page)
+        {
+            log.Add("Gestionnaire introuvable");
+            return;
+        }
+
+        var started = DateTimeOffset.Now;
+        page.ViewModel.AnalysisRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); // short run
+        await page.ViewModel.AnalyzeCommand.ExecuteAsync(null);
+        await page.ViewModel.FindDuplicatesCommand.ExecuteAsync(null);
+        log.Add($"analyse du Gestionnaire : {(DateTimeOffset.Now - started).TotalSeconds:0} s");
+        string[] names = ["diagnostic", "carte", "explorateur", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
+        for (int i = 0; i < names.Length; i++)
+        {
+            page.ViewModel.TabIndex = i;
+            if (i == 2)
+            {
+                page.ViewModel.Search = "Downloads";
+            }
+
+            if (i == 3)
+            {
+                page.ViewModel.CategoryIndex = 0;
+            }
+
+            await Save(window, Path.Combine(folder, $"{i:00}-{names[i]}.png"), log);
         }
     }
 
