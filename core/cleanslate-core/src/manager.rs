@@ -369,6 +369,20 @@ pub enum ManagerRequest {
     },
     /// A clean-up of Windows.
     System(crate::sysclean::SystemRequest),
+    /// Records a measure of a drive (« Évolution », EF-33).
+    RecordMeasure(crate::history::DriveMeasure),
+    /// Measures of a drive, oldest first.
+    Measures {
+        /// « C: ».
+        drive: String,
+        /// Most recent measures returned.
+        #[serde(default = "default_measures")]
+        limit: usize,
+    },
+}
+
+fn default_measures() -> usize {
+    365
 }
 
 /// What the Windows shell does for the manager; refused on a test engine.

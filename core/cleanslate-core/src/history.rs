@@ -37,6 +37,14 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS measures (
+    taken_at    TEXT NOT NULL,
+    drive       TEXT NOT NULL,
+    total_bytes INTEGER NOT NULL,
+    free_bytes  INTEGER NOT NULL,
+    largest     TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS measures_by_drive ON measures (drive, taken_at);
 ";
 
 fn db_error(err: rusqlite::Error) -> CoreError {
@@ -53,6 +61,54 @@ fn text_of<T: serde::Serialize>(value: &T) -> CoreResult<String> {
                 .map(|v| v.to_string())
                 .unwrap_or_default()
         }))
+}
+
+/// One measure of a drive for the « Évolution » tab (EF-33).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DriveMeasure {
+    /// When.
+    pub taken_at: chrono::DateTime<chrono::Utc>,
+    /// « C: ».
+    pub drive: String,
+    /// Size of the drive.
+    pub total_bytes: u64,
+    /// Free space.
+    pub free_bytes: u64,
+    /// Largest folders then (path, bytes), to tell what grew most.
+    #[serde(default)]
+    pub largest: Vec<FolderSize>,
+}
+
+/// A folder and its size.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FolderSize {
+    /// Path.
+    pub path: String,
+    /// Bytes.
+    pub bytes: u64,
+}
+
+/// What grew most between two measures (« ce qui a le plus grossi »), largest growth first.
+pub fn growth(before: &DriveMeasure, after: &DriveMeasure) -> Vec<(String, i64)> {
+    let old: std::collections::HashMap<&str, u64> = before
+        .largest
+        .iter()
+        .map(|f| (f.path.as_str(), f.bytes))
+        .collect();
+    let mut list: Vec<(String, i64)> = after
+        .largest
+        .iter()
+        .map(|f| {
+            let was = old.get(f.path.as_str()).copied().unwrap_or(0);
+            (
+                f.path.clone(),
+                i64::try_from(f.bytes).unwrap_or(i64::MAX) - i64::try_from(was).unwrap_or(i64::MAX),
+            )
+        })
+        .filter(|(_, delta)| *delta > 0)
+        .collect();
+    list.sort_by_key(|(_, delta)| std::cmp::Reverse(*delta));
+    list
 }
 
 /// The history database.
@@ -191,6 +247,63 @@ impl History {
             .map_err(db_error)
     }
 
+    /// Records a measure of a drive (EF-33): free space and its largest folders.
+    pub fn add_measure(&self, measure: &DriveMeasure) -> CoreResult<()> {
+        self.connection
+            .execute(
+                "INSERT INTO measures (taken_at, drive, total_bytes, free_bytes, largest) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    measure.taken_at.to_rfc3339(),
+                    measure.drive,
+                    i64::try_from(measure.total_bytes).unwrap_or(i64::MAX),
+                    i64::try_from(measure.free_bytes).unwrap_or(i64::MAX),
+                    serde_json::to_string(&measure.largest)?,
+                ],
+            )
+            .map(|_| ())
+            .map_err(db_error)
+    }
+
+    /// Measures of a drive, oldest first (at most the last `limit`).
+    pub fn measures(&self, drive: &str, limit: usize) -> CoreResult<Vec<DriveMeasure>> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT taken_at, drive, total_bytes, free_bytes, largest FROM measures
+                 WHERE drive = ?1 COLLATE NOCASE ORDER BY taken_at DESC LIMIT ?2",
+            )
+            .map_err(db_error)?;
+        let rows = statement
+            .query_map(
+                params![drive, i64::try_from(limit).unwrap_or(i64::MAX)],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                },
+            )
+            .map_err(db_error)?;
+        let mut list = Vec::new();
+        for row in rows {
+            let (taken, drive, total, free, largest) = row.map_err(db_error)?;
+            list.push(DriveMeasure {
+                taken_at: chrono::DateTime::parse_from_rfc3339(&taken)
+                    .map(|t| t.with_timezone(&chrono::Utc))
+                    .map_err(|e| CoreError::InvalidInput(format!("measure date: {e}")))?,
+                drive,
+                total_bytes: u64::try_from(total).unwrap_or(0),
+                free_bytes: u64::try_from(free).unwrap_or(0),
+                largest: serde_json::from_str(&largest).unwrap_or_default(),
+            });
+        }
+        list.reverse();
+        Ok(list)
+    }
+
     /// Number of items recorded for a session (index check).
     pub fn item_count(&self, session_id: &str) -> CoreResult<usize> {
         self.connection
@@ -211,6 +324,57 @@ mod tests {
     use chrono::{Duration, TimeZone};
     use std::path::PathBuf;
     use uuid::Uuid;
+
+    /// EF-33: measures are kept by drive, in order, and tell what grew most.
+    #[test]
+    fn measures_are_recorded_by_drive_and_tell_what_grew() {
+        let history = History::in_memory().unwrap();
+        let at = |day| {
+            chrono::Utc
+                .with_ymd_and_hms(2026, 11, day, 9, 0, 0)
+                .unwrap()
+        };
+        let folder = |path: &str, bytes| FolderSize {
+            path: path.into(),
+            bytes,
+        };
+        let first = DriveMeasure {
+            taken_at: at(1),
+            drive: "C:".into(),
+            total_bytes: 512,
+            free_bytes: 200,
+            largest: vec![folder(r"C:\Users", 100), folder(r"C:\Games", 50)],
+        };
+        let second = DriveMeasure {
+            taken_at: at(4),
+            free_bytes: 120,
+            largest: vec![
+                folder(r"C:\Users", 110),
+                folder(r"C:\Games", 120),
+                folder(r"C:\New", 5),
+            ],
+            ..first.clone()
+        };
+        history.add_measure(&second).unwrap();
+        history.add_measure(&first).unwrap();
+        history
+            .add_measure(&DriveMeasure {
+                drive: "D:".into(),
+                ..first.clone()
+            })
+            .unwrap();
+
+        let c = history.measures("c:", 10).unwrap();
+        assert_eq!(c, vec![first.clone(), second.clone()]);
+        assert_eq!(
+            growth(&first, &second),
+            vec![
+                (r"C:\Games".into(), 70),
+                (r"C:\Users".into(), 10),
+                (r"C:\New".into(), 5)
+            ]
+        );
+    }
 
     fn session(days_ago: i64, status: SessionStatus) -> Session {
         let created =

@@ -295,6 +295,16 @@ impl Engine {
                     ..ActionResult::default()
                 })?
             }
+            ManagerRequest::RecordMeasure(measure) => {
+                if let Some(history) = self.history()?.as_ref() {
+                    history.add_measure(measure)?;
+                }
+                serde_json::Value::Null
+            }
+            ManagerRequest::Measures { drive, limit } => match self.history()?.as_ref() {
+                Some(history) => serde_json::to_value(history.measures(drive, *limit)?)?,
+                None => serde_json::json!([]),
+            },
             ManagerRequest::System(system) => {
                 let _guard = self.begin()?;
                 if self.simulating(system.dry_run) {
