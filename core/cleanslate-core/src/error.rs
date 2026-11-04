@@ -70,6 +70,22 @@ pub enum CoreError {
         files: u64,
     },
 
+    /// A sensitive zone, by hand, outside expert mode (D79).
+    #[error("expert mode required: {location}")]
+    ExpertRequired {
+        /// Sensitive path or key.
+        location: String,
+    },
+
+    /// A sensitive zone in expert mode: the user must type the word (D79).
+    #[error("type {word} to act on: {location}")]
+    WordRequired {
+        /// Sensitive path or key.
+        location: String,
+        /// Word to type, « CONFIRMER ».
+        word: String,
+    },
+
     /// The application has no usable uninstaller (design § 5).
     #[error("uninstaller not found: {location}")]
     NoUninstaller {
@@ -103,7 +119,10 @@ impl CoreError {
             CoreError::Registry { .. } => "REGISTRY_ERROR",
             CoreError::InvalidInput(_) => "INVALID_INPUT",
             CoreError::Protected { .. } => "PROTECTED",
-            CoreError::ConfirmationRequired { .. } => "CONFIRMATION_REQUIRED",
+            CoreError::ConfirmationRequired { .. } | CoreError::WordRequired { .. } => {
+                "CONFIRMATION_REQUIRED"
+            }
+            CoreError::ExpertRequired { .. } => "EXPERT_REQUIRED",
             CoreError::NoUninstaller { .. } => "NO_UNINSTALLER",
             CoreError::UnsafeUninstaller { .. } => "UNSAFE_UNINSTALLER",
             CoreError::Busy => "BUSY",
@@ -117,6 +136,8 @@ impl CoreError {
             CoreError::NotFound { location }
             | CoreError::AccessDenied { location }
             | CoreError::Protected { location }
+            | CoreError::ExpertRequired { location }
+            | CoreError::WordRequired { location, .. }
             | CoreError::NoUninstaller { location }
             | CoreError::UnsafeUninstaller { location } => Some(location.clone()),
             CoreError::Io { path, .. } => Some(path.display().to_string()),

@@ -26,6 +26,7 @@ pub mod store;
 pub mod system;
 pub mod tasks;
 pub mod uninstall;
+pub mod zones;
 
 pub use engine::{Engine, EngineConfig};
 pub use error::{CoreError, CoreResult};
