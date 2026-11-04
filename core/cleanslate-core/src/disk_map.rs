@@ -41,6 +41,14 @@ pub struct DiskMapRequest {
     /// rooted at it.
     #[serde(default = "default_depth")]
     pub max_depth: u8,
+    /// Runs the orphan scan first when none was made yet (true by default, D73): a level
+    /// computed on a click reuses the last one instead, else it waited minutes (D83).
+    #[serde(default = "default_scan")]
+    pub scan_leftovers: bool,
+}
+
+fn default_scan() -> bool {
+    true
 }
 
 fn default_depth() -> u8 {
@@ -500,6 +508,7 @@ mod tests {
         let request = DiskMapRequest {
             root: PathBuf::from(r"C:\"),
             max_depth: 3,
+            scan_leftovers: true,
         };
         build(&env, &request, total, free, &|_| {})
     }
@@ -604,6 +613,7 @@ mod tests {
         let request = DiskMapRequest {
             root: PathBuf::from(r"C:\Users\Ana"),
             max_depth: 3,
+            scan_leftovers: true,
         };
         let map = build(&env, &request, 100_000 * MB, 10_000 * MB, &|_| {});
         assert!(
@@ -694,6 +704,7 @@ mod tests {
             &DiskMapRequest {
                 root: PathBuf::from(r"C:\"),
                 max_depth: 2,
+                scan_leftovers: true,
             },
             0,
             0,

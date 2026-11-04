@@ -400,7 +400,7 @@ public enum StorageCategory
 /// <summary>Request of <c>cs_disk_map</c> (D73).</summary>
 /// <param name="Root">Root of the drive, « C:\ ».</param>
 /// <param name="MaxDepth">Levels kept below the root, 1 to 3.</param>
-public sealed record DiskMapRequest(string Root, byte MaxDepth = 3);
+public sealed record DiskMapRequest(string Root, byte MaxDepth = 3, bool ScanLeftovers = true);
 
 /// <summary>One rectangle of the storage map: a folder, a big file or a group of small items.</summary>
 public sealed record DiskMapNode(
@@ -458,6 +458,7 @@ public sealed record DiskMapProgress(ulong Files, ulong Bytes, string Current);
 [JsonSerializable(typeof(EngineResponse<List<RecycleBinInfo>>))]
 [JsonSerializable(typeof(EngineResponse<List<VolumeInfo>>))]
 [JsonSerializable(typeof(EngineResponse<List<DiskInfo>>))]
+[JsonSerializable(typeof(EngineResponse<List<FolderEntry>>))]
 [JsonSerializable(typeof(EngineResponse<List<string>>))]
 [JsonSerializable(typeof(EngineResponse<List<SystemItem>>))]
 [JsonSerializable(typeof(EngineResponse<Zone>))]

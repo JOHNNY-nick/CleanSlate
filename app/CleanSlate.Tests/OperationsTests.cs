@@ -129,7 +129,10 @@ public sealed partial class OperationsTests
     private static DiskMapNode Folder(string path, ulong size, bool? hasFolders, params DiskMapNode[] children) =>
         new(Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } n ? n : path, path, size, 1, StorageCategory.UserFiles, children, false, true, hasFolders);
 
-    private static (StorageMapViewModel Vm, IEngineService Engine, INavigationService Navigation, IStorageService Storage) Map(DiskMap map)
+    private static (StorageMapViewModel Vm, IEngineService Engine, INavigationService Navigation, IStorageService Storage) Map(DiskMap map) =>
+        Map(map, Substitute.For<IManagerService>(), Substitute.For<IDialogService>(), expert: false);
+
+    private static (StorageMapViewModel Vm, IEngineService Engine, INavigationService Navigation, IStorageService Storage) Map(DiskMap map, IManagerService manager, IDialogService dialogs, bool expert)
     {
         var storage = Substitute.For<IStorageService>();
         storage.Drives().Returns([new DriveSpace("C:", 512 * Gb, 100 * Gb)]);
@@ -137,7 +140,11 @@ public sealed partial class OperationsTests
         storage.Journal().Returns([]);
         var engine = Substitute.For<IEngineService>();
         var navigation = Substitute.For<INavigationService>();
-        var vm = new StorageMapViewModel(engine, storage, navigation, new OperationService());
+        storage.MeasureAsync(Arg.Any<StorageOperation>(), Arg.Any<Func<ActionResult, string>>(), Arg.Any<Func<Task<ActionResult>>>(), Arg.Any<Func<ActionResult, ulong>>(), Arg.Any<Func<ActionResult, Guid?>?>())
+            .Returns(call => call.ArgAt<Func<Task<ActionResult>>>(2)());
+        ISettingsService settings = OrphansViewModelTests.Settings();
+        settings.ExpertMode.Returns(expert);
+        var vm = new StorageMapViewModel(engine, storage, navigation, new OperationService(), manager, dialogs, settings);
         vm.Load();
         vm.Arrange(800, 500);
         return (vm, engine, navigation, storage);
@@ -169,12 +176,6 @@ public sealed partial class OperationsTests
         Assert.True(vm.Tiles.Single(t => t.Name == "CapCut").IsLoading);
         Assert.Equal(string.Empty, vm.ErrorText);
 
-        // A terminal folder: a single click does nothing, a double-click opens its files.
-        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Videos"), TestContext.Current.CancellationToken);
-        navigation.DidNotReceive().OpenManager(Arg.Any<string>());
-        vm.DoubleClick(vm.Tiles.Single(t => t.Name == "Videos"));
-        navigation.Received(1).OpenManager(@"C:\Users\Videos");
-
         // The user goes back to C: before the level arrives: he stays there.
         vm.GoTo(vm.Breadcrumb[0]);
         detail.SetResult(new DiskMap(Folder(@"C:\Users\CapCut", 60 * Gb, true, Folder(@"C:\Users\CapCut\Cache", 60 * Gb, false)), 512 * Gb, 100 * Gb, 0, 1, false));
@@ -189,19 +190,68 @@ public sealed partial class OperationsTests
         await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Point 5: back from the Gestionnaire, the map is at the same place; right-click « Voir les fichiers » on any folder.</summary>
-    [Fact]
-    public async Task BackToTheMap_ItIsAtTheSamePlace_AndAnyFolderShowsItsFiles()
-    {
-        var (vm, _, navigation, _) = Map(Drive());
-        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+    private static FolderEntry Entry(string path, bool folder, ulong? size, Zone zone = Zone.Normal) =>
+        new(Path.GetFileName(path), path, folder, size, new DateTimeOffset(2026, 11, 2, 10, 0, 0, TimeSpan.Zero), FileCategory.Videos, zone);
 
-        vm.ShowFiles(vm.Tiles.Single(t => t.Name == "CapCut"));
-        navigation.Received(1).OpenManager(@"C:\Users\CapCut");
+    /// <summary>
+    /// D83: under the map, the folder it shows as a list, largest first, with the sizes the map
+    /// already has; a folder of the list opens on both sides, and back on the page the map and
+    /// the list are where they were.
+    /// </summary>
+    [Fact]
+    public async Task TheExplorer_FollowsTheMap_AndOpensAFolderOnBothSides()
+    {
+        var manager = Substitute.For<IManagerService>();
+        manager.ListFolderAsync(@"C:\Users", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns([Entry(@"C:\Users\notes.txt", false, Gb), Entry(@"C:\Users\Videos", true, null), Entry(@"C:\Users\CapCut", true, null)]);
+        manager.ListFolderAsync(@"C:\Users\Videos", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns([Entry(@"C:\Users\Videos\film.mp4", false, 40 * Gb)]);
+        var (vm, _, navigation, _) = Map(Drive(), manager, Substitute.For<IDialogService>(), expert: false);
+
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+        await vm.ListingTask;
+        Assert.Equal(@"C:\Users", vm.FolderText);
+        Assert.Equal(["CapCut", "Videos", "notes.txt"], vm.Entries.Select(e => e.Name));
+        Assert.Equal(Formats.Size(60 * Gb), vm.Entries[0].SizeText); // the size of the map
+        await manager.Received(1).ListFolderAsync(@"C:\Users", Arg.Is<IReadOnlyList<string>>(k => k.Count == 2), Arg.Any<CancellationToken>());
+
+        await vm.OpenEntryAsync(vm.Entries.Single(e => e.Name == "Videos"), TestContext.Current.CancellationToken);
+        await vm.ListingTask;
+        Assert.Equal(["C:", "Users", "Videos"], vm.Breadcrumb.Select(b => b.Name));
+        Assert.Equal("film.mp4", Assert.Single(vm.Entries).Name);
+        Assert.Equal("Vidéos · .mp4", vm.Entries[0].TypeText);
 
         vm.Load(); // the page is shown again
-        Assert.Equal(["C:", "Users"], vm.Breadcrumb.Select(b => b.Name));
-        Assert.Contains(vm.Tiles, t => t.Name == "CapCut");
+        Assert.Equal(["C:", "Users", "Videos"], vm.Breadcrumb.Select(b => b.Name));
+        Assert.Empty(navigation.ReceivedCalls());
+    }
+
+    /// <summary>D83: the checked files are deleted after the confirmation; a sensitive one needs the expert mode first.</summary>
+    [Fact]
+    public async Task TheExplorer_DeletesTheCheckedFiles_AfterTheConfirmation()
+    {
+        var manager = Substitute.For<IManagerService>();
+        manager.ListFolderAsync(@"C:\Users\Videos", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns([Entry(@"C:\Users\Videos\film.mp4", false, 40 * Gb), Entry(@"C:\Users\Videos\system.dll", false, Gb, Zone.Sensitive)]);
+        manager.DeleteAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<DeleteMode>(), Arg.Any<ManualAction>(), Arg.Any<CancellationToken>()).Returns(new ActionResult([], 0, 0, false));
+        var dialogs = Substitute.For<IDialogService>();
+        dialogs.ConfirmManagerAsync(Arg.Any<ManagerSummary>()).Returns(new ManagerDecision(true, DeleteMode.Immediate));
+        var (vm, _, _, _) = Map(Drive(), manager, dialogs, expert: false);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Videos"), TestContext.Current.CancellationToken);
+        await vm.ListingTask;
+
+        vm.CheckAllCommand.Execute(null);
+        await vm.DeleteCheckedCommand.ExecuteAsync(null);
+        await dialogs.DidNotReceive().ConfirmManagerAsync(Arg.Any<ManagerSummary>());
+        Assert.Contains("mode expert", vm.ExplorerResult);
+
+        vm.UncheckAllCommand.Execute(null);
+        await vm.OpenEntryAsync(vm.Entries.Single(e => e.Name == "film.mp4"), TestContext.Current.CancellationToken); // a click checks a file
+        await vm.DeleteCheckedCommand.ExecuteAsync(null);
+        await dialogs.Received(1).ConfirmManagerAsync(Arg.Is<ManagerSummary>(m => m.ItemCount == 1 && m.OfferModes));
+        await manager.Received(1).DeleteAsync(Arg.Is<IReadOnlyList<string>>(p => p.Single() == @"C:\Users\Videos\film.mp4"), DeleteMode.Immediate, Arg.Any<ManualAction>(), Arg.Any<CancellationToken>());
+        await manager.Received(2).ListFolderAsync(@"C:\Users\Videos", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>()); // read again
     }
 
     /// <summary>Point 3: during an analysis the button says so, and the indicator shows it on every page.</summary>

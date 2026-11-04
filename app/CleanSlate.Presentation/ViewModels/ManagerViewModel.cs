@@ -140,10 +140,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         _navigation = navigation;
     }
 
-    /// <summary>Most files listed for one folder (« Voir les fichiers », D82).</summary>
-    public const int FolderFilesMax = 5000;
-
-    /// <summary>Tab shown: 0 Diagnostic, 1 Explorateur, 2 Catégories, 3 Gros fichiers, 4 Fichiers anciens, 5 Doublons, 6 Système, 7 En attente, 8 Évolution, 9 Volumes.</summary>
+    /// <summary>Tab shown: 0 Diagnostic, 1 Recherche, 2 Catégories, 3 Gros fichiers, 4 Fichiers anciens, 5 Doublons, 6 Système, 7 En attente, 8 Évolution, 9 Volumes.</summary>
     [ObservableProperty]
     private int _tabIndex;
 
@@ -185,21 +182,6 @@ public sealed partial class ManagerViewModel : ObservableObject
 
     /// <summary>Files found by the search, largest first.</summary>
     public ObservableCollection<ManagerRow> Found { get; } = [];
-
-    /// <summary>Folder opened from the storage map (D82), or empty: the Explorateur then searches.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasFolder))]
-    private string _folderPath = string.Empty;
-
-    /// <summary>A folder is open in the Explorateur.</summary>
-    public bool HasFolder => FolderPath.Length > 0;
-
-    /// <summary>« 42 fichiers · 3,1 Go, du plus gros au plus petit ».</summary>
-    [ObservableProperty]
-    private string _folderSummary = string.Empty;
-
-    /// <summary>Every file of the open folder, largest first: size, date and type.</summary>
-    public ObservableCollection<ManagerRow> FolderFiles { get; } = [];
 
     /// <summary>The analysis of the drive runs: « Analyser » becomes « Analyse en cours… (Annuler) ».</summary>
     [ObservableProperty]
@@ -278,69 +260,7 @@ public sealed partial class ManagerViewModel : ObservableObject
 
         Diagnose();
 
-        // Opened from the storage map (D82): the files of that folder, in the Explorateur.
-        if (_navigation.TakeManagerFolder() is { } folder)
-        {
-            await OpenFolderAsync(folder, cancellationToken);
-        }
     }
-
-    /// <summary>
-    /// Lists every file of <paramref name="folder"/> in the Explorateur (read-only), largest
-    /// first, to choose what to delete with the actions of the bar.
-    /// </summary>
-    public async Task OpenFolderAsync(string folder, CancellationToken cancellationToken = default)
-    {
-        TabIndex = 1;
-        FolderPath = folder;
-        FolderSummary = "Lecture du dossier…";
-        FolderFiles.Clear();
-        using IDisposable operation = _operations.Begin($"Lecture de {folder}", "Manager");
-        try
-        {
-            StorageAnalysis files = await _manager.ListFilesAsync(folder, FolderFilesMax, null, cancellationToken);
-            Fill(FolderFiles, files.Largest.OrderByDescending(f => f.SizeBytes).Select(FolderRow));
-            string more = files.Files > (ulong)FolderFiles.Count ? string.Format(French, " (les {0:N0} plus gros)", FolderFiles.Count) : string.Empty;
-            FolderSummary = string.Format(French, "{0:N0} fichier(s) · {1}{2}, du plus gros au plus petit", files.Files, Formats.Size(files.SizeBytes), more);
-        }
-        catch (EngineException ex)
-        {
-            FolderSummary = ex.Message;
-        }
-    }
-
-    /// <summary>Checks every file of the open folder.</summary>
-    [RelayCommand]
-    private void CheckAllFolder()
-    {
-        foreach (ManagerRow row in FolderFiles)
-        {
-            row.IsChecked = true;
-        }
-    }
-
-    /// <summary>Unchecks every file of the open folder.</summary>
-    [RelayCommand]
-    private void UncheckAllFolder()
-    {
-        foreach (ManagerRow row in FolderFiles)
-        {
-            row.IsChecked = false;
-        }
-    }
-
-    /// <summary>Closes the folder: the Explorateur searches the analysis again.</summary>
-    [RelayCommand]
-    private void CloseFolder()
-    {
-        FolderPath = string.Empty;
-        FolderSummary = string.Empty;
-        FolderFiles.Clear();
-    }
-
-    /// <summary>Back to the storage map, at the place it was left (D82).</summary>
-    [RelayCommand]
-    private void BackToMap() => _navigation.OpenStorage();
 
     /// <summary>Walks C: (read-only), with progress and cancel.</summary>
     [RelayCommand(IncludeCancelCommand = true)]
@@ -842,7 +762,6 @@ public sealed partial class ManagerViewModel : ObservableObject
                 CategoryFiles.Remove(row);
                 DuplicateCopies.Remove(row);
                 Found.Remove(row);
-                FolderFiles.Remove(row);
             }
         });
     }
@@ -906,7 +825,7 @@ public sealed partial class ManagerViewModel : ObservableObject
     }
 
     private IEnumerable<ManagerRow> Checked() =>
-        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Concat(Found).Concat(FolderFiles).Where(r => r.IsChecked).DistinctBy(r => r.Path);
+        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Concat(Found).Where(r => r.IsChecked).DistinctBy(r => r.Path);
 
     private void Each(Action<string> action)
     {
@@ -918,11 +837,11 @@ public sealed partial class ManagerViewModel : ObservableObject
 
     private static ManagerRow Row(FileEntry f) => new(f.Path, f.SizeBytes, f.Modified, f.Zone, CategoryName(f.Category));
 
-    // A file of an open folder: its type is its category and its extension (« Vidéos · .mp4 »).
-    private static ManagerRow FolderRow(FileEntry f)
+    /// <summary>Type of a file: its category and its extension, « Vidéos · .mp4 » (D82).</summary>
+    public static string TypeText(string path, FileCategory category)
     {
-        string extension = Path.GetExtension(f.Path);
-        return new(f.Path, f.SizeBytes, f.Modified, f.Zone, extension.Length > 0 ? $"{CategoryName(f.Category)} · {extension.ToLowerInvariant()}" : CategoryName(f.Category));
+        string extension = Path.GetExtension(path);
+        return extension.Length > 0 ? $"{CategoryName(category)} · {extension.ToLowerInvariant()}" : CategoryName(category);
     }
 
     private static async Task<IReadOnlyList<T>> Optional<T>(Func<Task<IReadOnlyList<T>>> read)

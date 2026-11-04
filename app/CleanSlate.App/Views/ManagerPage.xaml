@@ -135,33 +135,16 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 1 Explorateur: a folder opened from the storage map (D82), or a search -->
+            <!-- 1 Recherche: a file by its name among the files analyzed (D83: the files of a folder are on the Stockage page) -->
             <Grid x:Name="Tab1" RowSpacing="8" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.HasFolder, Mode=OneWay}">
-                    <Grid ColumnSpacing="12" RowSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Spacing="2">
-                            <TextBlock FontFamily="{StaticResource PathFontFamily}" FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind ViewModel.FolderPath, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind ViewModel.FolderPath, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.FolderSummary, Mode=OneWay}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Button x:Uid="ManagerBackToMap" Command="{x:Bind ViewModel.BackToMapCommand}" Style="{StaticResource MainButtonStyle}" />
-                            <Button x:Uid="ManagerCheckAll" Command="{x:Bind ViewModel.CheckAllFolderCommand}" />
-                            <Button x:Uid="ManagerUncheckAll" Command="{x:Bind ViewModel.UncheckAllFolderCommand}" />
-                            <Button x:Uid="ManagerCloseFolder" Command="{x:Bind ViewModel.CloseFolderCommand}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-                <TextBox x:Uid="ManagerSearch" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind conv:Visible.Not(ViewModel.HasFolder), Mode=OneWay}" />
-                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.FolderFiles}" SelectionMode="None" Visibility="{x:Bind ViewModel.HasFolder, Mode=OneWay}" />
-                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" Visibility="{x:Bind conv:Visible.Not(ViewModel.HasFolder), Mode=OneWay}" />
+                <TextBlock x:Uid="ManagerSearchHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                <TextBox x:Uid="ManagerSearch" Grid.Row="1" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <ListView Grid.Row="2" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" />
             </Grid>
 
             <!-- 2 Catégories -->

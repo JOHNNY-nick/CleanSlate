@@ -36,6 +36,8 @@ public sealed class DiskMapJsonTests
     {
         string json = JsonSerializer.Serialize(new DiskMapRequest(@"C:\"), EngineJsonContext.Default.DiskMapRequest);
 
-        Assert.Equal("""{"root":"C:\\","max_depth":3}""", json);
+        Assert.Equal("""{"root":"C:\\","max_depth":3,"scan_leftovers":true}""", json);
+        // A level computed on a click reuses the last orphan scan (D83).
+        Assert.Contains("\"scan_leftovers\":false", JsonSerializer.Serialize(new DiskMapRequest(@"C:\Users", ScanLeftovers: false), EngineJsonContext.Default.DiskMapRequest));
     }
 }

@@ -149,13 +149,12 @@ internal static class Capture
     // Every tab of the Gestionnaire (D82: the « Carte » tab is gone, the map is the Stockage page).
     private static async Task Tabs(MainWindow window, ManagerViewModel vm, string folder, string prefix, List<string> log)
     {
-        string[] names = ["diagnostic", "explorateur", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
+        string[] names = ["diagnostic", "recherche", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
         for (int i = 0; i < names.Length; i++)
         {
             vm.TabIndex = i;
             if (i == 1)
             {
-                vm.CloseFolderCommand.Execute(null);
                 vm.Search = "Downloads";
             }
 
@@ -177,10 +176,10 @@ internal static class Capture
         }
     }
 
-    // The corrections after the first use (D82), in Multicolore: the menu in its three
-    // markings (7, 8), an analysis seen from another page and on the way back (3), every tab
-    // of the Gestionnaire and the help of its actions (2, 6), and the map down to a terminal
-    // folder, opened by a double-click in the Explorateur, then back to the map (4, 5).
+    // The corrections after the first use (D82, D83), in Multicolore: the menu in its three
+    // markings and its button (7, 8), an analysis seen from another page and on the way back
+    // (3), every tab of the Gestionnaire and the help of its actions (2, 6), and the map with
+    // the explorer under it, down to a terminal folder (4, 5, D83).
     private static async Task Corrections(MainWindow window, string folder, ISettingsService settings, List<string> log)
     {
         Directory.CreateDirectory(folder);
@@ -199,6 +198,18 @@ internal static class Capture
         }
 
         window.Marker = MainWindow.NavMarker.Sticker;
+
+        // 8: the menu button in Clair and Sombre too (D83: no offset shadow out of Multicolore).
+        foreach ((AppTheme theme, string name) in new[] { (AppTheme.Light, "clair"), (AppTheme.Dark, "sombre") })
+        {
+            settings.Theme = theme;
+            await Task.Delay(1000);
+            await Show(window, "Home");
+            await Save(window, Path.Combine(folder, $"bouton-menu-{name}.png"), log);
+        }
+
+        settings.Theme = AppTheme.Colorful;
+        await Task.Delay(1000);
 
         // 3: an analysis keeps running when the page is left, and is found again.
         await Show(window, "Manager");
@@ -227,7 +238,8 @@ internal static class Capture
             help.Hide();
         }
 
-        // 4, 5: the map, down to a terminal folder (or a file), a double-click, and back.
+        // D83: the map and the explorer under it, level after level: Program Files (x86) and
+        // an application folder (browsed now), then down the largest folders to a terminal one.
         await Show(window, "Storage");
         await Task.Delay(1500);
         if (window.CurrentPage is not StoragePage storage)
@@ -237,33 +249,57 @@ internal static class Capture
         }
 
         StorageMapViewModel map = storage.ViewModel;
-        StorageTile? terminal = null;
-        for (int level = 0; level < 8 && terminal is null; level++)
+        for (int wait = 0; wait < 40 && map.Tiles.Count == 0; wait++)
         {
-            terminal = map.Tiles.Where(t => !t.Node.IsGroup && map.IsTerminal(t.Node)).MaxBy(t => t.Node.SizeBytes)
-                ?? (level >= 5 ? map.Tiles.Where(t => !t.Node.IsGroup && !t.Node.IsFolder).MaxBy(t => t.Node.SizeBytes) : null);
-            if (terminal is null && map.Tiles.Where(t => t.Node.IsFolder && !t.Node.IsGroup).MaxBy(t => t.Node.SizeBytes) is { } next)
+            await Task.Delay(250); // the map is laid out once its area has a size
+        }
+
+        ScrollViewer? scroll = PaintDecorator.Descendants(storage).OfType<ScrollViewer>().FirstOrDefault();
+        async Task Both(string name)
+        {
+            await map.ListingTask;
+            scroll?.ChangeView(null, 0, null, true);
+            await Save(window, Path.Combine(folder, $"carte-{name}.png"), log);
+            scroll?.ChangeView(null, scroll.ScrollableHeight, null, true);
+            await Save(window, Path.Combine(folder, $"explorateur-{name}.png"), log);
+        }
+
+        if (map.Tiles.Where(t => t.Name.StartsWith("Program Files", StringComparison.OrdinalIgnoreCase)).MaxBy(t => t.Node.SizeBytes) is { } programs)
+        {
+            await map.OpenAsync(programs);
+            await Both("program-files");
+            if (map.Tiles.Where(t => t.Node.IsFolder && !t.Node.IsGroup).MaxBy(t => t.Node.SizeBytes) is { } application)
             {
-                await map.OpenAsync(next);
-                await Save(window, Path.Combine(folder, $"carte-niveau-{level + 1}.png"), log);
+                log.Add($"application : {application.Node.Path}");
+                await map.OpenAsync(application);
+                await Both("application");
             }
         }
 
-        if (terminal is null)
+        map.GoTo(map.Breadcrumb[0]);
+        for (int level = 0; level < 8; level++)
         {
-            log.Add("aucun dossier terminal trouvé sur la carte");
-            return;
+            if (map.Tiles.Where(t => !t.Node.IsGroup && map.IsTerminal(t.Node)).MaxBy(t => t.Node.SizeBytes) is { } terminal)
+            {
+                log.Add($"dossier terminal : {terminal.Node.Path}");
+                await map.OpenAsync(terminal);
+                await Both("dossier-terminal");
+                break;
+            }
+
+            if (map.Tiles.Where(t => t.Node.IsFolder && !t.Node.IsGroup).MaxBy(t => t.Node.SizeBytes) is not { } next)
+            {
+                break;
+            }
+
+            await map.OpenAsync(next);
+            await Both($"niveau-{level + 1}");
         }
 
-        log.Add($"double-clic sur {terminal.Node.Path}");
-        map.DoubleClick(terminal);
-        for (int wait = 0; wait < 120 && (window.CurrentPage is not ManagerPage || manager.FolderSummary.StartsWith("Lecture", StringComparison.Ordinal) || !manager.HasFolder); wait++)
-        {
-            await Task.Delay(500);
-        }
-
-        await Save(window, Path.Combine(folder, "explorateur-dossier-terminal.png"), log);
-        manager.BackToMapCommand.Execute(null);
+        // Back on the page: the same place (the ViewModel outlives the page).
+        await Show(window, "Home");
+        await Show(window, "Storage");
+        await Task.Delay(1500);
         await Save(window, Path.Combine(folder, "carte-retour-meme-endroit.png"), log);
     }
 

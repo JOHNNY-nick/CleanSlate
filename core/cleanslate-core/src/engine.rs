@@ -284,6 +284,9 @@ impl Engine {
         let zones = Zones::new(&self.folders);
         let fs = self.fs.as_ref();
         let value = match request {
+            ManagerRequest::ListFolder { path, known } => serde_json::to_value(
+                manager::list_folder(fs, &zones, std::path::Path::new(path), known)?,
+            )?,
             ManagerRequest::Zone { path } => {
                 serde_json::to_value(zones.path_zone(std::path::Path::new(path))?)?
             }
@@ -555,7 +558,7 @@ impl Engine {
             .lock()
             .map(|l| !l.is_empty())
             .unwrap_or(false);
-        if !has_report {
+        if !has_report && request.scan_leftovers {
             self.scan_orphans_unguarded(&ScanOptions::default(), &|_| {})?;
         }
         let leftovers: Vec<String> = self
@@ -1294,6 +1297,36 @@ mod tests {
         );
     }
 
+    /// D83: a level of the map computed on a click never runs the long orphan scan first.
+    #[test]
+    fn a_level_computed_on_a_click_does_not_scan_the_leftovers() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("VirtualBox VMs")).unwrap();
+        std::fs::write(
+            dir.path().join("VirtualBox VMs").join("disk.vdi"),
+            vec![0u8; 4096],
+        )
+        .unwrap();
+        let area = TestRegistryKey::new();
+        let engine = Engine::with_folders(
+            EngineConfig::default(),
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            KnownFolders::under(dir.path()),
+        );
+        let request = DiskMapRequest {
+            root: dir.path().join("VirtualBox VMs"),
+            max_depth: 3,
+            scan_leftovers: false,
+        };
+        let map = engine.disk_map(&request, &|_| {}).unwrap();
+        assert!(map.root.size_bytes >= 4096);
+        assert!(
+            engine.last_report.lock().unwrap().is_empty(),
+            "no orphan scan for a level"
+        );
+    }
+
     /// D73: the storage map finds the leftovers by itself (read-only orphan scan) and shows
     /// them as recoverable; a map after a clean sees the folder gone.
     #[test]
@@ -1324,6 +1357,7 @@ mod tests {
         let request = DiskMapRequest {
             root: base.clone(),
             max_depth: 3,
+            scan_leftovers: true,
         };
         fn find<'a>(
             n: &'a crate::disk_map::DiskMapNode,

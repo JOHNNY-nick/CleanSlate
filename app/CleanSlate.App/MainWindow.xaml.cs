@@ -518,8 +518,10 @@ public sealed partial class MainWindow : Window
         MenuToggleShadow.Margin = new Thickness(shift, shift, -shift, -shift);
         var ink = _paint?.Ink ?? Converters.StorageCategoryBrushConverter.Themed("TextPrimaryBrush") as Microsoft.UI.Xaml.Media.Brush;
         var paper = _paint?.Paper ?? Converters.StorageCategoryBrushConverter.Themed("ContentSurfaceBrush") as Microsoft.UI.Xaml.Media.Brush;
+        // The offset shadow belongs to the stickers of Multicolore; in Clair and Sombre it read
+        // as a frame out of place (owner, 4 Nov. 2026): the bubble alone, outline and surface.
         MenuToggleShadow.Background = ink;
-        MenuToggleShadow.Opacity = IsPainted ? 1 : 0.35;
+        MenuToggleShadow.Visibility = IsPainted ? Visibility.Visible : Visibility.Collapsed;
         MenuToggleButton.Background = paper;
         MenuToggleButton.BorderBrush = ink;
         MenuToggleButton.Foreground = ink;

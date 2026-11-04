@@ -128,6 +128,16 @@ public sealed record RecycleBinInfo(string Drive, ulong SizeBytes, ulong Items);
 /// <summary>A drive or partition (display only).</summary>
 public sealed record VolumeInfo(string Root, string Label, string FileSystem, string Kind, ulong TotalBytes, ulong FreeBytes);
 
+/// <summary>A child of a folder, in the explorer under the storage map (D83).</summary>
+/// <param name="Name">Name.</param>
+/// <param name="Path">Full path.</param>
+/// <param name="IsFolder">A folder.</param>
+/// <param name="SizeBytes">Bytes on the disk; null for a folder whose size the map has.</param>
+/// <param name="Modified">Last modification.</param>
+/// <param name="Category">Category of a file.</param>
+/// <param name="Zone">Sensitive zone or not.</param>
+public sealed record FolderEntry(string Name, string Path, bool IsFolder, ulong? SizeBytes, DateTimeOffset? Modified, FileCategory Category, Zone Zone);
+
 /// <summary>A physical disk and its unallocated space (display only).</summary>
 public sealed record DiskInfo(uint Number, string Name, ulong SizeBytes, ulong UnallocatedBytes);
 

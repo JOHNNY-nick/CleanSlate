@@ -20,7 +20,7 @@ public sealed class StorageMapTests
             Node(@"C:\Windows", 40 * Gb, StorageCategory.System),
             Node(@"C:\Program Files", 120 * Gb, StorageCategory.Applications,
                 Node(@"C:\Program Files\VideoLAN", 1 * Gb, StorageCategory.Applications),
-                Node(@"C:\Program Files\Steam", 119 * Gb, StorageCategory.Applications)),
+                Node(@"C:\Program Files\Steam", 119 * Gb, StorageCategory.Applications) with { HasFolders = false }),
             Node(@"C:\Users", 250 * Gb, StorageCategory.UserFiles,
                 Node(@"C:\Users\Ana", 250 * Gb, StorageCategory.UserFiles,
                     Node(@"C:\Users\Ana\AppData", 50 * Gb, StorageCategory.Other,
@@ -89,7 +89,7 @@ public sealed class StorageMapTests
         var engine = Substitute.For<IEngineService>();
         engine.DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>()).Returns(Machine());
         var navigation = Substitute.For<INavigationService>();
-        return (new StorageMapViewModel(engine, storage, navigation, new OperationService()), storage, navigation);
+        return (new StorageMapViewModel(engine, storage, navigation, new OperationService(), NoFiles(), Substitute.For<IDialogService>(), OrphansViewModelTests.Settings()), storage, navigation);
     }
 
     [Fact]
@@ -150,8 +150,9 @@ public sealed class StorageMapTests
         Assert.Equal(["C:"], vm.Breadcrumb.Select(b => b.Name));
     }
 
+    /// <summary>Leftovers open their page; an application folder is browsed like any other (D83).</summary>
     [Fact]
-    public async Task Clicking_LeftoversOrAnApplication_OpensItsPage()
+    public async Task Clicking_Leftovers_OpensItsPage_AndAnApplicationFolderIsBrowsed()
     {
         var (vm, _, navigation) = Create(Machine());
         vm.Load();
@@ -166,6 +167,10 @@ public sealed class StorageMapTests
         vm.GoTo(vm.Breadcrumb[0]);
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Program Files"), TestContext.Current.CancellationToken);
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Steam"), TestContext.Current.CancellationToken);
+        navigation.DidNotReceive().OpenApps();
+        Assert.Equal("Steam", vm.Breadcrumb[^1].Name);
+        Assert.True(vm.IsApplicationFolder, "the explorer links to Applications");
+        vm.OpenAppsCommand.Execute(null);
         navigation.Received(1).OpenApps();
     }
 
@@ -233,7 +238,7 @@ public sealed class StorageMapTests
         var engine = Substitute.For<IEngineService>();
         engine.DiskMapAsync(Arg.Is<DiskMapRequest>(r => r.Root == downloads.Path), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new DiskMap(detail, 512 * Gb, 100 * Gb, 0, 1, false));
-        vm = new StorageMapViewModel(engine, StorageOf(map), navigation, new OperationService());
+        vm = new StorageMapViewModel(engine, StorageOf(map), navigation, new OperationService(), NoFiles(), Substitute.For<IDialogService>(), OrphansViewModelTests.Settings());
         vm.Load();
         vm.Arrange(800, 500);
 
@@ -242,24 +247,22 @@ public sealed class StorageMapTests
         Assert.Equal(["C:", "Downloads"], vm.Breadcrumb.Select(b => b.Name));
         StorageTile tile = Assert.Single(vm.Tiles);
         Assert.Equal("Setups", tile.Name);
-        Assert.Contains("Gestionnaire", tile.ToolTip);
+        Assert.Contains("Clic : ouvrir ce dossier", tile.ToolTip);
 
         // Back up and down again: the detail is kept for the session, computed once.
         vm.GoTo(vm.Breadcrumb[0]);
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Downloads"), TestContext.Current.CancellationToken);
         await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
 
-        // A terminal folder opens the Gestionnaire with its files on a double-click (D82), without a new map.
+        // A terminal folder opens on the map too, without a new map (D83): its files are listed under it.
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Setups"), TestContext.Current.CancellationToken);
-        navigation.DidNotReceive().OpenManager(Arg.Any<string>());
-        vm.DoubleClick(vm.Tiles.Single(t => t.Name == "Setups"));
-        navigation.Received(1).OpenManager(setups.Path);
+        Assert.Equal(["C:", "Downloads", "Setups"], vm.Breadcrumb.Select(b => b.Name));
         await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>D81: a file opens the Gestionnaire on its folder; a small rectangle still shows its name.</summary>
     [Fact]
-    public void AFile_OpensTheGestionnaireOnItsFolder_AndSmallRectanglesShowTheirName()
+    public async Task AFile_StaysOnThePage_AndSmallRectanglesShowTheirName()
     {
         var file = new DiskMapNode("film.mp4", @"C:\Users\Ana\Videos\film.mp4", 10 * Gb, 1, StorageCategory.UserFiles, [], false, false);
         var tiny = Node(@"C:\Users\Ana\Videos\Clips", 1 * Gb, StorageCategory.UserFiles) with { HasFolders = false };
@@ -272,8 +275,17 @@ public sealed class StorageMapTests
         Assert.True(small.ShowLabel, $"{small.Width} x {small.Height}: the name is shown");
         Assert.False(small.ShowSize);
 
-        vm.DoubleClick(vm.Tiles.Single(t => t.Name == "film.mp4"));
-        navigation.Received(1).OpenManager(@"C:\Users\Ana\Videos");
+        // A file is checked in the list under the map: its rectangle leads nowhere else (D83).
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "film.mp4"), TestContext.Current.CancellationToken);
+        Assert.Empty(navigation.ReceivedCalls());
+        Assert.Contains("liste", vm.Tiles.Single(t => t.Name == "film.mp4").ToolTip);
+    }
+
+    private static IManagerService NoFiles()
+    {
+        var manager = Substitute.For<IManagerService>();
+        manager.ListFolderAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>()).Returns([]);
+        return manager;
     }
 
     private static IStorageService StorageOf(DiskMap map)

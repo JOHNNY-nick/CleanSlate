@@ -53,7 +53,6 @@ public sealed class ManagerViewModelTests
         settings.ExpertMode.Returns(expert);
         var engine = Substitute.For<IEngineService>();
         engine.PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>()).Returns(new PurgeResult(0, false));
-        manager.ListFilesAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>()).Returns(Analysis());
         var vm = new ManagerViewModel(manager, storage, dialogs, settings, engine, navigation ?? Substitute.For<INavigationService>(), new OperationService());
         return (vm, manager, dialogs, settings);
     }
@@ -170,30 +169,11 @@ public sealed class ManagerViewModelTests
         Assert.True(history.HasManagerActions);
     }
 
-    /// <summary>
-    /// D82: a folder of the storage map opens in the Explorateur with all its files, largest
-    /// first, with their size, date and type; the analysis of the drive is left as it was.
-    /// </summary>
+    /// <summary>D82, D83: the type of a file is its category and its extension.</summary>
     [Fact]
-    public async Task AFolderFromTheMap_ListsAllItsFiles_InTheExplorer()
+    public void TheTypeOfAFile_IsItsCategoryAndItsExtension()
     {
-        var navigation = Substitute.For<INavigationService>();
-        navigation.TakeManagerFolder().Returns(@"C:\Users\Ana\Downloads\Setups", (string?)null);
-        var (vm, manager, _, _) = Create(navigation: navigation);
-
-        await vm.LoadCommand.ExecuteAsync(null);
-
-        await manager.Received(1).ListFilesAsync(@"C:\Users\Ana\Downloads\Setups", ManagerViewModel.FolderFilesMax, Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
-        await manager.DidNotReceive().AnalyzeAsync(Arg.Any<string>(), Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
-        Assert.Equal(1, vm.TabIndex);
-        Assert.True(vm.HasFolder);
-        Assert.Equal([@"C:\Windows\big.dll", @"C:\Users\Ana\Videos\film.mp4"], vm.FolderFiles.Select(f => f.Path));
-        Assert.Equal("Vidéos · .mp4", vm.FolderFiles[1].Detail);
-        Assert.Contains("du plus gros au plus petit", vm.FolderSummary);
-
-        vm.CheckAllFolderCommand.Execute(null);
-        Assert.All(vm.FolderFiles, f => Assert.True(f.IsChecked));
-        vm.BackToMapCommand.Execute(null);
-        navigation.Received(1).OpenStorage();
+        Assert.Equal("Vidéos · .mp4", ManagerViewModel.TypeText(@"C:\Users\Ana\Videos\Film.MP4", FileCategory.Videos));
+        Assert.Equal(ManagerViewModel.CategoryName(FileCategory.Other), ManagerViewModel.TypeText(@"C:\Users\Ana\LISEZMOI", FileCategory.Other));
     }
 }

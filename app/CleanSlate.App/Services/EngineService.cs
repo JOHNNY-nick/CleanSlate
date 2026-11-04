@@ -140,8 +140,8 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
         InTurn(() => Client.AnalyzeAsync(root, progress, cancellationToken: cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
-    public Task<StorageAnalysis> ListFilesAsync(string folder, int max, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken) =>
-        InTurn(() => Client.AnalyzeAsync(folder, progress, max, cancellationToken), cancellationToken);
+    public Task<IReadOnlyList<FolderEntry>> ListFolderAsync(string folder, IReadOnlyList<string> known, CancellationToken cancellationToken) =>
+        Client.ListFolderAsync(folder, known, cancellationToken); // quick and read-only: never waits for an analysis
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<DuplicateGroup>> DuplicatesAsync(IReadOnlyList<IReadOnlyList<string>> candidates, CancellationToken cancellationToken) =>

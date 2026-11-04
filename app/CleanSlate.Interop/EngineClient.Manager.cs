@@ -45,6 +45,10 @@ public sealed partial class EngineClient
     public async Task<IReadOnlyList<VolumeInfo>> VolumesAsync(CancellationToken cancellationToken = default) =>
         await Manager(Op("volumes"), EngineJsonContext.Default.EngineResponseListVolumeInfo, null, cancellationToken);
 
+    /// <summary>Children of <paramref name="folder"/> (read-only, D83); the folders of <paramref name="known"/> are not walked again.</summary>
+    public async Task<IReadOnlyList<FolderEntry>> ListFolderAsync(string folder, IReadOnlyList<string> known, CancellationToken cancellationToken = default) =>
+        await Manager(new JsonObject { ["op"] = "list_folder", ["path"] = folder, ["known"] = Strings(known) }, EngineJsonContext.Default.EngineResponseListFolderEntry, null, cancellationToken);
+
     /// <summary>Physical disks and their unallocated space.</summary>
     public async Task<IReadOnlyList<DiskInfo>> DisksAsync(CancellationToken cancellationToken = default) =>
         await Manager(Op("disks"), EngineJsonContext.Default.EngineResponseListDiskInfo, null, cancellationToken);

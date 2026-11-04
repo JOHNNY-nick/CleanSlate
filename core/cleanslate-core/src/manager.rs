@@ -361,6 +361,14 @@ pub enum ManagerRequest {
     PendingAtRestart,
     /// Items of the « Système » tab.
     SystemItems,
+    /// Children of a folder, for the explorer under the storage map (D83, read-only).
+    ListFolder {
+        /// Folder.
+        path: String,
+        /// Sub-folders whose size the map already has: not walked again.
+        #[serde(default)]
+        known: Vec<String>,
+    },
     /// Zone of a path.
     Zone {
         /// Path.
@@ -905,6 +913,71 @@ pub fn size_of(fs: &dyn FileSystem, path: &Path) -> u64 {
         Ok(meta) => meta.on_disk,
         Err(_) => 0,
     }
+}
+
+/// A child of a folder in the explorer under the storage map (D83).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FolderEntry {
+    /// Name.
+    pub name: String,
+    /// Full path.
+    pub path: String,
+    /// A folder (`false`: a file).
+    pub is_folder: bool,
+    /// Bytes taken on the disk; `None` for a folder whose size the map already has.
+    pub size_bytes: Option<u64>,
+    /// Last modification.
+    pub modified: Option<DateTime<Utc>>,
+    /// Category of a file (Other for a folder).
+    pub category: FileCategory,
+    /// Sensitive zone: deleting it needs the expert mode and « CONFIRMER » (D79).
+    pub zone: Zone,
+}
+
+/// Children of `folder` (read-only, D83): its folders and files, never a link or a junction
+/// (rule 6), largest first. A folder in `known` is not walked again (`size_bytes` is `None`).
+pub fn list_folder(
+    fs: &dyn FileSystem,
+    zones: &Zones,
+    folder: &Path,
+    known: &[String],
+) -> CoreResult<Vec<FolderEntry>> {
+    let mut entries: Vec<FolderEntry> = fs
+        .read_dir(folder)?
+        .into_iter()
+        .filter(|e| !e.metadata.is_reparse_point)
+        .map(|e| {
+            let is_folder = e.metadata.is_dir;
+            let path_text = e.path.to_string_lossy().into_owned();
+            let size_bytes = if !is_folder {
+                Some(e.metadata.on_disk)
+            } else if known.iter().any(|k| k.eq_ignore_ascii_case(&path_text)) {
+                None
+            } else {
+                Some(folder_size(fs, &e.path, |_| true).0)
+            };
+            FolderEntry {
+                name: e.name.to_string_lossy().into_owned(),
+                category: if is_folder {
+                    FileCategory::Other
+                } else {
+                    category_of(&e.path, &zones.folders)
+                },
+                zone: zones.path_zone(&e.path).unwrap_or(Zone::Sensitive),
+                path: path_text,
+                is_folder,
+                size_bytes,
+                modified: e.metadata.modified,
+            }
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        b.size_bytes
+            .unwrap_or(u64::MAX)
+            .cmp(&a.size_bytes.unwrap_or(u64::MAX))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(entries)
 }
 
 /// Deletes the paths of `request` (EF-23): each one authorized by `zones` right before
@@ -1877,6 +1950,38 @@ mod tests {
         ));
         assert!(!other_drive(r"D:\Q", &[r"C:\x".into(), r"d:\y".into()]));
         assert!(!other_drive(r"D:\Q", &[]));
+    }
+
+    /// D83: the explorer of the map lists folders and files, never a junction, and does not
+    /// walk again a folder the map knows.
+    #[test]
+    fn a_folder_lists_its_children_without_links() {
+        let (mut fs, folders) = machine();
+        fs.add_reparse_point(r"C:\Users\Ana\Videos\Trap");
+        let zones = Zones::new(&folders);
+        let list = list_folder(
+            &fs,
+            &zones,
+            Path::new(r"C:\Users\Ana"),
+            &[r"C:\Users\Ana\Videos".to_owned()],
+        )
+        .unwrap();
+        let videos = list.iter().find(|e| e.name == "Videos").unwrap();
+        assert!(
+            videos.is_folder && videos.size_bytes.is_none(),
+            "known by the map"
+        );
+        let downloads = list.iter().find(|e| e.name == "Downloads").unwrap();
+        assert_eq!(downloads.size_bytes, Some(80_000_000));
+        let inside = list_folder(&fs, &zones, Path::new(r"C:\Users\Ana\Videos"), &[]).unwrap();
+        assert!(
+            inside.iter().all(|e| e.name != "Trap"),
+            "a junction is never listed"
+        );
+        assert!(inside
+            .iter()
+            .any(|e| !e.is_folder && e.size_bytes == Some(4_000_000_000)));
+        assert!(list_folder(&fs, &zones, Path::new(r"C:\Nowhere"), &[]).is_err());
     }
 
     #[test]

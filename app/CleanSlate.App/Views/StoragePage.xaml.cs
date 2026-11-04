@@ -36,6 +36,15 @@ public sealed partial class StoragePage : Page
         ViewModel.Arrange(MapCanvas.ActualWidth, MapCanvas.Height);
     }
 
+    // A line of the explorer under the map (D83): a folder opens on both sides, a file is checked.
+    private async void OnEntryClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is ExplorerRow row)
+        {
+            await ViewModel.OpenEntryAsync(row);
+        }
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         ViewModel.Tiles.CollectionChanged -= OnTilesChanged;
@@ -118,16 +127,6 @@ public sealed partial class StoragePage : Page
             ToolTipService.SetToolTip(button, tile.IsLoading ? tile.ToolTip + "\n" + Texts.Get("StorageLoading") : tile.ToolTip);
             AutomationProperties.SetName(button, tile.ToolTip.Replace('\n', ' '));
             button.Click += async (_, _) => await ViewModel.OpenAsync(tile);
-            button.DoubleTapped += (_, _) => ViewModel.DoubleClick(tile);
-            if (!tile.Node.IsGroup && tile.Node.Path.Length > 0)
-            {
-                // « Voir les fichiers » for every folder (and the folder of a file), keyboard included.
-                var showFiles = new MenuFlyoutItem { Text = Texts.Get("StorageShowFiles"), Icon = new FontIcon { Glyph = "\uE8B7" } };
-                showFiles.Click += (_, _) => ViewModel.ShowFiles(tile);
-                var menu = new MenuFlyout();
-                menu.Items.Add(showFiles);
-                button.ContextFlyout = menu;
-            }
             Canvas.SetLeft(button, tile.X + 1);
             Canvas.SetTop(button, tile.Y + 1);
             MapCanvas.Children.Add(button);
