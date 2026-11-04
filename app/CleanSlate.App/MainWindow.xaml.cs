@@ -41,7 +41,78 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = (int)(MinimumHeight * scale);
         }
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "cleanslate.ico"));
+        _operations = App.GetService<Presentation.Services.OperationService>();
+        _operations.PropertyChanged += (_, _) => DispatcherQueue.TryEnqueue(ShowOperation);
+        // After Close, WinUI still raises a last LayoutUpdated: the window must not be read then
+        // (crash of the capture of 4 Nov. 2026, COMException 0x800710DD in PlaceMenuToggle).
+        Closed += (_, _) => _closed = true;
     }
+
+    private bool _closed;
+
+    /// <summary>How the menu marks the section shown (D82): the owner chooses one of three.</summary>
+    internal enum NavMarker
+    {
+        /// <summary>A rounded sticker, thick outline and offset shadow, slightly tilted.</summary>
+        Sticker,
+
+        /// <summary>A brush stroke behind the icon and the text.</summary>
+        Brush,
+
+        /// <summary>A splash behind the icon, a brush line under the text.</summary>
+        Splash,
+    }
+
+    /// <summary>Marking of the section shown; the capture of the corrections shows each.</summary>
+    internal NavMarker Marker
+    {
+        get => _marker;
+        set
+        {
+            _marker = value;
+            _navSignature = string.Empty;
+            NavView.InvalidateArrange();
+        }
+    }
+
+    private readonly Presentation.Services.OperationService _operations;
+    private NavMarker _marker = NavMarker.Sticker;
+
+    // The indicator of the long operation (D82), at the bottom of the menu.
+    private void ShowOperation()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        OperationIndicator.Visibility = _operations.IsActive ? Visibility.Visible : Visibility.Collapsed;
+        // On the paint of Multicolore, the paper of the stickers: the text never sits on paint.
+        if (_paint is not null)
+        {
+            OperationButton.Background = _paint.Paper;
+            OperationCancel.Background = _paint.Paper;
+            OperationButton.BorderBrush = _paint.Ink;
+            OperationCancel.BorderBrush = _paint.Ink;
+        }
+
+        OperationText.Text = _operations.Text;
+        OperationCancel.Visibility = _operations.CanCancel ? Visibility.Visible : Visibility.Collapsed;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OperationButton, _operations.Text);
+        ToolTipService.SetToolTip(OperationButton, _operations.Text);
+    }
+
+    private void OnOperationClick(object sender, RoutedEventArgs e)
+    {
+        if (_operations.PageTag is { } tag)
+        {
+            ShowPage(tag);
+        }
+    }
+
+    private void OnOperationCancel(object sender, RoutedEventArgs e) => _operations.Cancel();
+
+    private void OnMenuToggle(object sender, RoutedEventArgs e) => NavView.IsPaneOpen = !NavView.IsPaneOpen;
 
     /// <summary>Shows the application on its home page.</summary>
     public void ShowHome()
@@ -269,6 +340,12 @@ public sealed partial class MainWindow : Window
     // selected item on a blot of its tint. Redrawn only when an item moved.
     private void OnNavLayoutUpdated(object? sender, object e)
     {
+        if (_closed)
+        {
+            return;
+        }
+
+        PlaceMenuToggle();
         if (_paint is null || NavView.Visibility != Visibility.Visible || NavPaint.XamlRoot is null)
         {
             return;
@@ -313,19 +390,7 @@ public sealed partial class MainWindow : Window
         {
             if (ReferenceEquals(item, NavView.SelectedItem))
             {
-                // The active item in green, as on the owner's mock-up.
-                var active = new Border
-                {
-                    Width = box.Width - 6,
-                    Height = box.Height - 4,
-                    CornerRadius = new CornerRadius(12),
-                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("NavActiveColor")),
-                    BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("NavActiveBorderColor")),
-                    BorderThickness = new Thickness(2),
-                };
-                Canvas.SetLeft(active, box.X + 3);
-                Canvas.SetTop(active, box.Y + 2);
-                NavPaint.Children.Add(active);
+                MarkSelected(item, box);
             }
 
             if (item.Icon is FrameworkElement icon && icon.ActualWidth > 0)
@@ -334,6 +399,145 @@ public sealed partial class MainWindow : Window
                 _paint.Draw(NavPaint, [PaintComposer.Drop((item.Tag as string ?? "x")[0], center.X, center.Y, 18, 0)], _paint.ColorOf($"PageHeader{item.Tag}Brush"));
             }
         }
+    }
+
+    // The section shown, in its own color mixed with the paper (its text stays readable), in
+    // the street style of the application (D82): sticker, brush stroke or splash.
+    private void MarkSelected(NavigationViewItem item, Windows.Foundation.Rect box)
+    {
+        if (_paint is null)
+        {
+            return;
+        }
+
+        Windows.UI.Color section = _paint.ColorOf($"PageHeader{item.Tag}Brush");
+        Windows.UI.Color tint = Mix(section, _paint.ColorOf("PaintSurfaceColor"), 0.45);
+        var random = new Random((item.Tag as string ?? "x").GetHashCode(StringComparison.Ordinal));
+        switch (_marker)
+        {
+            case NavMarker.Sticker:
+                foreach ((double shift, bool shadow) in new[] { (PaintDecorator.ShadowOffset - 1, true), (0.0, false) })
+                {
+                    var sticker = new Border
+                    {
+                        Width = box.Width - 8,
+                        Height = box.Height - 4,
+                        CornerRadius = new CornerRadius(14),
+                        Background = shadow ? _paint.Ink : new Microsoft.UI.Xaml.Media.SolidColorBrush(tint),
+                        BorderBrush = shadow ? null : _paint.Ink,
+                        BorderThickness = new Thickness(shadow ? 0 : 3),
+                        RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+                        RenderTransform = new Microsoft.UI.Xaml.Media.RotateTransform { Angle = -1.5 },
+                    };
+                    Canvas.SetLeft(sticker, box.X + 4 + shift);
+                    Canvas.SetTop(sticker, box.Y + 2 + shift);
+                    NavPaint.Children.Add(sticker);
+                }
+
+                break;
+            case NavMarker.Brush:
+                NavPaint.Children.Add(new Microsoft.UI.Xaml.Shapes.Path { Data = Stroke(random, box.X + 2, box.Y + 3, box.Width - 6, box.Height - 6), Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(tint) });
+                NavPaint.Children.Add(new Microsoft.UI.Xaml.Shapes.Path { Data = Stroke(random, box.X + 10, box.Y + box.Height - 9, box.Width - 30, 5), Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(section), Opacity = 0.8 });
+                break;
+            case NavMarker.Splash:
+                if (item.Icon is FrameworkElement icon && icon.ActualWidth > 0)
+                {
+                    Windows.Foundation.Point center = icon.TransformToVisual(NavPaint).TransformPoint(new Windows.Foundation.Point(icon.ActualWidth / 2, icon.ActualHeight / 2));
+                    _paint.Draw(NavPaint, PaintComposer.Splash(random.Next(), center.X + 4, center.Y, 19, 0), tint);
+                    double name = Math.Min(item.Content is string text ? (text.Length * 8.5) + 12 : 110, box.Width - (center.X - box.X) - 40);
+                    NavPaint.Children.Add(new Microsoft.UI.Xaml.Shapes.Path { Data = Stroke(random, center.X + 26, box.Y + box.Height - 9, name, 6), Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(section) });
+                }
+
+                break;
+        }
+    }
+
+    // A brush stroke: wavy edges, ragged ends.
+    private static Microsoft.UI.Xaml.Media.PathGeometry Stroke(Random random, double x, double y, double width, double height)
+    {
+        var figure = new Microsoft.UI.Xaml.Media.PathFigure { StartPoint = new Windows.Foundation.Point(x + 6, y + random.NextDouble() * 3), IsClosed = true };
+        int steps = Math.Max(4, (int)(width / 14));
+        for (int i = 1; i <= steps; i++)
+        {
+            figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Windows.Foundation.Point(x + 6 + (width - 12) * i / steps, y + (random.NextDouble() - 0.3) * Math.Min(4, height / 3)) });
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Windows.Foundation.Point(x + width - random.NextDouble() * 8, y + height * (i + 0.5) / 4) });
+        }
+
+        for (int i = steps; i >= 0; i--)
+        {
+            figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Windows.Foundation.Point(x + 6 + (width - 12) * i / steps, y + height - (random.NextDouble() - 0.3) * Math.Min(4, height / 3)) });
+        }
+
+        for (int i = 3; i > 0; i--)
+        {
+            figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Windows.Foundation.Point(x + random.NextDouble() * 8, y + height * i / 4) });
+        }
+
+        var geometry = new Microsoft.UI.Xaml.Media.PathGeometry();
+        geometry.Figures.Add(figure);
+        return geometry;
+    }
+
+    private static Windows.UI.Color Mix(Windows.UI.Color color, Windows.UI.Color paper, double toPaper) => Windows.UI.Color.FromArgb(
+        255,
+        (byte)(color.R + ((paper.R - color.R) * toPaper)),
+        (byte)(color.G + ((paper.G - color.G) * toPaper)),
+        (byte)(color.B + ((paper.B - color.B) * toPaper)));
+
+    // The bubble of the menu button (point 8, D82) sits over the built-in toggle, which stays
+    // in place for the layout but is neither seen, reached by the keyboard nor read.
+    private void PlaceMenuToggle()
+    {
+        if (NavView.Visibility != Visibility.Visible || Content is not UIElement root
+            || Descendants(NavView).OfType<Button>().FirstOrDefault(b => b.Name == "TogglePaneButton") is not { ActualWidth: > 0 } builtIn)
+        {
+            MenuToggle.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        builtIn.Opacity = 0;
+        builtIn.IsTabStop = false;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(builtIn, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        Windows.Foundation.Rect box = builtIn.TransformToVisual(root).TransformBounds(new Windows.Foundation.Rect(0, 0, builtIn.ActualWidth, builtIn.ActualHeight));
+        var margin = new Thickness(box.X + 4, box.Y + 2, 0, 0);
+        if (MenuToggle.Margin != margin)
+        {
+            MenuToggle.Margin = margin;
+        }
+
+        double width = Math.Max(32, box.Width - 8), height = Math.Max(30, box.Height - 4);
+        MenuToggleButton.Width = width;
+        MenuToggleButton.Height = height;
+        MenuToggleShadow.Width = width;
+        MenuToggleShadow.Height = height;
+        double shift = IsPainted ? PaintDecorator.ShadowOffset - 1 : 3;
+        MenuToggleShadow.Margin = new Thickness(shift, shift, -shift, -shift);
+        var ink = _paint?.Ink ?? Converters.StorageCategoryBrushConverter.Themed("TextPrimaryBrush") as Microsoft.UI.Xaml.Media.Brush;
+        var paper = _paint?.Paper ?? Converters.StorageCategoryBrushConverter.Themed("ContentSurfaceBrush") as Microsoft.UI.Xaml.Media.Brush;
+        MenuToggleShadow.Background = ink;
+        MenuToggleShadow.Opacity = IsPainted ? 1 : 0.35;
+        MenuToggleButton.Background = paper;
+        MenuToggleButton.BorderBrush = ink;
+        MenuToggleButton.Foreground = ink;
+        // Hover, well visible: the color of the home page in Multicolore, else a shade between
+        // the ink and the surface (the icon keeps its contrast).
+        Windows.UI.Color inkColor = (ink as Microsoft.UI.Xaml.Media.SolidColorBrush)?.Color ?? Microsoft.UI.Colors.Black;
+        Windows.UI.Color paperColor = (paper as Microsoft.UI.Xaml.Media.SolidColorBrush)?.Color ?? Microsoft.UI.Colors.White;
+        var hover = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint is null
+            ? Mix(inkColor, paperColor, 0.82)
+            : Mix(_paint.ColorOf("PageHeaderHomeBrush"), _paint.ColorOf("PaintSurfaceColor"), 0.45));
+        foreach (string state in new[] { "PointerOver", "Pressed" })
+        {
+            MenuToggleButton.Resources[$"ButtonBackground{state}"] = hover;
+            MenuToggleButton.Resources[$"ButtonBorderBrush{state}"] = ink;
+            MenuToggleButton.Resources[$"ButtonForeground{state}"] = ink;
+        }
+
+        MenuToggle.Visibility = Visibility.Visible;
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

@@ -12,6 +12,9 @@ public interface IManagerService
     /// <summary>Largest files, categories, old files, empty folders, candidates for duplicates.</summary>
     Task<StorageAnalysis> AnalyzeAsync(string root, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken);
 
+    /// <summary>Files of <paramref name="folder"/> and below, largest first, at most <paramref name="max"/> (D82).</summary>
+    Task<StorageAnalysis> ListFilesAsync(string folder, int max, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken);
+
     /// <summary>Duplicates among the candidates of an analysis.</summary>
     Task<IReadOnlyList<DuplicateGroup>> DuplicatesAsync(IReadOnlyList<IReadOnlyList<string>> candidates, CancellationToken cancellationToken);
 

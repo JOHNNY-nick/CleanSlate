@@ -9,22 +9,26 @@ namespace CleanSlate.App.Services;
 /// first use with <c>dry_run = false</c>, given explicitly: the application has no simulation
 /// mode (D66), while the engine, the CLI and the tests keep <c>dry_run = true</c> by default
 /// (safety rule 5). Only the development mode of a Debug build creates it in simulation (D74).
-/// It is recreated when the exclusions or the data folder change.
+/// It is recreated when the exclusions or the data folder change. The engine runs one long
+/// operation at a time (it answers <c>BUSY</c> otherwise): a request that arrives meanwhile
+/// waits its turn (<see cref="EngineTurn"/>), shown by <see cref="OperationService"/>, instead of failing (D82).
 /// </summary>
 public sealed class EngineService : IEngineService, IManagerService, IDisposable
 {
     private readonly ISettingsService _settings;
     private readonly IStorageService _storage;
+    private readonly EngineTurn _turn;
     private readonly object _gate = new();
     private EngineClient? _client;
     private IReadOnlyList<string> _clientExclusions = [];
     private string? _clientDataDir;
 
     /// <summary>Creates the service.</summary>
-    public EngineService(ISettingsService settings, IStorageService storage)
+    public EngineService(ISettingsService settings, IStorageService storage, OperationService operations)
     {
         _settings = settings;
         _storage = storage;
+        _turn = new EngineTurn(operations);
     }
 
     private EngineClient Client
@@ -58,10 +62,13 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
 
     /// <inheritdoc/>
     public Task<ScanReport> ScanOrphansAsync(ScanOptions options, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
-        Client.ScanOrphansAsync(options, progress, cancellationToken);
+        InTurn(() => Client.ScanOrphansAsync(options, progress, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
-    public async Task<Session> CleanAsync(CleanPlan plan, IProgress<CleanProgress>? progress, CancellationToken cancellationToken)
+    public Task<Session> CleanAsync(CleanPlan plan, IProgress<CleanProgress>? progress, CancellationToken cancellationToken) =>
+        InTurn(() => CleanNowAsync(plan, progress, cancellationToken), cancellationToken);
+
+    private async Task<Session> CleanNowAsync(CleanPlan plan, IProgress<CleanProgress>? progress, CancellationToken cancellationToken)
     {
         if (plan.DryRun)
         {
@@ -86,17 +93,20 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
         Client.ListSessionsAsync(cancellationToken);
 
     /// <inheritdoc/>
-    public Task<UninstallResult> UninstallAsync(UninstallRequest request, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken) => request.DryRun
-        ? Client.UninstallAsync(request, progress, cancellationToken)
-        : _storage.MeasureAsync(
-            StorageOperation.Uninstall,
-            r => r.DisplayName,
-            () => Client.UninstallAsync(request, progress, cancellationToken),
-            _ => 0UL);
+    public Task<UninstallResult> UninstallAsync(UninstallRequest request, IProgress<UninstallProgress>? progress, CancellationToken cancellationToken) =>
+        InTurn(
+            () => request.DryRun
+                ? Client.UninstallAsync(request, progress, cancellationToken)
+                : _storage.MeasureAsync(
+                    StorageOperation.Uninstall,
+                    r => r.DisplayName,
+                    () => Client.UninstallAsync(request, progress, cancellationToken),
+                    _ => 0UL),
+            cancellationToken);
 
     /// <inheritdoc/>
     public Task<ScanReport> ScanAppLeftoversAsync(AppLeftoversRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
-        Client.ScanAppLeftoversAsync(request, progress, cancellationToken);
+        InTurn(() => Client.ScanAppLeftoversAsync(request, progress, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public async Task<PurgeResult> PurgeAsync(PurgeRequest request, CancellationToken cancellationToken)
@@ -121,17 +131,21 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
     }
     /// <inheritdoc/>
     public Task<DiskMap> DiskMapAsync(DiskMapRequest request, IProgress<DiskMapProgress>? progress, CancellationToken cancellationToken) =>
-        Client.DiskMapAsync(request, progress, cancellationToken);
+        InTurn(() => Client.DiskMapAsync(request, progress, cancellationToken), cancellationToken);
 
     // Gestionnaire (D79): analyses read-only; actions real (D66), after the confirmation.
 
     /// <inheritdoc/>
     public Task<StorageAnalysis> AnalyzeAsync(string root, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken) =>
-        Client.AnalyzeAsync(root, progress, cancellationToken);
+        InTurn(() => Client.AnalyzeAsync(root, progress, cancellationToken: cancellationToken), cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<StorageAnalysis> ListFilesAsync(string folder, int max, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken) =>
+        InTurn(() => Client.AnalyzeAsync(folder, progress, max, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<DuplicateGroup>> DuplicatesAsync(IReadOnlyList<IReadOnlyList<string>> candidates, CancellationToken cancellationToken) =>
-        Client.DuplicatesAsync(candidates, cancellationToken);
+        InTurn(() => Client.DuplicatesAsync(candidates, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<CacheItem>> CachesAsync(CancellationToken cancellationToken) => Client.CachesAsync(cancellationToken);
@@ -153,31 +167,31 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
 
     /// <inheritdoc/>
     public Task<ActionResult> DeleteAsync(IReadOnlyList<string> paths, DeleteMode mode, ManualAction manual, CancellationToken cancellationToken) =>
-        Client.DeleteAsync(paths, mode, manual, dryRun: false, cancellationToken);
+        InTurn(() => Client.DeleteAsync(paths, mode, manual, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<ActionResult> DeleteAtRestartAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
-        Client.DeleteAtRestartAsync(paths, manual, dryRun: false, cancellationToken);
+        InTurn(() => Client.DeleteAtRestartAsync(paths, manual, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<ActionResult> SecureDeleteAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
-        Client.SecureDeleteAsync(paths, manual, dryRun: false, cancellationToken);
+        InTurn(() => Client.SecureDeleteAsync(paths, manual, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<ActionResult> MoveAsync(IReadOnlyList<string> paths, string destination, ManualAction manual, CancellationToken cancellationToken) =>
-        Client.MoveAsync(paths, destination, manual, dryRun: false, cancellationToken);
+        InTurn(() => Client.MoveAsync(paths, destination, manual, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<ActionResult> CleanCachesAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
-        Client.CleanCachesAsync(paths, manual, dryRun: false, cancellationToken);
+        InTurn(() => Client.CleanCachesAsync(paths, manual, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<ActionResult> EmptyRecycleBinAsync(string? drive, CancellationToken cancellationToken) =>
-        Client.EmptyRecycleBinAsync(drive, dryRun: false, cancellationToken);
+        InTurn(() => Client.EmptyRecycleBinAsync(drive, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task<SystemOutcome> RunSystemAsync(SystemTask task, bool expertMode, CancellationToken cancellationToken) =>
-        Client.RunSystemAsync(task, expertMode, dryRun: false, cancellationToken);
+        InTurn(() => Client.RunSystemAsync(task, expertMode, dryRun: false, cancellationToken), cancellationToken);
 
     /// <inheritdoc/>
     public Task CancelAtRestartAsync(string path, CancellationToken cancellationToken) =>
@@ -201,11 +215,7 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
     }
 
     /// <inheritdoc/>
-    public void Reveal(string path) =>
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"))
-        {
-            ArgumentList = { "/select,", path },
-        });
+    public void Reveal(string path) => Launcher.Explorer("/select,", path);
 
     /// <inheritdoc/>
     public void CopyPath(string path)
@@ -217,7 +227,10 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
 
     /// <inheritdoc/>
     public void ShowProperties(string path) =>
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, Verb = "properties" });
+        Launcher.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, Verb = "properties" });
+
+    // One long operation at a time in the engine: the others wait their turn (D82).
+    private Task<T> InTurn<T>(Func<Task<T>> call, CancellationToken cancellationToken) => _turn.RunAsync(call, cancellationToken);
 
     /// <inheritdoc/>
     public void Dispose()

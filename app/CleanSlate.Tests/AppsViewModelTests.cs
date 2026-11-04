@@ -203,7 +203,7 @@ public sealed class AppsViewModelTests
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.True(vm.HasError);
-        Assert.Contains("ACCESS_DENIED", vm.ErrorDetails);
+        Assert.Contains("Accès refusé", vm.ErrorDetails); // French, never the code (D82)
         Assert.Empty(vm.Apps);
         Assert.False(vm.IsLoading);
     }

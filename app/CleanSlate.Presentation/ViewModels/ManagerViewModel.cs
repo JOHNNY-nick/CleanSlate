@@ -121,6 +121,7 @@ public sealed partial class ManagerViewModel : ObservableObject
     private readonly ISettingsService _settings;
     private readonly IEngineService _engine;
     private readonly INavigationService _navigation;
+    private readonly OperationService _operations;
     private StorageAnalysis? _analysis;
     private IReadOnlyList<CacheItem> _caches = [];
     private IReadOnlyList<RecycleBinInfo> _bins = [];
@@ -128,8 +129,9 @@ public sealed partial class ManagerViewModel : ObservableObject
     private IReadOnlyList<DuplicateGroup> _duplicates = [];
 
     /// <summary>Creates the ViewModel.</summary>
-    public ManagerViewModel(IManagerService manager, IStorageService storage, IDialogService dialogs, ISettingsService settings, IEngineService engine, INavigationService navigation)
+    public ManagerViewModel(IManagerService manager, IStorageService storage, IDialogService dialogs, ISettingsService settings, IEngineService engine, INavigationService navigation, OperationService operations)
     {
+        _operations = operations;
         _manager = manager;
         _storage = storage;
         _dialogs = dialogs;
@@ -138,7 +140,10 @@ public sealed partial class ManagerViewModel : ObservableObject
         _navigation = navigation;
     }
 
-    /// <summary>Tab shown: 0 Diagnostic … 10 Volumes.</summary>
+    /// <summary>Most files listed for one folder (« Voir les fichiers », D82).</summary>
+    public const int FolderFilesMax = 5000;
+
+    /// <summary>Tab shown: 0 Diagnostic, 1 Explorateur, 2 Catégories, 3 Gros fichiers, 4 Fichiers anciens, 5 Doublons, 6 Système, 7 En attente, 8 Évolution, 9 Volumes.</summary>
     [ObservableProperty]
     private int _tabIndex;
 
@@ -180,6 +185,25 @@ public sealed partial class ManagerViewModel : ObservableObject
 
     /// <summary>Files found by the search, largest first.</summary>
     public ObservableCollection<ManagerRow> Found { get; } = [];
+
+    /// <summary>Folder opened from the storage map (D82), or empty: the Explorateur then searches.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFolder))]
+    private string _folderPath = string.Empty;
+
+    /// <summary>A folder is open in the Explorateur.</summary>
+    public bool HasFolder => FolderPath.Length > 0;
+
+    /// <summary>« 42 fichiers · 3,1 Go, du plus gros au plus petit ».</summary>
+    [ObservableProperty]
+    private string _folderSummary = string.Empty;
+
+    /// <summary>Every file of the open folder, largest first: size, date and type.</summary>
+    public ObservableCollection<ManagerRow> FolderFiles { get; } = [];
+
+    /// <summary>The analysis of the drive runs: « Analyser » becomes « Analyse en cours… (Annuler) ».</summary>
+    [ObservableProperty]
+    private bool _isAnalyzing;
 
     /// <summary>Lines of the « Système » tab.</summary>
     public ObservableCollection<SystemRow> SystemRows { get; } = [];
@@ -254,24 +278,84 @@ public sealed partial class ManagerViewModel : ObservableObject
 
         Diagnose();
 
-        // Opened from a terminal folder of the storage map (D81): its files, to choose from.
+        // Opened from the storage map (D82): the files of that folder, in the Explorateur.
         if (_navigation.TakeManagerFolder() is { } folder)
         {
-            AnalysisRoot = folder;
-            TabIndex = 4;
-            await AnalyzeAsync(cancellationToken);
-            ResultText = $"Fichiers de {folder} : cochez ceux à supprimer.";
+            await OpenFolderAsync(folder, cancellationToken);
         }
     }
+
+    /// <summary>
+    /// Lists every file of <paramref name="folder"/> in the Explorateur (read-only), largest
+    /// first, to choose what to delete with the actions of the bar.
+    /// </summary>
+    public async Task OpenFolderAsync(string folder, CancellationToken cancellationToken = default)
+    {
+        TabIndex = 1;
+        FolderPath = folder;
+        FolderSummary = "Lecture du dossier…";
+        FolderFiles.Clear();
+        using IDisposable operation = _operations.Begin($"Lecture de {folder}", "Manager");
+        try
+        {
+            StorageAnalysis files = await _manager.ListFilesAsync(folder, FolderFilesMax, null, cancellationToken);
+            Fill(FolderFiles, files.Largest.OrderByDescending(f => f.SizeBytes).Select(FolderRow));
+            string more = files.Files > (ulong)FolderFiles.Count ? string.Format(French, " (les {0:N0} plus gros)", FolderFiles.Count) : string.Empty;
+            FolderSummary = string.Format(French, "{0:N0} fichier(s) · {1}{2}, du plus gros au plus petit", files.Files, Formats.Size(files.SizeBytes), more);
+        }
+        catch (EngineException ex)
+        {
+            FolderSummary = ex.Message;
+        }
+    }
+
+    /// <summary>Checks every file of the open folder.</summary>
+    [RelayCommand]
+    private void CheckAllFolder()
+    {
+        foreach (ManagerRow row in FolderFiles)
+        {
+            row.IsChecked = true;
+        }
+    }
+
+    /// <summary>Unchecks every file of the open folder.</summary>
+    [RelayCommand]
+    private void UncheckAllFolder()
+    {
+        foreach (ManagerRow row in FolderFiles)
+        {
+            row.IsChecked = false;
+        }
+    }
+
+    /// <summary>Closes the folder: the Explorateur searches the analysis again.</summary>
+    [RelayCommand]
+    private void CloseFolder()
+    {
+        FolderPath = string.Empty;
+        FolderSummary = string.Empty;
+        FolderFiles.Clear();
+    }
+
+    /// <summary>Back to the storage map, at the place it was left (D82).</summary>
+    [RelayCommand]
+    private void BackToMap() => _navigation.OpenStorage();
 
     /// <summary>Walks C: (read-only), with progress and cancel.</summary>
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task AnalyzeAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
+        IsAnalyzing = true;
+        using OperationService.Operation operation = _operations.Begin($"Analyse de {AnalysisRoot}", "Manager", () => AnalyzeCancelCommand.Execute(null));
         try
         {
-            var progress = new Progress<ManagerProgress>(p => ProgressText = string.Format(French, "{0:N0} fichiers · {1}", p.Files, Formats.Size(p.Bytes)));
+            var progress = new Progress<ManagerProgress>(p =>
+            {
+                ProgressText = string.Format(French, "{0:N0} fichiers · {1}", p.Files, Formats.Size(p.Bytes));
+                operation.Report(ProgressText);
+            });
             _analysis = await _manager.AnalyzeAsync(AnalysisRoot, progress, cancellationToken);
             HasAnalysis = true;
             Fill(Largest, _analysis.Largest.Select(Row));
@@ -287,6 +371,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            IsAnalyzing = false;
         }
     }
 
@@ -300,6 +385,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
 
         IsBusy = true;
+        using IDisposable operation = _operations.Begin("Recherche des doublons", "Manager");
         try
         {
             _duplicates = await _manager.DuplicatesAsync(_analysis.DuplicateCandidates, cancellationToken);
@@ -410,10 +496,10 @@ public sealed partial class ManagerViewModel : ObservableObject
         switch (line.Kind)
         {
             case RecoverableKind.OldDownloads:
-                TabIndex = 5;
+                TabIndex = 4;
                 return;
             case RecoverableKind.Duplicates:
-                TabIndex = 6;
+                TabIndex = 5;
                 return;
         }
 
@@ -745,7 +831,8 @@ public sealed partial class ManagerViewModel : ObservableObject
             int failed = result.Items.Count(i => i.Error is not null);
             if (failed > 0)
             {
-                ResultText = $"{failed} élément(s) non traités : {result.Items.First(i => i.Error is not null).Error!.Message}";
+                ItemError error = result.Items.First(i => i.Error is not null).Error!;
+                ResultText = $"{failed} élément(s) non traités : {EngineErrors.Describe(error.Code, error.Path)}";
             }
 
             foreach (ManagerRow row in rows.Where(r => result.Items.Any(i => i.Path == r.Path && i.Error is null)))
@@ -755,6 +842,7 @@ public sealed partial class ManagerViewModel : ObservableObject
                 CategoryFiles.Remove(row);
                 DuplicateCopies.Remove(row);
                 Found.Remove(row);
+                FolderFiles.Remove(row);
             }
         });
     }
@@ -767,6 +855,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         ulong before = Free();
         IsBusy = true;
         ResultText = string.Empty;
+        using IDisposable operation = _operations.Begin(what, "Manager");
         try
         {
             await _storage.MeasureAsync(StorageOperation.Manager, _ => what, async () =>
@@ -817,7 +906,7 @@ public sealed partial class ManagerViewModel : ObservableObject
     }
 
     private IEnumerable<ManagerRow> Checked() =>
-        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Concat(Found).Where(r => r.IsChecked).DistinctBy(r => r.Path);
+        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Concat(Found).Concat(FolderFiles).Where(r => r.IsChecked).DistinctBy(r => r.Path);
 
     private void Each(Action<string> action)
     {
@@ -828,6 +917,13 @@ public sealed partial class ManagerViewModel : ObservableObject
     }
 
     private static ManagerRow Row(FileEntry f) => new(f.Path, f.SizeBytes, f.Modified, f.Zone, CategoryName(f.Category));
+
+    // A file of an open folder: its type is its category and its extension (« Vidéos · .mp4 »).
+    private static ManagerRow FolderRow(FileEntry f)
+    {
+        string extension = Path.GetExtension(f.Path);
+        return new(f.Path, f.SizeBytes, f.Modified, f.Zone, extension.Length > 0 ? $"{CategoryName(f.Category)} · {extension.ToLowerInvariant()}" : CategoryName(f.Category));
+    }
 
     private static async Task<IReadOnlyList<T>> Optional<T>(Func<Task<IReadOnlyList<T>>> read)
     {

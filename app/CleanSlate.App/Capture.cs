@@ -47,6 +47,12 @@ internal static class Capture
             App.GetService<IStorageService>().SaveMap("C:", map);
             log.Add($"carte: {(DateTimeOffset.Now - started).TotalSeconds:0} s, {map.Denied} dossiers refusés");
             InstalledApp? app = (await engine.ListAppsAsync(CancellationToken.None)).FirstOrDefault(a => a.HiddenReason is null);
+            if (DevMode.Options.CaptureSet == "corrections")
+            {
+                await Corrections(window, Path.Combine(folder, "corrections"), settings, log);
+                return;
+            }
+
             if (DevMode.Options.CaptureSet == "gestionnaire")
             {
                 await ManagerTabs(window, Path.Combine(folder, "gestionnaire"), settings, log);
@@ -137,22 +143,128 @@ internal static class Capture
         await page.ViewModel.AnalyzeCommand.ExecuteAsync(null);
         await page.ViewModel.FindDuplicatesCommand.ExecuteAsync(null);
         log.Add($"analyse du Gestionnaire : {(DateTimeOffset.Now - started).TotalSeconds:0} s");
-        string[] names = ["diagnostic", "carte", "explorateur", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
+        await Tabs(window, page.ViewModel, folder, string.Empty, log);
+    }
+
+    // Every tab of the Gestionnaire (D82: the « Carte » tab is gone, the map is the Stockage page).
+    private static async Task Tabs(MainWindow window, ManagerViewModel vm, string folder, string prefix, List<string> log)
+    {
+        string[] names = ["diagnostic", "explorateur", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
         for (int i = 0; i < names.Length; i++)
         {
-            page.ViewModel.TabIndex = i;
+            vm.TabIndex = i;
+            if (i == 1)
+            {
+                vm.CloseFolderCommand.Execute(null);
+                vm.Search = "Downloads";
+            }
+
             if (i == 2)
             {
-                page.ViewModel.Search = "Downloads";
+                vm.CategoryIndex = 0;
             }
 
-            if (i == 3)
-            {
-                page.ViewModel.CategoryIndex = 0;
-            }
-
-            await Save(window, Path.Combine(folder, $"{i:00}-{names[i]}.png"), log);
+            await Save(window, Path.Combine(folder, $"{prefix}{i:00}-{names[i]}.png"), log);
         }
+    }
+
+    private static async Task Show(MainWindow window, string tag)
+    {
+        for (int attempt = 0; attempt < 5 && window.CurrentPage?.GetType().Name != $"{tag}Page"; attempt++)
+        {
+            window.ShowPage(tag);
+            await Task.Delay(700);
+        }
+    }
+
+    // The corrections after the first use (D82), in Multicolore: the menu in its three
+    // markings (7, 8), an analysis seen from another page and on the way back (3), every tab
+    // of the Gestionnaire and the help of its actions (2, 6), and the map down to a terminal
+    // folder, opened by a double-click in the Explorateur, then back to the map (4, 5).
+    private static async Task Corrections(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        settings.PaintStyle = Presentation.PaintStyle.Splashes;
+        settings.PaintDark = false;
+        settings.Theme = AppTheme.Colorful;
+        await Task.Delay(1000);
+        foreach ((MainWindow.NavMarker marker, string name) in new[] { (MainWindow.NavMarker.Sticker, "autocollant"), (MainWindow.NavMarker.Brush, "pinceau"), (MainWindow.NavMarker.Splash, "eclaboussure") })
+        {
+            window.Marker = marker;
+            foreach (string tag in new[] { "Home", "Storage" })
+            {
+                await Show(window, tag);
+                await Save(window, Path.Combine(folder, $"menu-{name}-{tag}.png"), log);
+            }
+        }
+
+        window.Marker = MainWindow.NavMarker.Sticker;
+
+        // 3: an analysis keeps running when the page is left, and is found again.
+        await Show(window, "Manager");
+        ManagerViewModel manager = App.GetService<ManagerViewModel>();
+        manager.AnalysisRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
+        var started = DateTimeOffset.Now;
+        Task analysis = manager.AnalyzeCommand.ExecuteAsync(null);
+        await Task.Delay(3000);
+        await Show(window, "Home");
+        await Save(window, Path.Combine(folder, "analyse-en-cours-depuis-accueil.png"), log);
+        await Show(window, "Manager");
+        await Save(window, Path.Combine(folder, "analyse-en-cours-au-retour.png"), log);
+        await analysis;
+        await manager.FindDuplicatesCommand.ExecuteAsync(null);
+        log.Add($"analyse du Gestionnaire : {(DateTimeOffset.Now - started).TotalSeconds:0} s");
+
+        // 2, 6: the tabs, then the help of the action bar.
+        await Show(window, "Manager");
+        await Tabs(window, manager, folder, "gestionnaire-", log);
+        manager.TabIndex = 0;
+        if (window.CurrentPage is ManagerPage managerPage
+            && PaintDecorator.Descendants(managerPage).OfType<Button>().FirstOrDefault(b => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(b) == "Aide sur les actions") is { Flyout: { } help } helpButton)
+        {
+            help.ShowAt(helpButton);
+            await Save(window, Path.Combine(folder, "gestionnaire-aide-des-actions.png"), log);
+            help.Hide();
+        }
+
+        // 4, 5: the map, down to a terminal folder (or a file), a double-click, and back.
+        await Show(window, "Storage");
+        await Task.Delay(1500);
+        if (window.CurrentPage is not StoragePage storage)
+        {
+            log.Add("Stockage introuvable");
+            return;
+        }
+
+        StorageMapViewModel map = storage.ViewModel;
+        StorageTile? terminal = null;
+        for (int level = 0; level < 8 && terminal is null; level++)
+        {
+            terminal = map.Tiles.Where(t => !t.Node.IsGroup && map.IsTerminal(t.Node)).MaxBy(t => t.Node.SizeBytes)
+                ?? (level >= 5 ? map.Tiles.Where(t => !t.Node.IsGroup && !t.Node.IsFolder).MaxBy(t => t.Node.SizeBytes) : null);
+            if (terminal is null && map.Tiles.Where(t => t.Node.IsFolder && !t.Node.IsGroup).MaxBy(t => t.Node.SizeBytes) is { } next)
+            {
+                await map.OpenAsync(next);
+                await Save(window, Path.Combine(folder, $"carte-niveau-{level + 1}.png"), log);
+            }
+        }
+
+        if (terminal is null)
+        {
+            log.Add("aucun dossier terminal trouvé sur la carte");
+            return;
+        }
+
+        log.Add($"double-clic sur {terminal.Node.Path}");
+        map.DoubleClick(terminal);
+        for (int wait = 0; wait < 120 && (window.CurrentPage is not ManagerPage || manager.FolderSummary.StartsWith("Lecture", StringComparison.Ordinal) || !manager.HasFolder); wait++)
+        {
+            await Task.Delay(500);
+        }
+
+        await Save(window, Path.Combine(folder, "explorateur-dossier-terminal.png"), log);
+        manager.BackToMapCommand.Execute(null);
+        await Save(window, Path.Combine(folder, "carte-retour-meme-endroit.png"), log);
     }
 
     // Every page in Multicolore (D76), on white and on dark, with the check of every text.

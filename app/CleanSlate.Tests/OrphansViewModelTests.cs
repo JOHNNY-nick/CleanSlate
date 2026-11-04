@@ -153,7 +153,7 @@ public sealed class OrphansViewModelTests
         await vm.ScanCommand.ExecuteAsync(null);
 
         Assert.True(vm.HasError);
-        Assert.Contains("BUSY", vm.ErrorDetails);
+        Assert.Contains("déjà en cours", vm.ErrorDetails); // in French (D82), never « BUSY »
         Assert.False(vm.IsScanning);
     }
 

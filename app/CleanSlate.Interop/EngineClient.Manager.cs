@@ -14,8 +14,16 @@ namespace CleanSlate.Interop;
 public sealed partial class EngineClient
 {
     /// <summary>Largest files, categories, old files, empty folders, candidates for duplicates.</summary>
-    public Task<StorageAnalysis> AnalyzeAsync(string root, IProgress<ManagerProgress>? progress = null, CancellationToken cancellationToken = default) =>
-        Manager(new JsonObject { ["op"] = "analyze", ["root"] = root }, EngineJsonContext.Default.EngineResponseStorageAnalysis, progress, cancellationToken);
+    public Task<StorageAnalysis> AnalyzeAsync(string root, IProgress<ManagerProgress>? progress = null, int? largest = null, CancellationToken cancellationToken = default)
+    {
+        var request = new JsonObject { ["op"] = "analyze", ["root"] = root };
+        if (largest is { } count)
+        {
+            request["largest"] = count; // the files of one folder (D82): all of them, largest first
+        }
+
+        return Manager(request, EngineJsonContext.Default.EngineResponseStorageAnalysis, progress, cancellationToken);
+    }
 
     /// <summary>Duplicates among the candidates of an analysis (SHA-256).</summary>
     public async Task<IReadOnlyList<DuplicateGroup>> DuplicatesAsync(IReadOnlyList<IReadOnlyList<string>> candidates, CancellationToken cancellationToken = default) =>

@@ -13,6 +13,9 @@ public static class Texts
     private static readonly ResourceLoader Loader = new();
     private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
 
+    /// <summary>Text <paramref name="key"/> of Resources.resw, for a view built in code.</summary>
+    public static string Get(string key) => Loader.GetString(key);
+
     /// <summary>Text <paramref name="key"/> with <c>{0}</c> filled.</summary>
     public static string One(string key, object? first) =>
         string.Format(French, Loader.GetString(key), first);

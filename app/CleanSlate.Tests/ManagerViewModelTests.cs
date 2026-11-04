@@ -53,7 +53,8 @@ public sealed class ManagerViewModelTests
         settings.ExpertMode.Returns(expert);
         var engine = Substitute.For<IEngineService>();
         engine.PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>()).Returns(new PurgeResult(0, false));
-        var vm = new ManagerViewModel(manager, storage, dialogs, settings, engine, navigation ?? Substitute.For<INavigationService>());
+        manager.ListFilesAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>()).Returns(Analysis());
+        var vm = new ManagerViewModel(manager, storage, dialogs, settings, engine, navigation ?? Substitute.For<INavigationService>(), new OperationService());
         return (vm, manager, dialogs, settings);
     }
 
@@ -169,9 +170,12 @@ public sealed class ManagerViewModelTests
         Assert.True(history.HasManagerActions);
     }
 
-    /// <summary>D81: a terminal folder of the storage map opens « Gros fichiers » with its files.</summary>
+    /// <summary>
+    /// D82: a folder of the storage map opens in the Explorateur with all its files, largest
+    /// first, with their size, date and type; the analysis of the drive is left as it was.
+    /// </summary>
     [Fact]
-    public async Task AFolderFromTheMap_IsAnalyzed_AndItsFilesShown()
+    public async Task AFolderFromTheMap_ListsAllItsFiles_InTheExplorer()
     {
         var navigation = Substitute.For<INavigationService>();
         navigation.TakeManagerFolder().Returns(@"C:\Users\Ana\Downloads\Setups", (string?)null);
@@ -179,9 +183,17 @@ public sealed class ManagerViewModelTests
 
         await vm.LoadCommand.ExecuteAsync(null);
 
-        await manager.Received(1).AnalyzeAsync(@"C:\Users\Ana\Downloads\Setups", Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
-        Assert.Equal(4, vm.TabIndex);
-        Assert.NotEmpty(vm.Largest);
-        Assert.Contains("Setups", vm.ResultText);
+        await manager.Received(1).ListFilesAsync(@"C:\Users\Ana\Downloads\Setups", ManagerViewModel.FolderFilesMax, Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
+        await manager.DidNotReceive().AnalyzeAsync(Arg.Any<string>(), Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
+        Assert.Equal(1, vm.TabIndex);
+        Assert.True(vm.HasFolder);
+        Assert.Equal([@"C:\Windows\big.dll", @"C:\Users\Ana\Videos\film.mp4"], vm.FolderFiles.Select(f => f.Path));
+        Assert.Equal("Vidéos · .mp4", vm.FolderFiles[1].Detail);
+        Assert.Contains("du plus gros au plus petit", vm.FolderSummary);
+
+        vm.CheckAllFolderCommand.Execute(null);
+        Assert.All(vm.FolderFiles, f => Assert.True(f.IsChecked));
+        vm.BackToMapCommand.Execute(null);
+        navigation.Received(1).OpenStorage();
     }
 }

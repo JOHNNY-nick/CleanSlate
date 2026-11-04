@@ -89,7 +89,7 @@ public sealed class StorageMapTests
         var engine = Substitute.For<IEngineService>();
         engine.DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>()).Returns(Machine());
         var navigation = Substitute.For<INavigationService>();
-        return (new StorageMapViewModel(engine, storage, navigation), storage, navigation);
+        return (new StorageMapViewModel(engine, storage, navigation, new OperationService()), storage, navigation);
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public sealed class StorageMapTests
         var engine = Substitute.For<IEngineService>();
         engine.DiskMapAsync(Arg.Is<DiskMapRequest>(r => r.Root == downloads.Path), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new DiskMap(detail, 512 * Gb, 100 * Gb, 0, 1, false));
-        vm = new StorageMapViewModel(engine, StorageOf(map), navigation);
+        vm = new StorageMapViewModel(engine, StorageOf(map), navigation, new OperationService());
         vm.Load();
         vm.Arrange(800, 500);
 
@@ -249,15 +249,17 @@ public sealed class StorageMapTests
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Downloads"), TestContext.Current.CancellationToken);
         await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
 
-        // A terminal folder opens the Gestionnaire with its files, without a new map.
+        // A terminal folder opens the Gestionnaire with its files on a double-click (D82), without a new map.
         await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Setups"), TestContext.Current.CancellationToken);
+        navigation.DidNotReceive().OpenManager(Arg.Any<string>());
+        vm.DoubleClick(vm.Tiles.Single(t => t.Name == "Setups"));
         navigation.Received(1).OpenManager(setups.Path);
         await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>D81: a file opens the Gestionnaire on its folder; a small rectangle still shows its name.</summary>
     [Fact]
-    public async Task AFile_OpensTheGestionnaireOnItsFolder_AndSmallRectanglesShowTheirName()
+    public void AFile_OpensTheGestionnaireOnItsFolder_AndSmallRectanglesShowTheirName()
     {
         var file = new DiskMapNode("film.mp4", @"C:\Users\Ana\Videos\film.mp4", 10 * Gb, 1, StorageCategory.UserFiles, [], false, false);
         var tiny = Node(@"C:\Users\Ana\Videos\Clips", 1 * Gb, StorageCategory.UserFiles) with { HasFolders = false };
@@ -270,7 +272,7 @@ public sealed class StorageMapTests
         Assert.True(small.ShowLabel, $"{small.Width} x {small.Height}: the name is shown");
         Assert.False(small.ShowSize);
 
-        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "film.mp4"), TestContext.Current.CancellationToken);
+        vm.DoubleClick(vm.Tiles.Single(t => t.Name == "film.mp4"));
         navigation.Received(1).OpenManager(@"C:\Users\Ana\Videos");
     }
 

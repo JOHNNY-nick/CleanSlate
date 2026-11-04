@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -54,7 +53,7 @@ public sealed class LogExportService : ILogExportService
 
     /// <inheritdoc/>
     public void Reveal(string path) =>
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false });
+        Launcher.Explorer($"/select,{path}");
 
     private string SystemText(string engineVersion)
     {

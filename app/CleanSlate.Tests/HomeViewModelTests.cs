@@ -35,7 +35,7 @@ public sealed class HomeViewModelTests
         await viewModel.LoadCommand.ExecuteAsync(null);
 
         Assert.True(viewModel.HasError);
-        Assert.Contains("INTERNAL_PANIC", viewModel.ErrorDetails);
+        Assert.Contains("Erreur interne du moteur", viewModel.ErrorDetails); // French, never the code (D82)
         Assert.Equal(string.Empty, viewModel.EngineVersion);
     }
 

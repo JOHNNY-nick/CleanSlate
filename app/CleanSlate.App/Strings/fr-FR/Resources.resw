@@ -960,17 +960,11 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerAnalyze.Content" xml:space="preserve">
     <value>Analyser le disque</value>
   </data>
-  <data name="ManagerCancel.Content" xml:space="preserve">
-    <value>Annuler</value>
-  </data>
   <data name="ManagerProgress.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Analyse ou action en cours</value>
   </data>
   <data name="ManagerTabDiagnostic.Text" xml:space="preserve">
     <value>Diagnostic</value>
-  </data>
-  <data name="ManagerTabMap.Text" xml:space="preserve">
-    <value>Carte</value>
   </data>
   <data name="ManagerTabExplorer.Text" xml:space="preserve">
     <value>Explorateur</value>
@@ -1010,12 +1004,6 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   </data>
   <data name="ManagerFree.Content" xml:space="preserve">
     <value>Libérer</value>
-  </data>
-  <data name="ManagerMapHelp.Text" xml:space="preserve">
-    <value>La carte du stockage montre chaque dossier par un rectangle proportionnel à sa taille ; cliquez pour descendre dans un dossier.</value>
-  </data>
-  <data name="ManagerOpenMap.Content" xml:space="preserve">
-    <value>Ouvrir la carte du stockage</value>
   </data>
   <data name="ManagerSearch.Header" xml:space="preserve">
     <value>Rechercher parmi les fichiers analysés</value>
@@ -1127,5 +1115,74 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   </data>
   <data name="ManagerDisks.Text" xml:space="preserve">
     <value>Disques physiques (affichage seul)</value>
+  </data>
+  <data name="StorageShowFiles" xml:space="preserve">
+    <value>Voir les fichiers</value>
+  </data>
+  <data name="StorageLoading" xml:space="preserve">
+    <value>Calcul de ce niveau… (il commence dès que le moteur est libre)</value>
+  </data>
+  <data name="ManagerAnalyzing.Content" xml:space="preserve">
+    <value>Analyse en cours… (Annuler)</value>
+  </data>
+  <data name="ManagerBackToMap.Content" xml:space="preserve">
+    <value>Revenir à la carte</value>
+  </data>
+  <data name="ManagerCheckAll.Content" xml:space="preserve">
+    <value>Tout cocher</value>
+  </data>
+  <data name="ManagerUncheckAll.Content" xml:space="preserve">
+    <value>Tout décocher</value>
+  </data>
+  <data name="ManagerCloseFolder.Content" xml:space="preserve">
+    <value>Fermer le dossier</value>
+  </data>
+  <data name="ManagerActionsHelp.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Aide : ce que fait chaque action</value>
+  </data>
+  <data name="ManagerActionsHelp.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Aide sur les actions</value>
+  </data>
+  <data name="ManagerHelpTitle" xml:space="preserve">
+    <value>Les actions s'appliquent aux fichiers cochés, dans n'importe quel onglet. Chacune demande d'abord une confirmation, sauf celles qui ne modifient rien.</value>
+  </data>
+  <data name="ManagerDeleteButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Supprime les fichiers cochés après une confirmation. « Sûr » les met dans la Corbeille, ou dans la quarantaine de CleanSlate s'ils sont sur un autre disque : ils restent restaurables. « Immédiat » les efface définitivement et libère la place tout de suite. Limite : un fichier ouvert dans un programme ne peut pas être supprimé maintenant ; utilisez alors « Supprimer au démarrage ».</value>
+  </data>
+  <data name="ManagerAtRestart.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Programme la suppression des fichiers cochés au prochain redémarrage de Windows, avant qu'un programme ne les ouvre. À utiliser pour un fichier verrouillé (« utilisé par un autre programme »). Limite : la place n'est libérée qu'après le redémarrage, et la suppression est définitive ; d'ici là, vous pouvez l'annuler dans l'onglet « Suppressions en attente ».</value>
+  </data>
+  <data name="ManagerSecure.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Écrase le contenu des fichiers cochés avec des zéros, puis les supprime, pour qu'un logiciel de récupération ne puisse pas les relire. À utiliser pour des documents confidentiels. Limite : sur un SSD, une clé USB ou un disque compressé, l'effacement n'est pas garanti (le disque peut garder d'anciennes copies), et il n'y a aucun retour en arrière.</value>
+  </data>
+  <data name="ManagerMove.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copie les fichiers cochés vers le disque ou le dossier que vous choisissez, vérifie que chaque copie est identique (SHA-256), puis supprime l'original. À utiliser pour libérer un disque plein sans perdre vos fichiers. Limite : la destination doit avoir assez de place ; un fichier ouvert dans un programme n'est pas déplacé.</value>
+  </data>
+  <data name="ManagerReveal.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Ouvre l'Explorateur de Windows sur le premier fichier coché, déjà sélectionné. Utile pour regarder un fichier de près avant de décider. Ne modifie rien.</value>
+  </data>
+  <data name="ManagerCopyPath.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copie le chemin complet du premier fichier coché dans le Presse-papiers, pour le coller dans une recherche ou un message. Ne modifie rien.</value>
+  </data>
+  <data name="ManagerProperties.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Ouvre la fenêtre Propriétés de Windows du premier fichier coché : taille exacte, dates, emplacement, sécurité. Ne modifie rien.</value>
+  </data>
+  <data name="ManagerReport.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Enregistre le résultat de l'analyse en HTML (à lire) et en CSV (pour un tableur), dans le dossier d'export choisi dans Réglages, sinon sur le Bureau. Ne modifie rien. Limite : il faut d'abord lancer une analyse.</value>
+  </data>
+  <data name="ManagerOpenMapLink.Content" xml:space="preserve">
+    <value>Voir la carte du stockage</value>
+  </data>
+  <data name="NavToggle.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Ouvrir ou fermer le menu</value>
+  </data>
+  <data name="NavToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Ouvrir ou fermer le menu</value>
+  </data>
+  <data name="OperationCancel.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Annuler l'opération en cours</value>
+  </data>
+  <data name="OperationCancel.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Annuler l'opération en cours</value>
   </data>
 </root>

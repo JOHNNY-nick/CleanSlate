@@ -25,7 +25,8 @@ public sealed record StorageTile(
     StorageCategory Category,
     bool ShowLabel,
     DiskMapNode Node,
-    bool ShowSize = true);
+    bool ShowSize = true,
+    bool IsLoading = false);
 
 /// <summary>A line of the legend: category, its name is shown by the view (<c>StorageCategory_{value}</c>).</summary>
 /// <param name="Category">Category.</param>
@@ -60,13 +61,16 @@ public sealed partial class StorageMapViewModel : ObservableObject
     private readonly IEngineService _engine;
     private readonly IStorageService _storage;
     private readonly INavigationService _navigation;
+    private readonly OperationService _operations;
     private readonly Dictionary<string, DiskMapNode> _details = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _loading = new(StringComparer.OrdinalIgnoreCase);
     private double _width;
     private double _height;
 
     /// <summary>Creates the ViewModel.</summary>
-    public StorageMapViewModel(IEngineService engine, IStorageService storage, INavigationService navigation)
+    public StorageMapViewModel(IEngineService engine, IStorageService storage, INavigationService navigation, OperationService operations)
     {
+        _operations = operations;
         _engine = engine;
         _storage = storage;
         _navigation = navigation;
@@ -119,7 +123,10 @@ public sealed partial class StorageMapViewModel : ObservableObject
 
     private DiskMap? Map { get; set; }
 
-    /// <summary>Drives, cached map and last cleanup line; the map stays as last computed.</summary>
+    /// <summary>
+    /// Drives, cached map and last cleanup line; the map stays as last computed, and the level
+    /// shown stays where the user left it (D82: back from the Gestionnaire, at the same place).
+    /// </summary>
     public void Load()
     {
         Drives.Clear();
@@ -130,7 +137,7 @@ public sealed partial class StorageMapViewModel : ObservableObject
 
         if (_storage.CachedMap(Drive) is { } cached)
         {
-            Show(cached.Map, cached.ComputedAt);
+            Show(cached.Map, cached.ComputedAt, keepPlace: true);
         }
 
         LastCleanupText = LastCleanup(_storage.Journal());
@@ -159,10 +166,14 @@ public sealed partial class StorageMapViewModel : ObservableObject
         IsComputing = true;
         ErrorText = string.Empty;
         ProgressText = string.Empty;
+        using OperationService.Operation operation = _operations.Begin($"Carte du stockage de {Drive}", "Storage", () => RefreshCancelCommand.Execute(null));
         try
         {
             var progress = new Progress<DiskMapProgress>(p =>
-                ProgressText = string.Format(French, "{0:N0} fichiers · {1} comptés", p.Files, Formats.Size(p.Bytes)));
+            {
+                ProgressText = string.Format(French, "{0:N0} fichiers · {1} comptés", p.Files, Formats.Size(p.Bytes));
+                operation.Report(ProgressText);
+            });
             DiskMap map = await _engine.DiskMapAsync(new DiskMapRequest(Drive + "\\"), progress, cancellationToken);
             if (!map.Cancelled)
             {
@@ -191,9 +202,10 @@ public sealed partial class StorageMapViewModel : ObservableObject
     /// <summary>
     /// A click: leftovers open « Restes orphelins », an application (a folder right below the
     /// programs folders) opens « Applications ». A folder with sub-folders goes down one level,
-    /// computing its own map first when it was not detailed yet (D81, no depth limit); a
-    /// terminal folder (files only) or a file opens the Gestionnaire with the files of that
-    /// folder. Nothing is ever deleted from the map.
+    /// with the results already computed; a level not computed yet gets its own map, with a
+    /// loading sign in its rectangle while the engine is busy (D81, D82: no depth limit, never
+    /// an error). A terminal folder (files only) or a file waits for a double-click
+    /// (<see cref="DoubleClick"/>). Nothing is ever deleted from the map.
     /// </summary>
     public async Task OpenAsync(StorageTile tile, CancellationToken cancellationToken = default)
     {
@@ -212,18 +224,8 @@ public sealed partial class StorageMapViewModel : ObservableObject
             return;
         }
 
-        if (node.IsGroup)
+        if (node.IsGroup || !node.IsFolder || IsTerminal(node) || _loading.Contains(node.Path))
         {
-            return;
-        }
-
-        if (!node.IsFolder)
-        {
-            if (Path.GetDirectoryName(node.Path) is { Length: > 0 } parent)
-            {
-                _navigation.OpenManager(parent);
-            }
-
             return;
         }
 
@@ -233,36 +235,51 @@ public sealed partial class StorageMapViewModel : ObservableObject
             return;
         }
 
-        if (node.HasFolders == false)
-        {
-            _navigation.OpenManager(node.Path);
-            return;
-        }
-
         // Sub-folders not on the map yet (below the levels of the map, or a map saved before
-        // D81): a map of this folder alone.
-        if (await DetailAsync(node, cancellationToken) is not { } detail)
+        // D81): a map of this folder alone. The user may go elsewhere meanwhile: the level is
+        // entered only if the map still shows the level of the click.
+        DiskMapNode clickedFrom = Breadcrumb[^1].Node;
+        if (await DetailAsync(node, cancellationToken) is { HasFolders: not false } detail && ReferenceEquals(Breadcrumb[^1].Node, clickedFrom))
         {
-            return;
+            GoDown(node.Name, detail);
         }
-
-        if (detail.HasFolders == false)
-        {
-            _navigation.OpenManager(node.Path);
-            return;
-        }
-
-        GoDown(node.Name, detail);
     }
 
-    /// <summary>The next action of a click on <paramref name="node"/>, for its tooltip.</summary>
-    public static string ClickHint(DiskMapNode node) => node switch
+    /// <summary>
+    /// A double-click: a terminal folder (files only) or a file opens the Gestionnaire on the
+    /// files of its folder (D82). Other rectangles have their single click.
+    /// </summary>
+    public void DoubleClick(StorageTile tile)
+    {
+        if (tile.Node is { IsGroup: false } node && (!node.IsFolder || IsTerminal(node)))
+        {
+            ShowFiles(tile);
+        }
+    }
+
+    /// <summary>« Voir les fichiers » (right-click, D82): the files of the folder, or of the folder of a file, in the Gestionnaire.</summary>
+    public void ShowFiles(StorageTile tile)
+    {
+        DiskMapNode node = tile.Node;
+        string? folder = node.IsFolder ? node.Path : Path.GetDirectoryName(node.Path);
+        if (!node.IsGroup && !string.IsNullOrEmpty(folder))
+        {
+            _navigation.OpenManager(folder);
+        }
+    }
+
+    /// <summary>Only files below: known from the map, or from a level computed on its own.</summary>
+    public bool IsTerminal(DiskMapNode node) =>
+        node.IsFolder && (node.HasFolders == false || (_details.TryGetValue(node.Path, out DiskMapNode? detail) && detail.HasFolders == false));
+
+    /// <summary>What a click does on <paramref name="node"/>, for its tooltip.</summary>
+    public string ClickHint(DiskMapNode node) => node switch
     {
         { Category: StorageCategory.Leftovers } => "Clic : ouvrir Restes orphelins",
         { IsGroup: true } => string.Empty,
-        { IsFolder: false } => "Clic : voir les fichiers de ce dossier dans le Gestionnaire",
-        { HasFolders: false } => "Clic : voir ses fichiers dans le Gestionnaire",
-        _ => "Clic : détailler",
+        { IsFolder: false } => "Double-clic : voir les fichiers de ce dossier dans le Gestionnaire",
+        _ when IsTerminal(node) => "Double-clic : voir ses fichiers dans le Gestionnaire",
+        _ => "Clic : détailler · clic droit : voir les fichiers",
     };
 
     private void GoDown(string name, DiskMapNode node)
@@ -271,7 +288,8 @@ public sealed partial class StorageMapViewModel : ObservableObject
         Layout();
     }
 
-    // A map rooted at the folder (read-only), kept for the session; null when cancelled or failed.
+    // A map rooted at the folder (read-only), kept for the session; null when cancelled or
+    // failed. While it is computed (or waits for the engine), its rectangle shows a loading sign.
     private async Task<DiskMapNode?> DetailAsync(DiskMapNode node, CancellationToken cancellationToken)
     {
         if (_details.TryGetValue(node.Path, out DiskMapNode? known))
@@ -279,13 +297,14 @@ public sealed partial class StorageMapViewModel : ObservableObject
             return known;
         }
 
-        IsComputing = true;
         ErrorText = string.Empty;
-        ProgressText = string.Empty;
+        _loading.Add(node.Path);
+        Layout();
+        using OperationService.Operation operation = _operations.Begin($"Carte de {node.Name}", "Storage");
         try
         {
             var progress = new Progress<DiskMapProgress>(p =>
-                ProgressText = string.Format(French, "{0} · {1:N0} fichiers · {2} comptés", node.Name, p.Files, Formats.Size(p.Bytes)));
+                operation.Report(string.Format(French, "{0:N0} fichiers · {1} comptés", p.Files, Formats.Size(p.Bytes))));
             DiskMap map = await _engine.DiskMapAsync(new DiskMapRequest(node.Path), progress, cancellationToken);
             if (map.Cancelled)
             {
@@ -302,7 +321,8 @@ public sealed partial class StorageMapViewModel : ObservableObject
         }
         finally
         {
-            IsComputing = false;
+            _loading.Remove(node.Path);
+            Layout();
         }
     }
 
@@ -318,14 +338,37 @@ public sealed partial class StorageMapViewModel : ObservableObject
         Layout();
     }
 
-    private void Show(DiskMap map, DateTimeOffset computedAt)
+    // keepPlace: the same folders are entered again in the map read anew (sizes updated by a
+    // cleanup, D73), as far as they still exist; a new walk starts from the drive.
+    private void Show(DiskMap map, DateTimeOffset computedAt, bool keepPlace = false)
     {
+        List<string> place = keepPlace ? Breadcrumb.Skip(1).Select(b => b.Node.Path).ToList() : [];
         Map = map;
         HasMap = true;
         LastComputedText = $"Calculée le {Formats.Date(DateOnly.FromDateTime(computedAt.LocalDateTime))} à {computedAt.LocalDateTime:HH:mm}";
-        _details.Clear();
+        if (!keepPlace)
+        {
+            _details.Clear();
+        }
+
         Breadcrumb.Clear();
         Breadcrumb.Add(new BreadcrumbItem(map.Root.Name.TrimEnd('\\'), map.Root));
+        foreach (string path in place)
+        {
+            DiskMapNode? next = Breadcrumb[^1].Node.Children.FirstOrDefault(c => c.IsFolder && string.Equals(c.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (next is null)
+            {
+                break;
+            }
+
+            if (!next.Children.Any(c => c.IsFolder) && _details.TryGetValue(path, out DiskMapNode? detail))
+            {
+                next = detail with { Name = next.Name };
+            }
+
+            Breadcrumb.Add(new BreadcrumbItem(next.Name, next));
+        }
+
         Layout();
     }
 
@@ -355,7 +398,8 @@ public sealed partial class StorageMapViewModel : ObservableObject
                     c.Category,
                     r.Width >= MinNameWidth && r.Height >= MinNameHeight,
                     c,
-                    r.Width >= MinLabelWidth && r.Height >= MinLabelHeight));
+                    r.Width >= MinLabelWidth && r.Height >= MinLabelHeight,
+                    _loading.Contains(c.Path)));
             }
         }
 

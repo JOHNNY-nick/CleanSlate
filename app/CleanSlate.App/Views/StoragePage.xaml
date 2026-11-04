@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:conv="using:CleanSlate.App.Converters"
     xmlns:vm="using:CleanSlate.Presentation.ViewModels"
-    Loaded="OnLoaded">
+    Loaded="OnLoaded"
+    Unloaded="OnUnloaded">
 
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />

@@ -62,11 +62,41 @@
             </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
+            <!-- D82: the long operation running, on every page; a click leads back to it. -->
+            <NavigationView.PaneFooter>
+                <Grid x:Name="OperationIndicator" Margin="8,4,8,8" Visibility="Collapsed" ColumnSpacing="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="OperationButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="{ThemeResource ContentSurfaceBrush}" BorderBrush="{ThemeResource TextPrimaryBrush}" BorderThickness="2" CornerRadius="12" Padding="8,6" Click="OnOperationClick">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ProgressRing Width="18" Height="18" IsActive="True" />
+                            <TextBlock x:Name="OperationText" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextPrimaryBrush}" MaxLines="3" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                        </Grid>
+                    </Button>
+                    <Button x:Name="OperationCancel" x:Uid="OperationCancel" Grid.Column="1" Width="32" Height="32" Padding="0" VerticalAlignment="Center" Background="{ThemeResource ContentSurfaceBrush}" BorderBrush="{ThemeResource TextPrimaryBrush}" BorderThickness="2" CornerRadius="16" Click="OnOperationCancel">
+                        <FontIcon FontSize="12" Glyph="&#xE711;" />
+                    </Button>
+                </Grid>
+            </NavigationView.PaneFooter>
+
             <!-- Plain surface under every page: text never sits on a blob (D72). -->
             <Border x:Name="ContentSurface" Background="{ThemeResource ContentSurfaceBrush}" CornerRadius="12">
                 <Frame x:Name="ContentFrame" Navigated="OnContentNavigated" />
             </Border>
         </NavigationView>
+        <!-- D82: the menu button in a bubble (thick outline, offset shadow), over the built-in one. -->
+        <Grid x:Name="MenuToggle" HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="Collapsed">
+            <Border x:Name="MenuToggleShadow" CornerRadius="14" IsHitTestVisible="False" />
+            <Button x:Name="MenuToggleButton" x:Uid="NavToggle" Padding="0" BorderThickness="3" CornerRadius="14" Click="OnMenuToggle">
+                <FontIcon FontSize="16" Glyph="&#xE700;" />
+            </Button>
+        </Grid>
         <Frame x:Name="OnboardingFrame" Visibility="Collapsed" />
     </Grid>
 </Window>

@@ -21,16 +21,26 @@ public sealed partial class StoragePage : Page
     {
         ViewModel = App.GetService<StorageMapViewModel>();
         InitializeComponent();
-        ViewModel.Tiles.CollectionChanged += OnTilesChanged;
     }
 
     /// <summary>Bound ViewModel.</summary>
     public StorageMapViewModel ViewModel { get; }
 
+    // The ViewModel outlives the page (D82): the page listens to it only while it is shown.
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        Bindings.Update(); // lists bound again if the page was left and shown anew
+        ViewModel.Tiles.CollectionChanged -= OnTilesChanged;
+        ViewModel.Tiles.CollectionChanged += OnTilesChanged;
         ViewModel.Load();
         ViewModel.Arrange(MapCanvas.ActualWidth, MapCanvas.Height);
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Tiles.CollectionChanged -= OnTilesChanged;
+        Bindings.StopTracking();
+        BoundLists.Release(this);
     }
 
     private void OnMapSizeChanged(object sender, SizeChangedEventArgs e) =>
@@ -86,12 +96,38 @@ public sealed partial class StoragePage : Page
             button.PointerExited += (_, _) => button.BorderThickness = new Thickness(edge);
             if (MainWindow.Paint is { } paint)
             {
-                Street(button, label, fill, paint);
+                Street(button, label, fill, paint, compact: !tile.ShowSize);
             }
 
-            ToolTipService.SetToolTip(button, tile.ToolTip);
+            if (tile.IsLoading)
+            {
+                // A level computed on its own (D82): a sign in the rectangle, never an error.
+                var loading = new Grid();
+                if (button.Content is UIElement content)
+                {
+                    button.Content = null;
+                    loading.Children.Add(content);
+                }
+
+                loading.Children.Add(new ProgressRing { IsActive = true, Width = 24, Height = 24, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = text });
+                button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                button.VerticalContentAlignment = VerticalAlignment.Stretch;
+                button.Content = loading;
+            }
+
+            ToolTipService.SetToolTip(button, tile.IsLoading ? tile.ToolTip + "\n" + Texts.Get("StorageLoading") : tile.ToolTip);
             AutomationProperties.SetName(button, tile.ToolTip.Replace('\n', ' '));
             button.Click += async (_, _) => await ViewModel.OpenAsync(tile);
+            button.DoubleTapped += (_, _) => ViewModel.DoubleClick(tile);
+            if (!tile.Node.IsGroup && tile.Node.Path.Length > 0)
+            {
+                // « Voir les fichiers » for every folder (and the folder of a file), keyboard included.
+                var showFiles = new MenuFlyoutItem { Text = Texts.Get("StorageShowFiles"), Icon = new FontIcon { Glyph = "\uE8B7" } };
+                showFiles.Click += (_, _) => ViewModel.ShowFiles(tile);
+                var menu = new MenuFlyout();
+                menu.Items.Add(showFiles);
+                button.ContextFlyout = menu;
+            }
             Canvas.SetLeft(button, tile.X + 1);
             Canvas.SetTop(button, tile.Y + 1);
             MapCanvas.Children.Add(button);
@@ -100,7 +136,7 @@ public sealed partial class StoragePage : Page
 
     // Multicolore (D76), street style of the owner's mock-up: a vivid gradient, a thick ink
     // outline, and the name and size on a light, slightly tilted sticker.
-    private static void Street(Button button, StackPanel label, Brush? fill, PaintDecorator paint)
+    private static void Street(Button button, StackPanel label, Brush? fill, PaintDecorator paint, bool compact)
     {
         if (fill is SolidColorBrush solid)
         {
@@ -114,8 +150,8 @@ public sealed partial class StoragePage : Page
 
         button.BorderBrush = paint.Ink;
         button.BorderThickness = new Thickness(3);
-        button.CornerRadius = new CornerRadius(14);
-        button.Padding = new Thickness(8);
+        button.CornerRadius = new CornerRadius(compact ? 8 : 14);
+        button.Padding = compact ? new Thickness(3) : new Thickness(8);
         button.Content = null;
         label.Margin = new Thickness(0);
         foreach (TextBlock text in label.Children.OfType<TextBlock>())
@@ -127,7 +163,7 @@ public sealed partial class StoragePage : Page
         {
             Background = new SolidColorBrush(paint.ColorOf("LabelStickerColor")),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(8, 3, 8, 4),
+            Padding = compact ? new Thickness(4, 1, 4, 1) : new Thickness(8, 3, 8, 4),
             RenderTransform = new RotateTransform { Angle = -2 },
             Child = label,
             Visibility = label.Visibility,

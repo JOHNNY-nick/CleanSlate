@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:conv="using:CleanSlate.App.Converters"
     xmlns:vm="using:CleanSlate.Presentation.ViewModels"
-    Loaded="OnLoaded">
+    Loaded="OnLoaded"
+    Unloaded="OnUnloaded">
 
     <Page.Resources>
         <!-- A file of any list: chosen by hand (never pre-checked), with its zone badge. -->
@@ -52,8 +53,9 @@
                 <TextBlock x:Uid="ManagerTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
             </Border>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                <Button x:Uid="ManagerAnalyze" Command="{x:Bind ViewModel.AnalyzeCommand}" Style="{StaticResource MainButtonStyle}" />
-                <Button x:Uid="ManagerCancel" Command="{x:Bind ViewModel.AnalyzeCancelCommand}" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                <!-- D82: while the drive is analyzed, the button says so and cancels it. -->
+                <Button x:Uid="ManagerAnalyze" Command="{x:Bind ViewModel.AnalyzeCommand}" Style="{StaticResource MainButtonStyle}" Visibility="{x:Bind conv:Visible.Not(ViewModel.IsAnalyzing), Mode=OneWay}" />
+                <Button x:Uid="ManagerAnalyzing" Command="{x:Bind ViewModel.AnalyzeCancelCommand}" Visibility="{x:Bind ViewModel.IsAnalyzing, Mode=OneWay}" />
             </StackPanel>
         </Grid>
 
@@ -65,7 +67,6 @@
 
         <SelectorBar x:Name="Tabs" Grid.Row="2" SelectionChanged="OnTabChanged">
             <SelectorBarItem x:Uid="ManagerTabDiagnostic" IsSelected="True" />
-            <SelectorBarItem x:Uid="ManagerTabMap" />
             <SelectorBarItem x:Uid="ManagerTabExplorer" />
             <SelectorBarItem x:Uid="ManagerTabCategories" />
             <SelectorBarItem x:Uid="ManagerTabLarge" />
@@ -88,6 +89,7 @@
                         <StackPanel Spacing="4">
                             <TextBlock x:Uid="ManagerTopConsumers" Style="{StaticResource BodyStrongTextBlockStyle}" />
                             <ItemsControl ItemsSource="{x:Bind ViewModel.TopConsumers}" />
+                            <HyperlinkButton x:Uid="ManagerOpenMapLink" Padding="0" Command="{x:Bind ViewModel.OpenMapCommand}" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource CardBorderStyle}">
@@ -133,24 +135,37 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 1 Carte: the storage map page -->
-            <StackPanel x:Name="Tab1" Spacing="8" Visibility="Collapsed">
-                <TextBlock x:Uid="ManagerMapHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                <Button x:Uid="ManagerOpenMap" Command="{x:Bind ViewModel.OpenMapCommand}" Style="{StaticResource MainButtonStyle}" />
-            </StackPanel>
-
-            <!-- 2 Explorateur -->
-            <Grid x:Name="Tab2" RowSpacing="8" Visibility="Collapsed">
+            <!-- 1 Explorateur: a folder opened from the storage map (D82), or a search -->
+            <Grid x:Name="Tab1" RowSpacing="8" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <TextBox x:Uid="ManagerSearch" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" />
+                <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.HasFolder, Mode=OneWay}">
+                    <Grid ColumnSpacing="12" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontFamily="{StaticResource PathFontFamily}" FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind ViewModel.FolderPath, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind ViewModel.FolderPath, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.FolderSummary, Mode=OneWay}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button x:Uid="ManagerBackToMap" Command="{x:Bind ViewModel.BackToMapCommand}" Style="{StaticResource MainButtonStyle}" />
+                            <Button x:Uid="ManagerCheckAll" Command="{x:Bind ViewModel.CheckAllFolderCommand}" />
+                            <Button x:Uid="ManagerUncheckAll" Command="{x:Bind ViewModel.UncheckAllFolderCommand}" />
+                            <Button x:Uid="ManagerCloseFolder" Command="{x:Bind ViewModel.CloseFolderCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <TextBox x:Uid="ManagerSearch" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind conv:Visible.Not(ViewModel.HasFolder), Mode=OneWay}" />
+                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.FolderFiles}" SelectionMode="None" Visibility="{x:Bind ViewModel.HasFolder, Mode=OneWay}" />
+                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" Visibility="{x:Bind conv:Visible.Not(ViewModel.HasFolder), Mode=OneWay}" />
             </Grid>
 
-            <!-- 3 Catégories -->
-            <Grid x:Name="Tab3" ColumnSpacing="12" Visibility="Collapsed">
+            <!-- 2 Catégories -->
+            <Grid x:Name="Tab2" ColumnSpacing="12" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="320" />
                     <ColumnDefinition Width="*" />
@@ -159,14 +174,14 @@
                 <ListView Grid.Column="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.CategoryFiles}" SelectionMode="None" />
             </Grid>
 
-            <!-- 4 Gros fichiers -->
-            <ListView x:Name="Tab4" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Largest}" SelectionMode="None" Visibility="Collapsed" />
+            <!-- 3 Gros fichiers -->
+            <ListView x:Name="Tab3" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Largest}" SelectionMode="None" Visibility="Collapsed" />
 
-            <!-- 5 Fichiers anciens -->
-            <ListView x:Name="Tab5" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.OldFiles}" SelectionMode="None" Visibility="Collapsed" />
+            <!-- 4 Fichiers anciens -->
+            <ListView x:Name="Tab4" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.OldFiles}" SelectionMode="None" Visibility="Collapsed" />
 
-            <!-- 6 Doublons -->
-            <Grid x:Name="Tab6" RowSpacing="8" Visibility="Collapsed">
+            <!-- 5 Doublons -->
+            <Grid x:Name="Tab5" RowSpacing="8" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -178,8 +193,8 @@
                 <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.DuplicateCopies}" SelectionMode="None" />
             </Grid>
 
-            <!-- 7 Système -->
-            <ScrollViewer x:Name="Tab7" Visibility="Collapsed">
+            <!-- 6 Système -->
+            <ScrollViewer x:Name="Tab6" Visibility="Collapsed">
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.SystemRows}">
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:SystemRow">
@@ -203,8 +218,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
 
-            <!-- 8 Suppressions en attente -->
-            <ScrollViewer x:Name="Tab8" Visibility="Collapsed">
+            <!-- 7 Suppressions en attente -->
+            <ScrollViewer x:Name="Tab7" Visibility="Collapsed">
                 <StackPanel Spacing="12">
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="6">
@@ -235,8 +250,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 9 Évolution -->
-            <ScrollViewer x:Name="Tab9" Visibility="Collapsed">
+            <!-- 8 Évolution -->
+            <ScrollViewer x:Name="Tab8" Visibility="Collapsed">
                 <StackPanel Spacing="12">
                     <Border Style="{StaticResource CardBorderStyle}">
                         <ItemsRepeater ItemsSource="{x:Bind ViewModel.Measures}">
@@ -265,8 +280,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 10 Volumes (display only) -->
-            <ScrollViewer x:Name="Tab10" Visibility="Collapsed">
+            <!-- 9 Volumes (display only) -->
+            <ScrollViewer x:Name="Tab9" Visibility="Collapsed">
                 <StackPanel Spacing="12">
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel Spacing="4">
@@ -294,11 +309,16 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Actions on the checked files of any list -->
+        <!-- Actions on the checked files of any list; each says what it does (D82), « ? » explains them all -->
         <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
             <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-            <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,0,0,8">
-                <Button Command="{x:Bind ViewModel.DeleteCheckedCommand}" Style="{StaticResource DangerButtonStyle}">
+            <StackPanel x:Name="ActionBar" Orientation="Horizontal" Spacing="8" Padding="0,0,0,8">
+                <Button x:Uid="ManagerDeleteButton" Command="{x:Bind ViewModel.DeleteCheckedCommand}" Style="{StaticResource DangerButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE74D;" />
                         <TextBlock x:Uid="ManagerDelete" />
@@ -313,6 +333,17 @@
                 <Button x:Uid="ManagerReport" Command="{x:Bind ViewModel.ExportReportCommand}" />
             </StackPanel>
             </ScrollViewer>
+                <Button x:Uid="ManagerActionsHelp" Grid.Column="1" Width="40" Height="40" Padding="0" VerticalAlignment="Top" CornerRadius="20" FontWeight="Bold">
+                    <TextBlock FontSize="18" FontWeight="Bold" Text="?" />
+                    <Button.Flyout>
+                        <Flyout Opening="OnHelpOpening" Placement="TopEdgeAlignedRight">
+                            <ScrollViewer MaxHeight="520">
+                                <StackPanel x:Name="HelpPanel" Width="400" Spacing="12" />
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </Page>

@@ -28,6 +28,7 @@ public partial class App : Application
             .ConfigureServices(services =>
             {
                 services.AddSingleton<ISettingsService, SettingsService>();
+                services.AddSingleton<OperationService>();
                 services.AddSingleton<EngineService>();
                 services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<EngineService>());
                 services.AddSingleton<IManagerService>(sp => sp.GetRequiredService<EngineService>());
@@ -36,8 +37,10 @@ public partial class App : Application
                 services.AddSingleton<ILogExportService, LogExportService>();
                 services.AddSingleton<IFolderService, FolderService>();
                 services.AddSingleton<IStorageService, StorageService>();
-                services.AddTransient<StorageMapViewModel>();
-                services.AddTransient<ManagerViewModel>();
+                // Singletons (D82): an analysis or a map keeps running, with its progress and
+                // its place, when the user goes to another page and back.
+                services.AddSingleton<StorageMapViewModel>();
+                services.AddSingleton<ManagerViewModel>();
                 services.AddTransient<OnboardingViewModel>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();
@@ -70,7 +73,7 @@ public partial class App : Application
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+            Services.Launcher.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
             {
                 UseShellExecute = true,
                 Verb = "runas",

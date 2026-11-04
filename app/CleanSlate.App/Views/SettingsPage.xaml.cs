@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using CleanSlate.Presentation.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -28,6 +27,6 @@ public sealed partial class SettingsPage : Page
     private void OnOpenLogs(object sender, RoutedEventArgs e)
     {
         Directory.CreateDirectory(ViewModel.LogsFolder);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{ViewModel.LogsFolder}\"") { UseShellExecute = false });
+        Services.Launcher.Explorer(ViewModel.LogsFolder);
     }
 }
