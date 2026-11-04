@@ -30,6 +30,11 @@
                     <Button x:Uid="HomeRestartElevated" Click="OnRestartElevated" />
                 </InfoBar.ActionButton>
             </InfoBar>
+            <InfoBar x:Uid="HomeSpaceAlert" IsClosable="True" IsOpen="{x:Bind conv:Texts.HasText(ViewModel.AlertText), Mode=OneWay}" Message="{x:Bind ViewModel.AlertText, Mode=OneWay}" Severity="Warning">
+                <InfoBar.ActionButton>
+                    <Button x:Uid="HomeSpaceAlertFree" Command="{x:Bind ViewModel.OpenManagerCommand}" />
+                </InfoBar.ActionButton>
+            </InfoBar>
             <InfoBar x:Uid="HomeEngineError" IsClosable="False" IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}" Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}" Severity="Error" />
 
             <Grid ColumnSpacing="16">

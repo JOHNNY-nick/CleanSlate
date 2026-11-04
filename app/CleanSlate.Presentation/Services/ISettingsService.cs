@@ -46,6 +46,12 @@ public interface ISettingsService
     /// <summary>Multicolore on a dark background (D76): vivid paint, dark surfaces.</summary>
     bool PaintDark { get; set; }
 
+    /// <summary>Expert mode (D79): manual actions on the sensitive zones, with « CONFIRMER ». Off by default.</summary>
+    bool ExpertMode { get; set; }
+
+    /// <summary>Alert at the opening when a drive has less free space than this, in percent (10 by default).</summary>
+    int AlertPercent { get; set; }
+
     /// <summary>Folders or registry keys never proposed (EF-20).</summary>
     IReadOnlyList<string> Exclusions { get; }
 

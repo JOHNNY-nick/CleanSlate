@@ -446,6 +446,20 @@ public sealed record DiskMapProgress(ulong Files, ulong Bytes, string Current);
 [JsonSerializable(typeof(DiskMapRequest))]
 [JsonSerializable(typeof(DiskMapProgress))]
 [JsonSerializable(typeof(EngineResponse<DiskMap>))]
+[JsonSerializable(typeof(ManagerProgress))]
+[JsonSerializable(typeof(DriveMeasure))]
+[JsonSerializable(typeof(EngineResponse<StorageAnalysis>))]
+[JsonSerializable(typeof(EngineResponse<List<DuplicateGroup>>))]
+[JsonSerializable(typeof(EngineResponse<List<CacheItem>>))]
+[JsonSerializable(typeof(EngineResponse<List<RecycleBinInfo>>))]
+[JsonSerializable(typeof(EngineResponse<List<VolumeInfo>>))]
+[JsonSerializable(typeof(EngineResponse<List<string>>))]
+[JsonSerializable(typeof(EngineResponse<List<SystemItem>>))]
+[JsonSerializable(typeof(EngineResponse<Zone>))]
+[JsonSerializable(typeof(EngineResponse<ActionResult>))]
+[JsonSerializable(typeof(EngineResponse<SystemOutcome>))]
+[JsonSerializable(typeof(EngineResponse<List<DriveMeasure>>))]
+[JsonSerializable(typeof(EngineResponse<object>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext
 {
 }

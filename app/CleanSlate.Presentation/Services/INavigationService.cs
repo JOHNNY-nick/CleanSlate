@@ -29,4 +29,7 @@ public interface INavigationService
 
     /// <summary>Opens the Stockage page (from the Home preview, D73).</summary>
     void OpenStorage();
+
+    /// <summary>Opens the Gestionnaire (D79).</summary>
+    void OpenManager();
 }

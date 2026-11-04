@@ -11,7 +11,7 @@ namespace CleanSlate.App.Services;
 /// (safety rule 5). Only the development mode of a Debug build creates it in simulation (D74).
 /// It is recreated when the exclusions or the data folder change.
 /// </summary>
-public sealed class EngineService : IEngineService, IDisposable
+public sealed class EngineService : IEngineService, IManagerService, IDisposable
 {
     private readonly ISettingsService _settings;
     private readonly IStorageService _storage;
@@ -122,6 +122,95 @@ public sealed class EngineService : IEngineService, IDisposable
     /// <inheritdoc/>
     public Task<DiskMap> DiskMapAsync(DiskMapRequest request, IProgress<DiskMapProgress>? progress, CancellationToken cancellationToken) =>
         Client.DiskMapAsync(request, progress, cancellationToken);
+
+    // Gestionnaire (D79): analyses read-only; actions real (D66), after the confirmation.
+
+    /// <inheritdoc/>
+    public Task<StorageAnalysis> AnalyzeAsync(string root, IProgress<ManagerProgress>? progress, CancellationToken cancellationToken) =>
+        Client.AnalyzeAsync(root, progress, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<DuplicateGroup>> DuplicatesAsync(IReadOnlyList<IReadOnlyList<string>> candidates, CancellationToken cancellationToken) =>
+        Client.DuplicatesAsync(candidates, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<CacheItem>> CachesAsync(CancellationToken cancellationToken) => Client.CachesAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<RecycleBinInfo>> RecycleBinsAsync(CancellationToken cancellationToken) => Client.RecycleBinsAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<VolumeInfo>> VolumesAsync(CancellationToken cancellationToken) => Client.VolumesAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<string>> PendingAtRestartAsync(CancellationToken cancellationToken) => Client.PendingAtRestartAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<SystemItem>> SystemItemsAsync(CancellationToken cancellationToken) => Client.SystemItemsAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> DeleteAsync(IReadOnlyList<string> paths, DeleteMode mode, ManualAction manual, CancellationToken cancellationToken) =>
+        Client.DeleteAsync(paths, mode, manual, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> DeleteAtRestartAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
+        Client.DeleteAtRestartAsync(paths, manual, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> SecureDeleteAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
+        Client.SecureDeleteAsync(paths, manual, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> MoveAsync(IReadOnlyList<string> paths, string destination, ManualAction manual, CancellationToken cancellationToken) =>
+        Client.MoveAsync(paths, destination, manual, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> CleanCachesAsync(IReadOnlyList<string> paths, ManualAction manual, CancellationToken cancellationToken) =>
+        Client.CleanCachesAsync(paths, manual, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ActionResult> EmptyRecycleBinAsync(string? drive, CancellationToken cancellationToken) =>
+        Client.EmptyRecycleBinAsync(drive, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<SystemOutcome> RunSystemAsync(SystemTask task, bool expertMode, CancellationToken cancellationToken) =>
+        Client.RunSystemAsync(task, expertMode, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task RecordMeasureAsync(DriveMeasure measure, CancellationToken cancellationToken) => Client.RecordMeasureAsync(measure, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<DriveMeasure>> MeasuresAsync(string drive, CancellationToken cancellationToken) => Client.MeasuresAsync(drive, cancellationToken);
+
+    /// <inheritdoc/>
+    public string SaveReport(string fileName, string content)
+    {
+        string folder = string.IsNullOrWhiteSpace(_settings.ExportFolder)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+            : _settings.ExportFolder;
+        string path = Path.Combine(folder, fileName);
+        File.WriteAllText(path, content, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        return path;
+    }
+
+    /// <inheritdoc/>
+    public void Reveal(string path) =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"))
+        {
+            ArgumentList = { "/select,", path },
+        });
+
+    /// <inheritdoc/>
+    public void CopyPath(string path)
+    {
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(path);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+    }
+
+    /// <inheritdoc/>
+    public void ShowProperties(string path) =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, Verb = "properties" });
 
     /// <inheritdoc/>
     public void Dispose()

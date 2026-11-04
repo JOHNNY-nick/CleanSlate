@@ -30,7 +30,7 @@ internal sealed class PaintDecorator
     private static readonly Dictionary<string, int> PageColors = new()
     {
         ["HomePage"] = 4, ["AppsPage"] = 3, ["OrphansPage"] = 1, ["HistoryPage"] = 5,
-        ["StoragePage"] = 0, ["SettingsPage"] = 6, ["UninstallWizardPage"] = 7,
+        ["StoragePage"] = 0, ["SettingsPage"] = 6, ["UninstallWizardPage"] = 7, ["ManagerPage"] = 2,
     };
 
     private readonly ResourceDictionary _palette;

@@ -31,6 +31,9 @@ public sealed class NavigationService : INavigationService
     public void OpenStorage() => Window.ShowPage("Storage");
 
     /// <inheritdoc/>
+    public void OpenManager() => Window.ShowPage("Manager");
+
+    /// <inheritdoc/>
     public void OpenSettings() => Window.ShowPage("Settings");
 
     /// <inheritdoc/>

@@ -22,6 +22,21 @@ public sealed record CleanSummary(
 /// <param name="Word">Word typed when it was required.</param>
 public sealed record CleanDecision(bool Confirmed, string? Word = null);
 
+/// <summary>Summary shown before an action of the Gestionnaire (EF-23, EF-35, D79).</summary>
+/// <param name="Title">« Supprimer 3 éléments ».</param>
+/// <param name="ItemCount">Number of items.</param>
+/// <param name="SizeText">Total size.</param>
+/// <param name="SensitiveCount">Items in a sensitive zone (expert mode and « CONFIRMER »).</param>
+/// <param name="OfferModes">The user chooses « Sûr » or « Immédiat ».</param>
+/// <param name="Details">Extra lines: what will happen, the gain freed now.</param>
+public sealed record ManagerSummary(string Title, int ItemCount, string SizeText, int SensitiveCount, bool OfferModes, IReadOnlyList<string> Details);
+
+/// <summary>Answer of the confirmation of the Gestionnaire.</summary>
+/// <param name="Confirmed">The user confirmed.</param>
+/// <param name="Mode">« Sûr » (default) or « Immédiat ».</param>
+/// <param name="Word">Word typed, « CONFIRMER », for the sensitive zones.</param>
+public sealed record ManagerDecision(bool Confirmed, DeleteMode Mode = DeleteMode.Safe, string? Word = null);
+
 /// <summary>Dialogs shown by the ViewModels (implemented with ContentDialog).</summary>
 public interface IDialogService
 {
@@ -30,4 +45,10 @@ public interface IDialogService
 
     /// <summary>Asks before purging the quarantine for good (EF-19).</summary>
     Task<bool> ConfirmPurgeAsync(int quarantineDays);
+
+    /// <summary>Confirmation of an action of the Gestionnaire: preview, mode, and « CONFIRMER » when a sensitive zone is concerned (D79).</summary>
+    Task<ManagerDecision> ConfirmManagerAsync(ManagerSummary summary);
+
+    /// <summary>Picks a destination folder (move to another drive), or null.</summary>
+    Task<string?> PickFolderAsync();
 }

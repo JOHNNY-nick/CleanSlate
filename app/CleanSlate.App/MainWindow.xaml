@@ -48,6 +48,11 @@
                         <FontIcon Foreground="{ThemeResource NavStorageBrush}" Glyph="&#xEDA2;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Uid="NavManager" Tag="Manager">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Foreground="{ThemeResource NavStorageBrush}" Glyph="&#xE90F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem x:Uid="NavSettings" Tag="Settings">

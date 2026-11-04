@@ -10,7 +10,7 @@ namespace CleanSlate.Interop;
 /// Safe wrapper around <c>cleanslate.dll</c>. This is the only class that
 /// touches native pointers; every other project uses its typed async methods.
 /// </summary>
-public sealed class EngineClient : IDisposable
+public sealed partial class EngineClient : IDisposable
 {
     private readonly EngineSafeHandle _handle;
 

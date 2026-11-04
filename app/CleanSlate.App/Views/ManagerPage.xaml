@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="CleanSlate.App.Views.ManagerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:CleanSlate.App.Converters"
+    xmlns:vm="using:CleanSlate.Presentation.ViewModels"
+    Loaded="OnLoaded">
+
+    <Page.Resources>
+        <!-- A file of any list: chosen by hand (never pre-checked), with its zone badge. -->
+        <DataTemplate x:Key="RowTemplate" x:DataType="vm:ManagerRow">
+            <Grid Padding="0,4" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox MinWidth="0" AutomationProperties.Name="{x:Bind Path}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind Path}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Path}" />
+                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                        <Run Text="{x:Bind Detail}" />
+                        <Run Text="·" />
+                        <Run Text="{x:Bind DateText}" />
+                    </TextBlock>
+                </StackPanel>
+                <Border Grid.Column="2" Padding="8,2" VerticalAlignment="Center" Background="{ThemeResource ConfidenceMediumBackgroundBrush}" CornerRadius="4" Visibility="{x:Bind IsSensitive}">
+                    <TextBlock x:Uid="ManagerSensitiveBadge" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource ConfidenceMediumForegroundBrush}" />
+                </Border>
+                <TextBlock Grid.Column="3" VerticalAlignment="Center" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind SizeText}" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Margin="{StaticResource PageMargin}" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderStorageBrush}">
+                <TextBlock x:Uid="ManagerTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
+            </Border>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button x:Uid="ManagerAnalyze" Command="{x:Bind ViewModel.AnalyzeCommand}" Style="{StaticResource MainButtonStyle}" />
+                <Button x:Uid="ManagerCancel" Command="{x:Bind ViewModel.AnalyzeCancelCommand}" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="4">
+            <ProgressBar IsIndeterminate="True" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" x:Uid="ManagerProgress" />
+            <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.ProgressText, Mode=OneWay}" />
+            <InfoBar IsClosable="False" IsOpen="{x:Bind conv:Texts.HasText(ViewModel.ResultText), Mode=OneWay}" Message="{x:Bind ViewModel.ResultText, Mode=OneWay}" Severity="Informational" />
+        </StackPanel>
+
+        <SelectorBar x:Name="Tabs" Grid.Row="2" SelectionChanged="OnTabChanged">
+            <SelectorBarItem x:Uid="ManagerTabDiagnostic" IsSelected="True" />
+            <SelectorBarItem x:Uid="ManagerTabMap" />
+            <SelectorBarItem x:Uid="ManagerTabExplorer" />
+            <SelectorBarItem x:Uid="ManagerTabCategories" />
+            <SelectorBarItem x:Uid="ManagerTabLarge" />
+            <SelectorBarItem x:Uid="ManagerTabOld" />
+            <SelectorBarItem x:Uid="ManagerTabDuplicates" />
+            <SelectorBarItem x:Uid="ManagerTabSystem" />
+            <SelectorBarItem x:Uid="ManagerTabPending" />
+            <SelectorBarItem x:Uid="ManagerTabEvolution" />
+            <SelectorBarItem x:Uid="ManagerTabVolumes" />
+        </SelectorBar>
+
+        <Grid Grid.Row="3">
+            <!-- 0 Diagnostic -->
+            <ScrollViewer x:Name="Tab0">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.DriveSentences}" />
+                    </Border>
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Uid="ManagerTopConsumers" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.TopConsumers}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Uid="ManagerRecoverable" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Command="{x:Bind ViewModel.FreeAllSafeCommand}" Style="{StaticResource MainButtonStyle}">
+                                    <TextBlock>
+                                        <Run x:Uid="ManagerFreeAllSafe" />
+                                        <Run Text="{x:Bind ViewModel.SafeTotalText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Button>
+                            </Grid>
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Recoverable}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RecoverableLine">
+                                        <Grid Padding="0,6" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}">
+                                                    <Run Text="{x:Bind Name}" />
+                                                    <Run Text="·" />
+                                                    <Run Text="{x:Bind Safe, Converter={StaticResource SafeText}}" />
+                                                </TextBlock>
+                                                <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind Explanation}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind SizeText}" />
+                                            <Button x:Uid="ManagerFree" Grid.Column="2" Click="OnFree" Tag="{x:Bind}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 1 Carte: the storage map page -->
+            <StackPanel x:Name="Tab1" Spacing="8" Visibility="Collapsed">
+                <TextBlock x:Uid="ManagerMapHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                <Button x:Uid="ManagerOpenMap" Command="{x:Bind ViewModel.OpenMapCommand}" Style="{StaticResource MainButtonStyle}" />
+            </StackPanel>
+
+            <!-- 2 Explorateur -->
+            <Grid x:Name="Tab2" RowSpacing="8" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBox x:Uid="ManagerSearch" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" />
+            </Grid>
+
+            <!-- 3 Catégories -->
+            <Grid x:Name="Tab3" ColumnSpacing="12" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ListView ItemsSource="{x:Bind ViewModel.Categories}" SelectedIndex="{x:Bind ViewModel.CategoryIndex, Mode=TwoWay}" x:Uid="ManagerCategoryList" />
+                <ListView Grid.Column="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.CategoryFiles}" SelectionMode="None" />
+            </Grid>
+
+            <!-- 4 Gros fichiers -->
+            <ListView x:Name="Tab4" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Largest}" SelectionMode="None" Visibility="Collapsed" />
+
+            <!-- 5 Fichiers anciens -->
+            <ListView x:Name="Tab5" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.OldFiles}" SelectionMode="None" Visibility="Collapsed" />
+
+            <!-- 6 Doublons -->
+            <Grid x:Name="Tab6" RowSpacing="8" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button x:Uid="ManagerFindDuplicates" Command="{x:Bind ViewModel.FindDuplicatesCommand}" />
+                    <TextBlock x:Uid="ManagerDuplicatesHelp" Style="{StaticResource SecondaryTextBlockStyle}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.DuplicateCopies}" SelectionMode="None" />
+            </Grid>
+
+            <!-- 7 Système -->
+            <ScrollViewer x:Name="Tab7" Visibility="Collapsed">
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.SystemRows}">
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SystemRow">
+                            <Border Margin="0,0,0,12" Style="{StaticResource CardBorderStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind Task, Converter={StaticResource SystemName}}" />
+                                        <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind Task, Converter={StaticResource SystemExplanation}}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind SizeText}" />
+                                    <Button x:Uid="ManagerRun" Grid.Column="2" Click="OnRunSystem" IsEnabled="{x:Bind Available}" Tag="{x:Bind}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+
+            <!-- 8 Suppressions en attente -->
+            <ScrollViewer x:Name="Tab8" Visibility="Collapsed">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock x:Uid="ManagerRecycleBins" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.RecycleBins}" />
+                            <Button x:Uid="ManagerEmptyBins" Command="{x:Bind ViewModel.EmptyRecycleBinsCommand}" Style="{StaticResource DangerButtonStyle}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="6">
+                            <TextBlock x:Uid="ManagerPendingRestart" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ItemsControl FontFamily="{StaticResource PathFontFamily}" ItemsSource="{x:Bind ViewModel.PendingAtRestart}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 9 Évolution -->
+            <ScrollViewer x:Name="Tab9" Visibility="Collapsed">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Measures}">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MeasureRow">
+                                    <Grid Padding="0,3" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind DateText}" />
+                                        <ProgressBar Grid.Column="1" VerticalAlignment="Center" Maximum="100" Value="{x:Bind FreePercent}" AutomationProperties.Name="{x:Bind FreeText}" />
+                                        <TextBlock Grid.Column="2" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind FreeText}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Border>
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Uid="ManagerGrowth" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Growth}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 10 Volumes (display only) -->
+            <ScrollViewer x:Name="Tab10" Visibility="Collapsed">
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Volumes}">
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:VolumeRow">
+                            <Border Margin="0,0,0,12" Style="{StaticResource CardBorderStyle}">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Foreground="{ThemeResource TextPrimaryBrush}">
+                                        <Run FontWeight="SemiBold" Text="{x:Bind Root}" />
+                                        <Run Text="  " />
+                                        <Run Text="{x:Bind Text}" />
+                                    </TextBlock>
+                                    <ProgressBar Height="10" Maximum="100" Value="{x:Bind UsedPercent}" AutomationProperties.Name="{x:Bind Text}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Actions on the checked files of any list -->
+        <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Command="{x:Bind ViewModel.DeleteCheckedCommand}" Style="{StaticResource DangerButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE74D;" />
+                        <TextBlock x:Uid="ManagerDelete" />
+                    </StackPanel>
+                </Button>
+                <Button x:Uid="ManagerAtRestart" Command="{x:Bind ViewModel.DeleteAtRestartCommand}" />
+                <Button x:Uid="ManagerSecure" Command="{x:Bind ViewModel.SecureDeleteCommand}" />
+                <Button x:Uid="ManagerMove" Command="{x:Bind ViewModel.MoveCheckedCommand}" />
+                <Button x:Uid="ManagerReveal" Command="{x:Bind ViewModel.RevealCommand}" />
+                <Button x:Uid="ManagerCopyPath" Command="{x:Bind ViewModel.CopyPathCommand}" />
+                <Button x:Uid="ManagerProperties" Command="{x:Bind ViewModel.PropertiesCommand}" />
+                <Button x:Uid="ManagerReport" Command="{x:Bind ViewModel.ExportReportCommand}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

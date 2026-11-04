@@ -1,3 +1,4 @@
+using CleanSlate.Interop;
 using CleanSlate.Presentation.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,6 +14,61 @@ public sealed class DialogService : IDialogService
     private static readonly ResourceLoader Loader = new();
     // Resolved on use, to avoid a dependency cycle with MainWindow (see NavigationService).
     private static MainWindow Window => App.GetService<MainWindow>();
+
+    /// <inheritdoc/>
+    public async Task<ManagerDecision> ConfirmManagerAsync(ManagerSummary summary)
+    {
+        const string confirmWord = "CONFIRMER";
+        var panel = new StackPanel { Spacing = 8, MaxWidth = 520 };
+        panel.Children.Add(Text($"{summary.ItemCount} élément(s) · {summary.SizeText}", bold: true));
+        foreach (string line in summary.Details)
+        {
+            panel.Children.Add(Text($"• {line}"));
+        }
+
+        RadioButtons? modes = null;
+        if (summary.OfferModes)
+        {
+            modes = new RadioButtons { Header = Loader.GetString("ManagerModeHeader"), SelectedIndex = 0 };
+            modes.Items.Add(Loader.GetString("ManagerModeSafe"));
+            modes.Items.Add(Loader.GetString("ManagerModeImmediate"));
+            panel.Children.Add(modes);
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Window.Content.XamlRoot,
+            Title = summary.Title,
+            Content = new ScrollViewer { Content = panel },
+            PrimaryButtonText = Loader.GetString("ManagerConfirmPrimary"),
+            CloseButtonText = Loader.GetString("ConfirmCancel"),
+            DefaultButton = ContentDialogButton.Close,
+            PrimaryButtonStyle = DangerButtonStyle(),
+        };
+
+        TextBox? wordBox = null;
+        if (summary.SensitiveCount > 0)
+        {
+            // D79: a sensitive zone, in expert mode: what it is, what can break, and the word.
+            panel.Children.Add(Text(string.Format(Loader.GetString("ManagerSensitiveWarning"), summary.SensitiveCount), bold: true));
+            wordBox = new TextBox { PlaceholderText = confirmWord, Header = Loader.GetString("ManagerWordPrompt") };
+            wordBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = wordBox.Text.Trim() == confirmWord;
+            dialog.IsPrimaryButtonEnabled = false;
+            panel.Children.Add(wordBox);
+        }
+
+        ContentDialogResult result = await dialog.ShowAsync();
+        DeleteMode mode = modes?.SelectedIndex == 1 ? DeleteMode.Immediate : DeleteMode.Safe;
+        return new ManagerDecision(result == ContentDialogResult.Primary, mode, wordBox?.Text.Trim());
+    }
+
+    /// <inheritdoc/>
+    public async Task<string?> PickFolderAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FolderPicker(Window.AppWindow.Id);
+        var result = await picker.PickSingleFolderAsync();
+        return result?.Path;
+    }
 
     /// <inheritdoc/>
     public async Task<CleanDecision> ConfirmCleanAsync(CleanSummary summary)

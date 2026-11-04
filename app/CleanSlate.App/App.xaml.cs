@@ -28,13 +28,16 @@ public partial class App : Application
             .ConfigureServices(services =>
             {
                 services.AddSingleton<ISettingsService, SettingsService>();
-                services.AddSingleton<IEngineService, EngineService>();
+                services.AddSingleton<EngineService>();
+                services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<EngineService>());
+                services.AddSingleton<IManagerService>(sp => sp.GetRequiredService<EngineService>());
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<IDialogService, DialogService>();
                 services.AddSingleton<ILogExportService, LogExportService>();
                 services.AddSingleton<IFolderService, FolderService>();
                 services.AddSingleton<IStorageService, StorageService>();
                 services.AddTransient<StorageMapViewModel>();
+                services.AddTransient<ManagerViewModel>();
                 services.AddTransient<OnboardingViewModel>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<UninstallWizardViewModel>();

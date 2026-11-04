@@ -951,4 +951,166 @@ Retirent des points :
 
 Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccourci, Windows Installer, enregistrement, lancement récent), les dossiers d'un éditeur dont une application est encore installée, les dossiers qui contiennent des données (base de données, coffre de mots de passe, messagerie, disque virtuel) et les dossiers personnels. Les éléments de Windows ne sont jamais proposés.</value>
   </data>
+  <data name="NavManager.Content" xml:space="preserve">
+    <value>Gestionnaire</value>
+  </data>
+  <data name="ManagerTitle.Text" xml:space="preserve">
+    <value>Gestionnaire</value>
+  </data>
+  <data name="ManagerAnalyze.Content" xml:space="preserve">
+    <value>Analyser le disque</value>
+  </data>
+  <data name="ManagerCancel.Content" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="ManagerProgress.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Analyse ou action en cours</value>
+  </data>
+  <data name="ManagerTabDiagnostic.Text" xml:space="preserve">
+    <value>Diagnostic</value>
+  </data>
+  <data name="ManagerTabMap.Text" xml:space="preserve">
+    <value>Carte</value>
+  </data>
+  <data name="ManagerTabExplorer.Text" xml:space="preserve">
+    <value>Explorateur</value>
+  </data>
+  <data name="ManagerTabCategories.Text" xml:space="preserve">
+    <value>Catégories</value>
+  </data>
+  <data name="ManagerTabLarge.Text" xml:space="preserve">
+    <value>Gros fichiers</value>
+  </data>
+  <data name="ManagerTabOld.Text" xml:space="preserve">
+    <value>Fichiers anciens</value>
+  </data>
+  <data name="ManagerTabDuplicates.Text" xml:space="preserve">
+    <value>Doublons</value>
+  </data>
+  <data name="ManagerTabSystem.Text" xml:space="preserve">
+    <value>Système</value>
+  </data>
+  <data name="ManagerTabPending.Text" xml:space="preserve">
+    <value>Suppressions en attente</value>
+  </data>
+  <data name="ManagerTabEvolution.Text" xml:space="preserve">
+    <value>Évolution</value>
+  </data>
+  <data name="ManagerTabVolumes.Text" xml:space="preserve">
+    <value>Volumes</value>
+  </data>
+  <data name="ManagerTopConsumers.Text" xml:space="preserve">
+    <value>Les 5 plus gros consommateurs</value>
+  </data>
+  <data name="ManagerRecoverable.Text" xml:space="preserve">
+    <value>Ce qui peut être libéré</value>
+  </data>
+  <data name="ManagerFreeAllSafe.Text" xml:space="preserve">
+    <value>Tout libérer maintenant (sans risque) :</value>
+  </data>
+  <data name="ManagerFree.Content" xml:space="preserve">
+    <value>Libérer</value>
+  </data>
+  <data name="ManagerMapHelp.Text" xml:space="preserve">
+    <value>La carte du stockage montre chaque dossier par un rectangle proportionnel à sa taille ; cliquez pour descendre dans un dossier.</value>
+  </data>
+  <data name="ManagerOpenMap.Content" xml:space="preserve">
+    <value>Ouvrir la carte du stockage</value>
+  </data>
+  <data name="ManagerSearch.Header" xml:space="preserve">
+    <value>Rechercher parmi les fichiers analysés</value>
+  </data>
+  <data name="ManagerSearch.PlaceholderText" xml:space="preserve">
+    <value>Nom ou partie du chemin</value>
+  </data>
+  <data name="ManagerCategoryList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Catégories de fichiers</value>
+  </data>
+  <data name="ManagerFindDuplicates.Content" xml:space="preserve">
+    <value>Chercher les doublons</value>
+  </data>
+  <data name="ManagerDuplicatesHelp.Text" xml:space="preserve">
+    <value>Comparés par taille puis par SHA-256 ; une copie de chaque fichier est toujours gardée (la plus ancienne, ou celle hors des Téléchargements).</value>
+  </data>
+  <data name="ManagerRun.Content" xml:space="preserve">
+    <value>Exécuter</value>
+  </data>
+  <data name="ManagerRecycleBins.Text" xml:space="preserve">
+    <value>Corbeilles</value>
+  </data>
+  <data name="ManagerEmptyBins.Content" xml:space="preserve">
+    <value>Vider les Corbeilles</value>
+  </data>
+  <data name="ManagerPendingRestart.Text" xml:space="preserve">
+    <value>Supprimé au prochain redémarrage</value>
+  </data>
+  <data name="ManagerGrowth.Text" xml:space="preserve">
+    <value>Ce qui a le plus grossi depuis la dernière fois</value>
+  </data>
+  <data name="ManagerDelete.Text" xml:space="preserve">
+    <value>Supprimer…</value>
+  </data>
+  <data name="ManagerAtRestart.Content" xml:space="preserve">
+    <value>Au redémarrage</value>
+  </data>
+  <data name="ManagerSecure.Content" xml:space="preserve">
+    <value>Suppression sécurisée</value>
+  </data>
+  <data name="ManagerMove.Content" xml:space="preserve">
+    <value>Déplacer vers…</value>
+  </data>
+  <data name="ManagerReveal.Content" xml:space="preserve">
+    <value>Ouvrir dans l'Explorateur</value>
+  </data>
+  <data name="ManagerCopyPath.Content" xml:space="preserve">
+    <value>Copier le chemin</value>
+  </data>
+  <data name="ManagerProperties.Content" xml:space="preserve">
+    <value>Propriétés</value>
+  </data>
+  <data name="ManagerReport.Content" xml:space="preserve">
+    <value>Exporter le rapport</value>
+  </data>
+  <data name="ManagerSensitiveBadge.Text" xml:space="preserve">
+    <value>Zone sensible</value>
+  </data>
+  <data name="ManagerModeHeader" xml:space="preserve">
+    <value>Mode</value>
+  </data>
+  <data name="ManagerModeSafe" xml:space="preserve">
+    <value>Sûr : vers la Corbeille, restaurable (recommandé)</value>
+  </data>
+  <data name="ManagerModeImmediate" xml:space="preserve">
+    <value>Immédiat : supprimé définitivement, la place est libérée tout de suite</value>
+  </data>
+  <data name="ManagerConfirmPrimary" xml:space="preserve">
+    <value>Confirmer</value>
+  </data>
+  <data name="ManagerSensitiveWarning" xml:space="preserve">
+    <value>{0} élément(s) sont dans une zone sensible de Windows ou des programmes : les supprimer peut empêcher une application ou Windows de fonctionner. Ne continuez que si vous savez ce que c'est.</value>
+  </data>
+  <data name="ManagerWordPrompt" xml:space="preserve">
+    <value>Tapez CONFIRMER pour agir sur ces éléments</value>
+  </data>
+  <data name="SettingsExpertMode.Header" xml:space="preserve">
+    <value>Mode expert</value>
+  </data>
+  <data name="SettingsExpertMode.OnContent" xml:space="preserve">
+    <value>Activé : actions possibles dans les zones sensibles, avec « CONFIRMER »</value>
+  </data>
+  <data name="SettingsExpertMode.OffContent" xml:space="preserve">
+    <value>Désactivé (recommandé)</value>
+  </data>
+  <data name="SettingsExpertModeHelp.Text" xml:space="preserve">
+    <value>Les zones sensibles (Windows, Program Files, ProgramData, pilotes, clés système du registre) ne sont jamais proposées automatiquement. En mode expert, vous pouvez y agir à la main ; chaque action demande de taper « CONFIRMER ». Une erreur peut empêcher Windows ou une application de démarrer.</value>
+  </data>
+  <data name="SettingsAlertPercent.Header" xml:space="preserve">
+    <value>Alerte à l'ouverture quand un disque a moins de (%) de libre</value>
+  </data>
+  <data name="HomeSpaceAlert.Title" xml:space="preserve">
+    <value>Espace disque faible</value>
+  </data>
+  <data name="HomeSpaceAlertFree.Content" xml:space="preserve">
+    <value>Libérer maintenant</value>
+  </data>
 </root>

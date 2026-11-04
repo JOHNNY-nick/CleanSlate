@@ -83,6 +83,20 @@ public sealed class SettingsService : ISettingsService
     }
 
     /// <inheritdoc/>
+    public bool ExpertMode
+    {
+        get => _stored.ExpertMode;
+        set => Update(_stored with { ExpertMode = value });
+    }
+
+    /// <inheritdoc/>
+    public int AlertPercent
+    {
+        get => _stored.AlertPercent;
+        set => Update(_stored with { AlertPercent = Math.Clamp(value, 1, 50) });
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<string> Exclusions => _stored.Exclusions;
 
     /// <inheritdoc/>
@@ -144,7 +158,9 @@ public sealed class SettingsService : ISettingsService
         string? QuarantineFolder = null,
         string? ExportFolder = null,
         PaintStyle PaintStyle = PaintStyle.Splashes,
-        bool PaintDark = false)
+        bool PaintDark = false,
+        bool ExpertMode = false,
+        int AlertPercent = 10)
     {
         public IReadOnlyList<string> Exclusions { get; init; } = [];
 
@@ -158,6 +174,8 @@ public sealed class SettingsService : ISettingsService
             && ExportFolder == other.ExportFolder
             && PaintStyle == other.PaintStyle
             && PaintDark == other.PaintDark
+            && ExpertMode == other.ExpertMode
+            && AlertPercent == other.AlertPercent
             && Exclusions.SequenceEqual(other.Exclusions);
 
         public override int GetHashCode() => HashCode.Combine(DeleteImmediately, QuarantineDays, Theme, FirstRunDone, QuarantineFolder, ExportFolder, Exclusions.Count);

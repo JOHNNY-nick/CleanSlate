@@ -27,6 +27,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _themeIndex = ThemePalette.IndexOf(settings.Theme);
         _paintStyleIndex = (int)settings.PaintStyle;
         _paintDark = settings.PaintDark;
+        _expertMode = settings.ExpertMode;
+        _alertPercent = settings.AlertPercent;
         Exclusions = new ObservableCollection<string>(settings.Exclusions);
     }
 
@@ -57,6 +59,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Multicolore on a dark background (D76).</summary>
     [ObservableProperty]
     private bool _paintDark;
+
+    /// <summary>Expert mode (D79): manual actions on the sensitive zones of Windows, with « CONFIRMER ».</summary>
+    [ObservableProperty]
+    private bool _expertMode;
+
+    /// <summary>Alert at the opening below this free space, in percent.</summary>
+    [ObservableProperty]
+    private double _alertPercent;
 
     /// <summary>Folder or key being typed in the exclusion box.</summary>
     [ObservableProperty]
@@ -296,6 +306,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings.PaintStyle = Enum.IsDefined(typeof(PaintStyle), value) ? (PaintStyle)value : PaintStyle.Splashes;
 
     partial void OnPaintDarkChanged(bool value) => _settings.PaintDark = value;
+
+    partial void OnExpertModeChanged(bool value) => _settings.ExpertMode = value;
+
+    partial void OnAlertPercentChanged(double value) =>
+        _settings.AlertPercent = double.IsNaN(value) ? 10 : (int)Math.Clamp(Math.Round(value), 1, 50);
 
     partial void OnQuarantineDaysChanged(double value)
     {

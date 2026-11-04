@@ -306,6 +306,7 @@
                 <Color x:Key="StatusPartialColor">#FFE76A</Color>
                 <Color x:Key="StatusRestoredColor">#9FE3FF</Color>
                 <Color x:Key="StatusPurgedColor">#FFB3D1</Color>
+                <Color x:Key="PageHeaderManagerBrush">#FFDF18</Color>
             </ResourceDictionary>
             <ResourceDictionary x:Key="ColorfulDarkPalette">
                 <!-- Multicolore on a dark background (D76): recolors the Dark dictionary. -->
@@ -393,6 +394,7 @@
                 <Color x:Key="StatusPartialColor">#FFE76A</Color>
                 <Color x:Key="StatusRestoredColor">#9FE3FF</Color>
                 <Color x:Key="StatusPurgedColor">#FFB3D1</Color>
+                <Color x:Key="PageHeaderManagerBrush">#FFDF18</Color>
             </ResourceDictionary>
             <!-- Shapes and spacing (docs/design.md § 3). -->
             <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>

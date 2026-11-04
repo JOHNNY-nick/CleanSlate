@@ -78,6 +78,10 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty]
     private string _lastCleanupText = string.Empty;
 
+    /// <summary>« C: n'a plus que 6 % de libre » when a drive is below the threshold (D79), else empty.</summary>
+    [ObservableProperty]
+    private string _alertText = string.Empty;
+
     /// <summary>No session yet.</summary>
     public bool HasNoSession => RecentSessions.Count == 0;
 
@@ -149,7 +153,15 @@ public sealed partial class HomeViewModel : ObservableObject
         }
 
         LastCleanupText = StorageMapViewModel.LastCleanup(_storage.Journal());
+        int threshold = _settings?.AlertPercent ?? 10;
+        AlertText = string.Join(" ", drives
+            .Where(d => d.TotalBytes > 0 && 100.0 * d.FreeBytes / d.TotalBytes < threshold)
+            .Select(d => $"{d.Name} n'a plus que {Math.Round(100.0 * d.FreeBytes / d.TotalBytes)} % de libre ({Formats.Size(d.FreeBytes)})."));
     }
+
+    /// <summary>« Libérer maintenant » from the alert: the Gestionnaire, on its Diagnostic.</summary>
+    [RelayCommand]
+    private void OpenManager() => _navigation?.OpenManager();
 
     /// <summary>« Voir la carte du stockage ».</summary>
     [RelayCommand]

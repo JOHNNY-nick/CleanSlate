@@ -87,6 +87,15 @@
                 </RadioButtons>
             </Border>
 
+            <!-- Gestionnaire (D79): expert mode, with its warning, and the alert threshold. -->
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="8">
+                    <ToggleSwitch x:Uid="SettingsExpertMode" IsOn="{x:Bind ViewModel.ExpertMode, Mode=TwoWay}" />
+                    <TextBlock x:Uid="SettingsExpertModeHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                    <NumberBox x:Uid="SettingsAlertPercent" Maximum="50" Minimum="1" SpinButtonPlacementMode="Compact" Value="{x:Bind ViewModel.AlertPercent, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
             <!-- Multicolore (D76): three styles of paint, each on a light or a dark background. -->
             <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.IsColorful, Mode=OneWay}">
                 <StackPanel Spacing="8">
