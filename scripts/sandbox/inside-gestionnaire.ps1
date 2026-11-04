@@ -20,7 +20,8 @@
         from the Recycle Bin;
     10. system clean-up: Windows Update cache, Delivery Optimization, hibernation, restore points,
         component store (return codes);
-    11. measures (« Évolution »).
+    11. measures (« Évolution »);
+    12. physical disks read by DeviceIoControl, without any console window (D82).
     Writes results\gestionnaire-<date>\rapport.md and rapport.html. The test commands only run
     when the three conditions of the guard hold (D53).
 #>
@@ -244,6 +245,15 @@ foreach ($task in 'update_cache', 'delivery_optimization', 'hibernation', 'resto
     }
     Check "Nettoyage système : $task (EF-26, ENF-14)" $sysOk $sysMeasure $step
 }
+
+# 12. Physical disks (D82): DeviceIoControl, no PowerShell; compared with Get-Disk.
+$step = Invoke-Step 'Disques physiques par DeviceIoControl, comparés à Get-Disk' -NoInventory {
+    $disks = @(Send @{ op = 'disks' })
+    $reference = @(Get-Disk)
+    $script:diskOk = ($disks.Count -ge 1) -and ($disks.Count -eq $reference.Count) -and ($disks[0].size_bytes -eq $reference[0].Size)
+    $script:diskMeasure = "moteur : $($disks.Count) disque(s), $(($disks | ForEach-Object { "$($_.number) $($_.name) $($_.size_bytes) octets, $($_.unallocated_bytes) non alloués" }) -join ' ; ') — Get-Disk : $($reference.Count) disque(s), $($reference[0].Size) octets"
+}
+Check 'Disques physiques sans fenêtre PowerShell (EF-34, D82)' $diskOk $diskMeasure $step
 
 # 11. Measures.
 $step = Invoke-Step 'Évolution : enregistrer puis relire une mesure' -NoInventory {

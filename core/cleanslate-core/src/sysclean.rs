@@ -8,7 +8,6 @@
 //! refuses everything; the real one is never run by the tests.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -190,7 +189,7 @@ impl WinSystemCleaner {
 
     // Runs a tool of System32 with its arguments, never through a shell (rule 8).
     fn run_tool(&self, exe: &str, args: &[&str], steps: &mut Vec<String>) -> CoreResult<i32> {
-        let output = Command::new(self.system32(exe))
+        let output = crate::process::hidden(self.system32(exe))
             .args(args)
             .output()
             .map_err(|e| CoreError::from_io(self.system32(exe), e))?;
@@ -331,7 +330,7 @@ impl SystemCleaner for WinSystemCleaner {
                 self.checked("powercfg.exe", &["/hibernate", "off"], steps)?
             }
             SystemTask::RestorePoints => {
-                let list = Command::new(self.system32("vssadmin.exe"))
+                let list = crate::process::hidden(self.system32("vssadmin.exe"))
                     .args(["list", "shadows", &format!("/for={drive}")])
                     .output()
                     .map_err(|e| CoreError::from_io(self.system32("vssadmin.exe"), e))?;

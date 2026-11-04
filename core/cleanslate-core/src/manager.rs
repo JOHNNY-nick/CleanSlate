@@ -244,28 +244,16 @@ pub struct DiskInfo {
     pub unallocated_bytes: u64,
 }
 
-/// Disks of `Get-Disk | Select Number, FriendlyName, Size, AllocatedSize | ConvertTo-Json`
-/// (one object or a list).
-pub fn parse_disks(json: &str) -> Vec<DiskInfo> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "PascalCase")]
-    struct Raw {
-        number: u32,
-        friendly_name: Option<String>,
-        size: u64,
-        allocated_size: u64,
+/// What the Volumes tab shows of a physical disk. Gaps under 16 MiB (alignment of the
+/// partitions, GPT headers) are not unallocated space.
+pub fn disk_info(disk: native::PhysicalDisk) -> DiskInfo {
+    let free = disk.size.saturating_sub(disk.allocated);
+    DiskInfo {
+        number: disk.number,
+        name: disk.name,
+        size_bytes: disk.size,
+        unallocated_bytes: if free < 16 * 1024 * 1024 { 0 } else { free },
     }
-    let list: Vec<Raw> = serde_json::from_str::<Vec<Raw>>(json)
-        .or_else(|_| serde_json::from_str::<Raw>(json).map(|r| vec![r]))
-        .unwrap_or_default();
-    list.into_iter()
-        .map(|r| DiskInfo {
-            number: r.number,
-            name: r.friendly_name.unwrap_or_default(),
-            size_bytes: r.size,
-            unallocated_bytes: r.size.saturating_sub(r.allocated_size),
-        })
-        .collect()
 }
 
 /// Deletion of paths chosen by the user (EF-23, EF-27, EF-28).
@@ -1362,19 +1350,11 @@ impl SystemShell for WinShell {
         Ok(win::volumes())
     }
     fn disks(&self) -> CoreResult<Vec<DiskInfo>> {
-        // Read-only query of the Storage module of Windows, without a command interpreter.
-        let windir =
-            std::env::var_os("WINDIR").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
-        let output = std::process::Command::new(windir.join(r"System32\WindowsPowerShell\v1.0\powershell.exe"))
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Get-Disk | Select-Object Number, FriendlyName, Size, AllocatedSize | ConvertTo-Json -Compress",
-            ])
-            .output()
-            .map_err(|e| CoreError::from_io(&windir, e))?;
-        Ok(parse_disks(&String::from_utf8_lossy(&output.stdout)))
+        // DeviceIoControl, read-only: no PowerShell window (D82).
+        Ok(native::physical_disks()
+            .into_iter()
+            .map(disk_info)
+            .collect())
     }
 }
 
@@ -1900,20 +1880,20 @@ mod tests {
     }
 
     #[test]
-    fn disks_and_their_unallocated_space_are_read_from_get_disk() {
-        let one = r#"{"Number":0,"FriendlyName":"SSD","Size":1000,"AllocatedSize":900}"#;
-        assert_eq!(parse_disks(one)[0].unallocated_bytes, 100);
-        let two = r#"[{"Number":0,"FriendlyName":"A","Size":10,"AllocatedSize":10},{"Number":1,"FriendlyName":null,"Size":50,"AllocatedSize":20}]"#;
-        let disks = parse_disks(two);
+    fn unallocated_space_ignores_alignment_gaps() {
+        let disk = |size, allocated| native::PhysicalDisk {
+            number: 1,
+            name: "SSD".into(),
+            size,
+            allocated,
+        };
+        const MIB: u64 = 1024 * 1024;
+        assert_eq!(disk_info(disk(1000 * MIB, 999 * MIB)).unallocated_bytes, 0);
         assert_eq!(
-            (
-                disks.len(),
-                disks[1].unallocated_bytes,
-                disks[1].name.as_str()
-            ),
-            (2, 30, "")
+            disk_info(disk(1000 * MIB, 900 * MIB)).unallocated_bytes,
+            100 * MIB
         );
-        assert!(parse_disks("").is_empty());
+        assert_eq!(disk_info(disk(10, 20)).unallocated_bytes, 0);
     }
 
     #[test]

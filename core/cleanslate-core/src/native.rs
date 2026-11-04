@@ -189,9 +189,178 @@ fn move_with(
     result.map_err(|e| (e.code().0 as u32) & 0xFFFF)
 }
 
+/// A physical disk read by `DeviceIoControl` (D82): no PowerShell, no console window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalDisk {
+    /// Number of `\\.\PhysicalDriveN`.
+    pub number: u32,
+    /// Vendor and product, « Samsung SSD 980 ».
+    pub name: String,
+    /// Size of the disk.
+    pub size: u64,
+    /// Sum of its partitions.
+    pub allocated: u64,
+}
+
+/// Physical disks 0 to 31 that can be opened (read-only; administrator rights needed).
+pub fn physical_disks() -> Vec<PhysicalDisk> {
+    (0..32).filter_map(physical_disk).collect()
+}
+
+/// ASCII text at `offset` in `bytes`, up to its NUL (fields of `STORAGE_DEVICE_DESCRIPTOR`).
+pub fn ascii_at(bytes: &[u8], offset: usize) -> String {
+    if offset == 0 || offset >= bytes.len() {
+        return String::new();
+    }
+    let text = &bytes[offset..];
+    let end = text.iter().position(|b| *b == 0).unwrap_or(text.len());
+    String::from_utf8_lossy(&text[..end]).trim().to_owned()
+}
+
+// Closes a handle of CreateFileW when dropped.
+struct OwnedHandle(windows::Win32::Foundation::HANDLE);
+
+impl Drop for OwnedHandle {
+    fn drop(&mut self) {
+        // SAFETY: the handle comes from CreateFileW and is closed once, here.
+        let _ = unsafe { windows::Win32::Foundation::CloseHandle(self.0) };
+    }
+}
+
+// One IOCTL into an 8-byte aligned buffer; the bytes written, or None.
+fn ioctl(device: &OwnedHandle, code: u32, input: Option<&[u8]>, size: usize) -> Option<Vec<u8>> {
+    use windows::Win32::System::IO::DeviceIoControl;
+    let mut buffer = vec![0u64; size.div_ceil(8)];
+    let mut returned = 0u32;
+    let (input_ptr, input_len) = input.map_or((None, 0), |b| (Some(b.as_ptr().cast()), b.len()));
+    // SAFETY: the output buffer is owned, writable and as large as said; the input, when
+    // given, lives for the call; the handle is open; no overlapped I/O.
+    unsafe {
+        DeviceIoControl(
+            device.0,
+            code,
+            input_ptr,
+            u32::try_from(input_len).ok()?,
+            Some(buffer.as_mut_ptr().cast()),
+            u32::try_from(buffer.len() * 8).ok()?,
+            Some(&mut returned),
+            None,
+        )
+    }
+    .ok()?;
+    let mut bytes: Vec<u8> = buffer.iter().flat_map(|w| w.to_le_bytes()).collect();
+    bytes.truncate(returned as usize);
+    Some(bytes)
+}
+
+fn physical_disk(number: u32) -> Option<PhysicalDisk> {
+    use windows::Win32::Foundation::GENERIC_READ;
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows::Win32::System::Ioctl::{
+        PropertyStandardQuery, StorageDeviceProperty, DRIVE_LAYOUT_INFORMATION_EX,
+        IOCTL_DISK_GET_DRIVE_LAYOUT_EX, IOCTL_DISK_GET_LENGTH_INFO, IOCTL_STORAGE_QUERY_PROPERTY,
+        PARTITION_INFORMATION_EX, STORAGE_DEVICE_DESCRIPTOR, STORAGE_PROPERTY_QUERY,
+    };
+    let name: Vec<u16> = format!(r"\\.\PhysicalDrive{number}")
+        .encode_utf16()
+        .chain([0])
+        .collect();
+    // SAFETY: NUL-terminated name that lives for the call; read access only.
+    let device = OwnedHandle(
+        unsafe {
+            CreateFileW(
+                PCWSTR(name.as_ptr()),
+                GENERIC_READ.0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                None,
+                OPEN_EXISTING,
+                FILE_FLAGS_AND_ATTRIBUTES(0),
+                None,
+            )
+        }
+        .ok()?,
+    );
+
+    let length = ioctl(&device, IOCTL_DISK_GET_LENGTH_INFO, None, 8)?;
+    let size = u64::try_from(i64::from_le_bytes(length.get(..8)?.try_into().ok()?)).ok()?;
+
+    // Partitions: header, then PartitionCount entries (an empty MBR entry has a length of 0).
+    let layout = ioctl(&device, IOCTL_DISK_GET_DRIVE_LAYOUT_EX, None, 64 * 1024)?;
+    let header = std::mem::offset_of!(DRIVE_LAYOUT_INFORMATION_EX, PartitionEntry);
+    let entry = std::mem::size_of::<PARTITION_INFORMATION_EX>();
+    let at = std::mem::offset_of!(PARTITION_INFORMATION_EX, PartitionLength);
+    let count = u32::from_le_bytes(layout.get(4..8)?.try_into().ok()?) as usize;
+    let allocated = (0..count)
+        .filter_map(|i| layout.get(header + i * entry + at..header + i * entry + at + 8))
+        .filter_map(|b| b.try_into().ok().map(i64::from_le_bytes))
+        .map(|len| u64::try_from(len).unwrap_or(0))
+        .sum();
+
+    // Vendor and product, from the storage descriptor.
+    let query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceProperty,
+        QueryType: PropertyStandardQuery,
+        AdditionalParameters: [0],
+    };
+    // SAFETY: a plain repr(C) struct read as bytes for the input of the IOCTL.
+    let query_bytes = unsafe {
+        std::slice::from_raw_parts(
+            (&query as *const STORAGE_PROPERTY_QUERY).cast::<u8>(),
+            std::mem::size_of::<STORAGE_PROPERTY_QUERY>(),
+        )
+    };
+    let label = ioctl(
+        &device,
+        IOCTL_STORAGE_QUERY_PROPERTY,
+        Some(query_bytes),
+        1024,
+    )
+    .map(|d| {
+        let field = |offset: usize| {
+            d.get(offset..offset + 4)
+                .and_then(|b| b.try_into().ok())
+                .map_or(0, |b| u32::from_le_bytes(b) as usize)
+        };
+        let vendor = ascii_at(
+            &d,
+            field(std::mem::offset_of!(
+                STORAGE_DEVICE_DESCRIPTOR,
+                VendorIdOffset
+            )),
+        );
+        let product = ascii_at(
+            &d,
+            field(std::mem::offset_of!(
+                STORAGE_DEVICE_DESCRIPTOR,
+                ProductIdOffset
+            )),
+        );
+        format!("{vendor} {product}").trim().to_owned()
+    })
+    .unwrap_or_default();
+
+    Some(PhysicalDisk {
+        number,
+        name: label,
+        size,
+        allocated,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn descriptor_texts_are_read_up_to_their_nul() {
+        let bytes = b"\0\0\0\0Samsung \0SSD 980\0";
+        assert_eq!(ascii_at(bytes, 4), "Samsung");
+        assert_eq!(ascii_at(bytes, 13), "SSD 980");
+        assert_eq!(ascii_at(bytes, 0), "", "offset 0: no such field");
+        assert_eq!(ascii_at(bytes, 99), "");
+    }
 
     #[test]
     fn the_volume_root_of_a_folder_is_its_drive() {

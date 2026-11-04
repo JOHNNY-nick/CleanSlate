@@ -17,6 +17,7 @@ pub mod matcher;
 pub mod model;
 pub mod msi;
 pub mod native;
+pub mod process;
 pub mod quarantine;
 pub mod registry;
 pub mod safety;
