@@ -187,6 +187,13 @@ public sealed partial class ManagerViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAnalyzing;
 
+    // After an action: everything read again, the result of the action kept on screen.
+    private Task ReloadAfterActionAsync()
+    {
+        _afterAction = true;
+        return LoadCommand.ExecuteAsync(null);
+    }
+
     /// <summary>Lines of the « Système » tab.</summary>
     public ObservableCollection<SystemRow> SystemRows { get; } = [];
 
@@ -230,11 +237,34 @@ public sealed partial class ManagerViewModel : ObservableObject
     /// <summary>Expert mode (Réglages).</summary>
     public bool ExpertMode => _settings.ExpertMode;
 
-    /// <summary>Reads what is quick (drives, caches, Recycle Bins, system, measures) and records a measure.</summary>
+    /// <summary>A page opened again within this time reuses what was read (D84).</summary>
+    public static readonly TimeSpan ReloadAfter = TimeSpan.FromMinutes(1);
+
+    private DateTimeOffset _loadedAt = DateTimeOffset.MinValue;
+    private bool _afterAction;
+
+    /// <summary>
+    /// Reads what is quick (drives, caches, Recycle Bins, system, measures) and records a
+    /// measure. Opened again within <see cref="ReloadAfter"/>, the page keeps what it read
+    /// (D84: the sizes of Windows.old or of the Windows Update cache take seconds); after an
+    /// action everything is read again, and the result of the action stays shown.
+    /// </summary>
     [RelayCommand]
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        ResultText = string.Empty;
+        bool afterAction = _afterAction;
+        _afterAction = false;
+        if (!afterAction)
+        {
+            if (DateTimeOffset.Now - _loadedAt < ReloadAfter)
+            {
+                return;
+            }
+
+            ResultText = string.Empty;
+        }
+
+        _loadedAt = DateTimeOffset.Now;
         try
         {
             _caches = await _manager.CachesAsync(cancellationToken);
@@ -502,7 +532,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             ResultText = ex.Message;
         }
 
-        await LoadCommand.ExecuteAsync(null);
+        await ReloadAfterActionAsync();
     }
 
     /// <summary>Empties every Recycle Bin.</summary>
@@ -795,7 +825,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             IsBusy = false;
         }
 
-        await LoadCommand.ExecuteAsync(null);
+        await ReloadAfterActionAsync();
     }
 
     private async Task RecordAndShowMeasuresAsync(CancellationToken cancellationToken)

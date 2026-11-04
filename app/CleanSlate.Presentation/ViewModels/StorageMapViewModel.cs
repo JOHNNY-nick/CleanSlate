@@ -133,10 +133,10 @@ public sealed partial class StorageMapViewModel : ObservableObject
     public ObservableCollection<DriveBar> Drives { get; } = [];
 
     /// <summary>Rectangles of the level shown.</summary>
-    public ObservableCollection<StorageTile> Tiles { get; } = [];
+    public BulkObservableCollection<StorageTile> Tiles { get; } = [];
 
     /// <summary>Categories present in the level shown.</summary>
-    public ObservableCollection<LegendItem> Legend { get; } = [];
+    public BulkObservableCollection<LegendItem> Legend { get; } = [];
 
     /// <summary>From the drive to the level shown.</summary>
     public ObservableCollection<BreadcrumbItem> Breadcrumb { get; } = [];
@@ -595,14 +595,17 @@ public sealed partial class StorageMapViewModel : ObservableObject
         Layout();
     }
 
+    // The rectangles and the legend are replaced at once: the page draws the map one time (D84).
     private void Layout()
     {
-        Tiles.Clear();
-        Legend.Clear();
         if (Map is null || Breadcrumb.Count == 0)
         {
+            Tiles.ReplaceAll([]);
+            Legend.ReplaceAll([]);
             return;
         }
+
+        var tiles = new List<StorageTile>();
 
         DiskMapNode level = Breadcrumb[^1].Node;
         ulong disk = Map.TotalBytes > 0 ? Map.TotalBytes : Map.Root.SizeBytes;
@@ -615,7 +618,7 @@ public sealed partial class StorageMapViewModel : ObservableObject
                 double share = disk == 0 ? 0 : 100.0 * c.SizeBytes / disk;
                 string where = c.Path.Length > 0 ? c.Path : c.Name;
                 string hint = ClickHint(c);
-                Tiles.Add(new StorageTile(
+                tiles.Add(new StorageTile(
                     r.X, r.Y, r.Width, r.Height, c.Name, Formats.Size(c.SizeBytes),
                     string.Format(French, "{0}\n{1} · {2:0} % du disque{3}", where, Formats.Size(c.SizeBytes), share, hint.Length > 0 ? "\n" + hint : string.Empty),
                     c.Category,
@@ -628,11 +631,8 @@ public sealed partial class StorageMapViewModel : ObservableObject
 
         // Every category is always named, with its size in the whole part shown (sub-folders
         // included): leftovers deep in AppData still appear in the legend of the drive.
-        foreach (LegendItem item in CategoryTotals(level))
-        {
-            Legend.Add(item);
-        }
-
+        Tiles.ReplaceAll(tiles);
+        Legend.ReplaceAll(CategoryTotals(level));
         RefreshListing();
     }
 

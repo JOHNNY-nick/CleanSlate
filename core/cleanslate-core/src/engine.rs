@@ -4,7 +4,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// How long the inventory of the applications is reused (D84): the map, the scan and the
+/// pages ask for it often, and reading it (registry, then Store packages) takes 1.5 to 2.5 s.
+const APPS_FRESH_FOR: Duration = Duration::from_secs(60);
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -107,6 +111,8 @@ pub struct Engine {
     busy: AtomicBool,
     /// Items of the last scan, by id: `cs_clean` only accepts these.
     last_report: Mutex<HashMap<String, Leftover>>,
+    /// Last inventory of the applications and when it was read (see [`APPS_FRESH_FOR`]).
+    apps_cache: Mutex<Option<(Instant, Vec<InstalledApp>)>>,
     /// Applications captured before their uninstall (fingerprints, § 6.4).
     removed_apps: Mutex<HashMap<String, InstalledApp>>,
     /// Starts uninstallers (refuses on a test engine).
@@ -155,6 +161,7 @@ impl Engine {
             cancel: AtomicBool::new(false),
             busy: AtomicBool::new(false),
             last_report: Mutex::new(HashMap::new()),
+            apps_cache: Mutex::new(None),
             history: Mutex::new(None),
             removed_apps: Mutex::new(HashMap::new()),
             runner: Box::new(NoProcessRunner),
@@ -452,6 +459,19 @@ impl Engine {
     /// Uninstall keys, then the Store packages of the current user (EF-04).
     /// A failure of the package listing leaves the Win32 list intact.
     pub fn list_apps(&self) -> CoreResult<Vec<InstalledApp>> {
+        if let Ok(cache) = self.apps_cache.lock() {
+            if let Some((read_at, apps)) = cache.as_ref() {
+                if read_at.elapsed() < APPS_FRESH_FOR {
+                    return Ok(apps.clone());
+                }
+            }
+        }
+        self.list_apps_fresh()
+    }
+
+    /// Reads the inventory again, whatever its age, and keeps it for [`Engine::list_apps`].
+    pub fn list_apps_fresh(&self) -> CoreResult<Vec<InstalledApp>> {
+        let started = Instant::now();
         let mut apps = crate::inventory::list_apps(self.registry())?;
         match self.packages.list() {
             Ok(packages) => {
@@ -468,7 +488,22 @@ impl Engine {
             }
             Err(err) => tracing::warn!(%err, "Store packages not listed"),
         }
+        tracing::info!(
+            apps = apps.len(),
+            ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            "applications listed"
+        );
+        if let Ok(mut cache) = self.apps_cache.lock() {
+            *cache = Some((Instant::now(), apps.clone()));
+        }
         Ok(apps)
+    }
+
+    /// Forgets the inventory kept: the next [`Engine::list_apps`] reads it again.
+    pub fn forget_apps(&self) {
+        if let Ok(mut cache) = self.apps_cache.lock() {
+            *cache = None;
+        }
     }
 
     /// Family names of every package of the current user, listed now;
@@ -676,6 +711,7 @@ impl Engine {
     /// Replaces the Store package store (tests inject a fake).
     pub fn set_package_store(&mut self, packages: Box<dyn PackageStore>) {
         self.packages = packages;
+        self.forget_apps();
     }
 
     /// Replaces the task store and the service control (tests inject fakes).
@@ -728,6 +764,10 @@ impl Engine {
             progress(event);
         });
         let summary = stats.lock().map(|s| s.summary()).unwrap_or_default();
+        // Whatever the path (Win32, MSI, Store): the next inventory is read again (D84).
+        if !matches!(&result, Ok(r) if r.simulated) {
+            self.forget_apps();
+        }
         match &result {
             Ok(r) if r.simulated => tracing::info!(
                 app = %r.display_name, command = %r.command, "uninstall simulated: nothing was run"
@@ -870,7 +910,9 @@ impl Engine {
         result.timed_out = outcome.timed_out;
         result.cancelled = outcome.cancelled;
         emit(UninstallStep::Verifying, None, None, Vec::new());
-        result.still_installed = self.list_apps()?.iter().any(|a| a.id == app.id);
+        // After an uninstall the inventory is read again, never the one kept (D84).
+        self.forget_apps();
+        result.still_installed = self.list_apps_fresh()?.iter().any(|a| a.id == app.id);
         emit(UninstallStep::Done, None, None, Vec::new());
         Ok(result)
     }
@@ -1295,6 +1337,33 @@ mod tests {
                 .code(),
             "BUSY"
         );
+    }
+
+    /// D84: the inventory is reused for a minute (the map and the pages ask for it often),
+    /// and read again on demand and after an uninstall.
+    #[test]
+    fn the_inventory_is_kept_a_minute_then_read_again_on_demand() {
+        use crate::store::{tests::package, FakePackageStore};
+        let area = TestRegistryKey::new();
+        let mut engine = Engine::new(
+            EngineConfig::default(),
+            Box::new(FakeFileSystem::new()),
+            Box::new(area.registry()),
+        );
+        engine.set_package_store(Box::new(FakePackageStore::with(vec![package(
+            "Vendor.Notes_abcdefghjk123",
+        )])));
+        let first = engine.list_apps().unwrap().len();
+        // A package installed meanwhile: the inventory kept is used...
+        engine.packages = Box::new(FakePackageStore::with(vec![
+            package("Vendor.Notes_abcdefghjk123"),
+            package("Vendor.Paint_abcdefghjk123"),
+        ]));
+        assert_eq!(engine.list_apps().unwrap().len(), first);
+        // ...until it is read again.
+        assert_eq!(engine.list_apps_fresh().unwrap().len(), first + 1);
+        engine.forget_apps();
+        assert!(engine.apps_cache.lock().unwrap().is_none());
     }
 
     /// D83: a level of the map computed on a click never runs the long orphan scan first.

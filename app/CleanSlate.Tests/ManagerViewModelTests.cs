@@ -176,4 +176,22 @@ public sealed class ManagerViewModelTests
         Assert.Equal("Vidéos · .mp4", ManagerViewModel.TypeText(@"C:\Users\Ana\Videos\Film.MP4", FileCategory.Videos));
         Assert.Equal(ManagerViewModel.CategoryName(FileCategory.Other), ManagerViewModel.TypeText(@"C:\Users\Ana\LISEZMOI", FileCategory.Other));
     }
+
+    /// <summary>
+    /// D84: the page opened again within a minute keeps what it read; after an action it reads
+    /// everything again, and the space freed stays shown (it was wiped by the reload).
+    /// </summary>
+    [Fact]
+    public async Task ThePage_IsNotReadAgainAtEveryVisit_AndTheResultOfAnActionStays()
+    {
+        var (vm, manager, _, _) = Create();
+        await vm.LoadCommand.ExecuteAsync(null);
+        await vm.LoadCommand.ExecuteAsync(null); // the page shown again
+        await manager.Received(1).CachesAsync(Arg.Any<CancellationToken>());
+
+        await vm.LoadCommand.ExecuteAsync(null);
+        await vm.FreeAllSafeCommand.ExecuteAsync(null);
+        await manager.Received(2).CachesAsync(Arg.Any<CancellationToken>());
+        Assert.NotEqual(string.Empty, vm.ResultText);
+    }
 }

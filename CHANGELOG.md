@@ -36,6 +36,7 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
   Trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages.
 
 ### Corrigé
+- Plus rapide (D84) : la liste des applications n'est plus relue à chaque page ni à chaque niveau de la carte ; chaque niveau de la carte se dessine en une fois ; le Gestionnaire ne relit pas tout à chaque visite. Après une action du Gestionnaire, l'espace libéré reste affiché.
 - Carte : un dossier comme VirtualBox ne fait plus attendre plusieurs minutes (une analyse complète des restes était relancée avant chaque niveau) ; le bouton du menu n'a plus d'ombre décalée en Clair et Sombre (D83).
 - Plus aucune fenêtre de console : les disques sont lus par une fonction de Windows, et les outils de Windows se lancent sans fenêtre (D82).
 - Gestionnaire : une analyse continue quand on change de page, et on la retrouve au retour, avec sa progression ; une demande faite pendant une analyse attend son tour au lieu d'afficher « Busy ». Un indicateur en bas du menu montre l'opération en cours sur toutes les pages. Tous les messages d'erreur sont en français (D82).

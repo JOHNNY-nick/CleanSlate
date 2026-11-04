@@ -254,6 +254,25 @@ public sealed partial class OperationsTests
         await manager.Received(2).ListFolderAsync(@"C:\Users\Videos", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>()); // read again
     }
 
+    /// <summary>
+    /// D84: a level of the map is drawn once. The rectangles were cleared then added one by
+    /// one, and the page drew the whole map at each addition (40 rectangles, about 800 buttons).
+    /// </summary>
+    [Fact]
+    public async Task ALevelOfTheMap_IsDrawnOnce()
+    {
+        var (vm, _, _, _) = Map(Drive());
+        int notifications = 0;
+        vm.Tiles.CollectionChanged += (_, _) => notifications++;
+
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+        Assert.Equal(1, notifications);
+        Assert.Equal(2, vm.Tiles.Count);
+
+        vm.Arrange(1000, 600); // a resize of the window
+        Assert.Equal(2, notifications);
+    }
+
     /// <summary>Point 3: during an analysis the button says so, and the indicator shows it on every page.</summary>
     [Fact]
     public async Task AnAnalysis_IsShownByTheButtonAndTheIndicator_UntilItEnds()
