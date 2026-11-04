@@ -1289,7 +1289,9 @@ pub fn without_pending(list: &[String], path: &str) -> Option<Vec<String>> {
         if deletes && pair[0].trim_start_matches(r"\??\").to_lowercase() == wanted {
             found = true;
         } else {
-            kept.extend(pair.iter().cloned());
+            // Always whole pairs: a missing last target stays an explicit delete.
+            kept.push(pair[0].clone());
+            kept.push(pair.get(1).cloned().unwrap_or_default());
         }
     }
     found.then_some(kept)
@@ -1806,6 +1808,45 @@ mod tests {
             "a rename is not a deletion"
         );
         assert!(without_pending(&list, r"C:\none").is_none());
+    }
+
+    /// Sandbox run of 4 nov. 2026: other operations were waiting before ours, and the
+    /// list read from the registry had lost its empty targets, so the pairs were shifted.
+    #[test]
+    fn the_pending_list_read_from_the_registry_keeps_its_pairs() {
+        // As Windows writes it: each string ends with \0, the list with one more \0.
+        let raw: Vec<u8> = [
+            r"\??\C:\w.log",
+            "",
+            r"\??\C:\x.old",
+            r"\??\C:\x.new",
+            r"\??\C:\ouvert.bin",
+            "",
+        ]
+        .iter()
+        .flat_map(|s| s.encode_utf16().chain([0]))
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect();
+        let list = crate::registry::decode_multi_sz(&raw);
+        assert_eq!(list.len(), 6);
+        let kept = without_pending(&list, r"C:\ouvert.bin").unwrap();
+        assert_eq!(
+            kept,
+            list[..4].to_vec(),
+            "the other deletion and the rename are unchanged"
+        );
+        assert!(without_pending(&kept, r"C:\ouvert.bin").is_none());
+        // A list whose last target is missing is written back in whole pairs.
+        let odd = vec![
+            r"\??\C:\w.log".to_owned(),
+            String::new(),
+            r"\??\C:\y.tmp".to_owned(),
+        ];
+        assert_eq!(
+            without_pending(&odd, r"C:\w.log").unwrap(),
+            vec![r"\??\C:\y.tmp".to_owned(), String::new()]
+        );
     }
 
     /// EF-24: the quarantine frees the space now only on another drive.

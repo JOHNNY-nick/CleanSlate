@@ -231,6 +231,30 @@ impl WinSystemCleaner {
     }
 }
 
+/// Empties the Windows Update download folder, never following a link (rule 6). A folder
+/// that does not exist (fresh Windows) is nothing to empty.
+fn empty_update_cache(download: &std::path::Path) -> std::io::Result<()> {
+    let entries = match std::fs::read_dir(download) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let path = entry.path();
+        let _ = if kind.is_symlink() {
+            Ok(()) // a link or junction is left alone
+        } else if kind.is_dir() {
+            std::fs::remove_dir_all(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+    }
+    Ok(())
+}
+
 impl SystemCleaner for WinSystemCleaner {
     fn inspect(&self) -> CoreResult<Vec<SystemItem>> {
         let (download, delivery, old, hiberfil) = self.paths();
@@ -267,16 +291,7 @@ impl SystemCleaner for WinSystemCleaner {
                 self.run_tool("sc.exe", &["stop", "wuauserv"], steps)?;
                 self.run_tool("sc.exe", &["stop", "bits"], steps)?;
                 let (download, ..) = self.paths();
-                let emptied = std::fs::read_dir(&download).map(|entries| {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        let _ = if path.is_dir() {
-                            std::fs::remove_dir_all(&path)
-                        } else {
-                            std::fs::remove_file(&path)
-                        };
-                    }
-                });
+                let emptied = empty_update_cache(&download);
                 self.run_tool("sc.exe", &["start", "bits"], steps)?;
                 self.run_tool("sc.exe", &["start", "wuauserv"], steps)?;
                 emptied.map_err(|e| CoreError::from_io(download, e))?;
@@ -345,6 +360,19 @@ impl SystemCleaner for WinSystemCleaner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_update_cache_is_emptied_and_a_missing_folder_is_nothing_to_do() {
+        let dir = tempfile::tempdir().unwrap();
+        let download = dir.path().join("Download");
+        assert!(empty_update_cache(&download).is_ok()); // fresh Windows: no folder
+        std::fs::create_dir_all(download.join("sub")).unwrap();
+        std::fs::write(download.join("a.cab"), b"x").unwrap();
+        std::fs::write(download.join("sub").join("b.cab"), b"y").unwrap();
+        empty_update_cache(&download).unwrap();
+        assert!(download.exists());
+        assert_eq!(std::fs::read_dir(&download).unwrap().count(), 0);
+    }
     use chrono::TimeZone;
 
     #[test]

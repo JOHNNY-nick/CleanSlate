@@ -171,6 +171,30 @@ fn vtype_from_number(number: u32) -> RegType {
 }
 
 /// UTF-16 LE bytes of `text` followed by a NUL character.
+/// Strings of a `REG_MULTI_SZ`, empty ones kept: `a\0\0b\0\0` is `["a", "", "b"]`.
+/// Only the terminator of the last string and the one of the list are removed.
+pub fn decode_multi_sz(bytes: &[u8]) -> Vec<String> {
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
+        .collect();
+    let mut end = units.len();
+    for _ in 0..2 {
+        if end > 0 && units[end - 1] == 0 {
+            end -= 1;
+        }
+    }
+    if end == 0 {
+        return Vec::new();
+    }
+    String::from_utf16_lossy(&units[..end])
+        .split('\0')
+        .map(str::to_owned)
+        .collect()
+}
+
 fn utf16_z(text: &str) -> Vec<u8> {
     text.encode_utf16()
         .chain([0])
@@ -202,9 +226,9 @@ impl RegData {
             RegType::REG_EXPAND_SZ => String::from_reg_value(value)
                 .ok()
                 .map(RegData::ExpandString),
-            RegType::REG_MULTI_SZ => Vec::<String>::from_reg_value(value)
-                .ok()
-                .map(RegData::MultiString),
+            // Not winreg's Vec<String>: it drops the empty strings, and
+            // PendingFileRenameOperations needs them (an empty target deletes).
+            RegType::REG_MULTI_SZ => Some(RegData::MultiString(decode_multi_sz(&value.bytes))),
             RegType::REG_DWORD => u32::from_reg_value(value).ok().map(RegData::Dword),
             RegType::REG_QWORD => u64::from_reg_value(value).ok().map(RegData::Qword),
             RegType::REG_BINARY => Some(RegData::Binary(value.bytes.to_vec())),
@@ -629,6 +653,25 @@ mod tests {
             Some(&RegData::MultiString(vec!["a".into(), "b".into()]))
         );
         assert_eq!(find("Raw"), Some(&RegData::Binary(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn multi_strings_keep_their_empty_strings() {
+        // PendingFileRenameOperations: (source, empty target) = delete at restart.
+        let list = vec![
+            r"\??\C:\a.tmp".to_owned(),
+            String::new(),
+            r"\??\C:\b.tmp".to_owned(),
+            r"\??\C:\c.tmp".to_owned(),
+            r"\??\C:\d.tmp".to_owned(),
+            String::new(),
+        ];
+        let written = RegData::MultiString(list.clone()).to_winreg();
+        assert_eq!(decode_multi_sz(&written.bytes), list);
+        assert_eq!(RegData::from_winreg(&written), RegData::MultiString(list));
+        assert!(decode_multi_sz(&[0, 0]).is_empty());
+        assert!(decode_multi_sz(&[]).is_empty());
+        assert_eq!(decode_multi_sz(&utf16_z("x")), vec!["x".to_owned()]);
     }
 
     #[test]

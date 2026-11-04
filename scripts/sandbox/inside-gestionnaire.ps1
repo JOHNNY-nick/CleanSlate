@@ -52,12 +52,20 @@ function Send($request) {
 }
 
 function NewFile([string] $path, [int] $kb, [byte] $fill = 7) {
-    New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+    # New-Item refuses a drive root (« X:\ »): only create a folder that is missing.
+    $folder = Split-Path $path
+    if (-not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Force $folder | Out-Null }
     [IO.File]::WriteAllBytes($path, [Linq.Enumerable]::ToArray([Linq.Enumerable]::Repeat([byte] $fill, $kb * 1024)))
 }
 
-function Check([string] $name, [bool] $ok, [string] $measure, $step) {
-    $script:checks += [pscustomobject]@{ Name = $name; Measure = $measure; Status = (Status $ok $step) }
+# $ok and $measure may be missing when the step of the script failed: the row stays.
+function Check([string] $name, $ok, $measure, $step) {
+    $script:checks += [pscustomobject]@{ Name = $name; Measure = "$measure"; Status = (Status ([bool] $ok) $step) }
+}
+
+# PendingFileRenameOperations as Windows stores it, empty targets included (read only).
+function PendingRaw {
+    @((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -ErrorAction SilentlyContinue).PendingFileRenameOperations) -join '|'
 }
 
 $manual = @{ expert_mode = $false; confirmation = $null }
@@ -115,6 +123,7 @@ Check 'Suppression en masse par filtre, aperçu par l''analyse (EF-28)' $massOk 
 # 5. At restart, then cancelled.
 $step = Invoke-Step 'Suppression au redémarrage d''un fichier ouvert, puis annulation' -NoInventory {
     NewFile "$work\ouvert.bin" 64
+    $rawBefore = PendingRaw
     $lock = [IO.File]::Open("$work\ouvert.bin", 'Open', 'ReadWrite', 'None')
     try {
         $now = Send @{ op = 'delete'; paths = @("$work\ouvert.bin"); mode = 'immediate'; manual = $manual; dry_run = $false }
@@ -122,10 +131,12 @@ $step = Invoke-Step 'Suppression au redémarrage d''un fichier ouvert, puis annu
     } finally { $lock.Close() }
     $pending = @(Send @{ op = 'pending_at_restart' })
     $listed = [bool]($pending | Where-Object { $_ -like '*ouvert.bin' })
-    $null = Send @{ op = 'cancel_at_restart'; path = "$work\ouvert.bin"; dry_run = $false }
+    $cancel = Send @{ op = 'cancel_at_restart'; path = "$work\ouvert.bin"; dry_run = $false }
     $still = [bool](@(Send @{ op = 'pending_at_restart' }) | Where-Object { $_ -like '*ouvert.bin' })
-    $script:rebootOk = ($now.items[0].done -eq 'failed') -and ($later.items[0].done -eq 'at_restart') -and $listed -and -not $still
-    $script:rebootMeasure = "fichier ouvert : $($now.items[0].error.code) ; au redémarrage : $($later.items[0].done) ; listé : $listed ; après annulation : $still"
+    # The other operations waiting in Windows must come out exactly as they were.
+    $same = (PendingRaw) -eq $rawBefore
+    $script:rebootOk = ($now.items[0].done -eq 'failed') -and ($later.items[0].done -eq 'at_restart') -and $listed -and -not $still -and -not $cancel.error -and $same
+    $script:rebootMeasure = "fichier ouvert : $($now.items[0].error.code) ; au redémarrage : $($later.items[0].done) ; listé : $listed ; annulation : $(if ($cancel.error) { $cancel.error } else { 'ok' }) ; encore listé : $still ; autres opérations de Windows inchangées : $same"
 }
 Check 'Suppression au redémarrage, liste, annulation (EF-28)' $rebootOk $rebootMeasure $step
 
