@@ -37,6 +37,10 @@ public sealed partial class EngineClient
     public async Task<IReadOnlyList<VolumeInfo>> VolumesAsync(CancellationToken cancellationToken = default) =>
         await Manager(Op("volumes"), EngineJsonContext.Default.EngineResponseListVolumeInfo, null, cancellationToken);
 
+    /// <summary>Physical disks and their unallocated space.</summary>
+    public async Task<IReadOnlyList<DiskInfo>> DisksAsync(CancellationToken cancellationToken = default) =>
+        await Manager(Op("disks"), EngineJsonContext.Default.EngineResponseListDiskInfo, null, cancellationToken);
+
     /// <summary>Deletions waiting for the next restart.</summary>
     public async Task<IReadOnlyList<string>> PendingAtRestartAsync(CancellationToken cancellationToken = default) =>
         await Manager(Op("pending_at_restart"), EngineJsonContext.Default.EngineResponseListString, null, cancellationToken);

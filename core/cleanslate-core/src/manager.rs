@@ -231,6 +231,43 @@ pub struct VolumeInfo {
     pub free_bytes: u64,
 }
 
+/// A physical disk: its size and the space no partition uses (display only, EF-34).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiskInfo {
+    /// Number of the disk.
+    pub number: u32,
+    /// Name, « Samsung SSD 980 ».
+    pub name: String,
+    /// Size.
+    pub size_bytes: u64,
+    /// Space outside every partition.
+    pub unallocated_bytes: u64,
+}
+
+/// Disks of `Get-Disk | Select Number, FriendlyName, Size, AllocatedSize | ConvertTo-Json`
+/// (one object or a list).
+pub fn parse_disks(json: &str) -> Vec<DiskInfo> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct Raw {
+        number: u32,
+        friendly_name: Option<String>,
+        size: u64,
+        allocated_size: u64,
+    }
+    let list: Vec<Raw> = serde_json::from_str::<Vec<Raw>>(json)
+        .or_else(|_| serde_json::from_str::<Raw>(json).map(|r| vec![r]))
+        .unwrap_or_default();
+    list.into_iter()
+        .map(|r| DiskInfo {
+            number: r.number,
+            name: r.friendly_name.unwrap_or_default(),
+            size_bytes: r.size,
+            unallocated_bytes: r.size.saturating_sub(r.allocated_size),
+        })
+        .collect()
+}
+
 /// Deletion of paths chosen by the user (EF-23, EF-27, EF-28).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -330,6 +367,8 @@ pub enum ManagerRequest {
     RecycleBins,
     /// Drives and partitions.
     Volumes,
+    /// Physical disks and their unallocated space.
+    Disks,
     /// Deletions waiting for the next restart.
     PendingAtRestart,
     /// Items of the « Système » tab.
@@ -409,6 +448,8 @@ pub trait SystemShell: Send + Sync {
     fn cancel_at_restart(&self, path: &str) -> CoreResult<()>;
     /// Drives and partitions.
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>>;
+    /// Physical disks and their unallocated space.
+    fn disks(&self) -> CoreResult<Vec<DiskInfo>>;
 }
 
 /// The shell of a test engine: refuses everything.
@@ -435,6 +476,9 @@ impl SystemShell for NoSystemShell {
     }
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>> {
         Err(not_here("volumes".into()))
+    }
+    fn disks(&self) -> CoreResult<Vec<DiskInfo>> {
+        Err(not_here("disks".into()))
     }
 }
 
@@ -1306,6 +1350,21 @@ impl SystemShell for WinShell {
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>> {
         Ok(win::volumes())
     }
+    fn disks(&self) -> CoreResult<Vec<DiskInfo>> {
+        // Read-only query of the Storage module of Windows, without a command interpreter.
+        let windir =
+            std::env::var_os("WINDIR").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+        let output = std::process::Command::new(windir.join(r"System32\WindowsPowerShell\v1.0\powershell.exe"))
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-Disk | Select-Object Number, FriendlyName, Size, AllocatedSize | ConvertTo-Json -Compress",
+            ])
+            .output()
+            .map_err(|e| CoreError::from_io(&windir, e))?;
+        Ok(parse_disks(&String::from_utf8_lossy(&output.stdout)))
+    }
 }
 
 mod win {
@@ -1762,6 +1821,23 @@ mod tests {
         ));
         assert!(!other_drive(r"D:\Q", &[r"C:\x".into(), r"d:\y".into()]));
         assert!(!other_drive(r"D:\Q", &[]));
+    }
+
+    #[test]
+    fn disks_and_their_unallocated_space_are_read_from_get_disk() {
+        let one = r#"{"Number":0,"FriendlyName":"SSD","Size":1000,"AllocatedSize":900}"#;
+        assert_eq!(parse_disks(one)[0].unallocated_bytes, 100);
+        let two = r#"[{"Number":0,"FriendlyName":"A","Size":10,"AllocatedSize":10},{"Number":1,"FriendlyName":null,"Size":50,"AllocatedSize":20}]"#;
+        let disks = parse_disks(two);
+        assert_eq!(
+            (
+                disks.len(),
+                disks[1].unallocated_bytes,
+                disks[1].name.as_str()
+            ),
+            (2, 30, "")
+        );
+        assert!(parse_disks("").is_empty());
     }
 
     #[test]

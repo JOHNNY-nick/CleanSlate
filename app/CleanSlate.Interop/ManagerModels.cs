@@ -128,6 +128,9 @@ public sealed record RecycleBinInfo(string Drive, ulong SizeBytes, ulong Items);
 /// <summary>A drive or partition (display only).</summary>
 public sealed record VolumeInfo(string Root, string Label, string FileSystem, string Kind, ulong TotalBytes, ulong FreeBytes);
 
+/// <summary>A physical disk and its unallocated space (display only).</summary>
+public sealed record DiskInfo(uint Number, string Name, ulong SizeBytes, ulong UnallocatedBytes);
+
 /// <summary>Expert mode and word typed, for the sensitive zones.</summary>
 public sealed record ManualAction(bool ExpertMode = false, string? Confirmation = null);
 

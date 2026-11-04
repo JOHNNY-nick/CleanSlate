@@ -143,6 +143,9 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
     public Task<IReadOnlyList<VolumeInfo>> VolumesAsync(CancellationToken cancellationToken) => Client.VolumesAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public Task<IReadOnlyList<DiskInfo>> DisksAsync(CancellationToken cancellationToken) => Client.DisksAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public Task<IReadOnlyList<string>> PendingAtRestartAsync(CancellationToken cancellationToken) => Client.PendingAtRestartAsync(cancellationToken);
 
     /// <inheritdoc/>

@@ -267,6 +267,13 @@
 
             <!-- 10 Volumes (display only) -->
             <ScrollViewer x:Name="Tab10" Visibility="Collapsed">
+                <StackPanel Spacing="12">
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Uid="ManagerDisks" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Disks}" />
+                    </StackPanel>
+                </Border>
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.Volumes}">
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:VolumeRow">
@@ -283,6 +290,7 @@
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
 

@@ -456,6 +456,7 @@ public sealed record DiskMapProgress(ulong Files, ulong Bytes, string Current);
 [JsonSerializable(typeof(EngineResponse<List<CacheItem>>))]
 [JsonSerializable(typeof(EngineResponse<List<RecycleBinInfo>>))]
 [JsonSerializable(typeof(EngineResponse<List<VolumeInfo>>))]
+[JsonSerializable(typeof(EngineResponse<List<DiskInfo>>))]
 [JsonSerializable(typeof(EngineResponse<List<string>>))]
 [JsonSerializable(typeof(EngineResponse<List<SystemItem>>))]
 [JsonSerializable(typeof(EngineResponse<Zone>))]

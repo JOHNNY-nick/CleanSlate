@@ -199,6 +199,9 @@ public sealed partial class ManagerViewModel : ObservableObject
     /// <summary>Drives and partitions.</summary>
     public ObservableCollection<VolumeRow> Volumes { get; } = [];
 
+    /// <summary>Physical disks: « Disque 0 · SSD · 1 To · 12 Go non alloués ».</summary>
+    public ObservableCollection<string> Disks { get; } = [];
+
     /// <summary>An analysis or an action is running.</summary>
     [ObservableProperty]
     private bool _isBusy;
@@ -240,6 +243,8 @@ public sealed partial class ManagerViewModel : ObservableObject
                 v.Root,
                 $"{(v.Label.Length > 0 ? v.Label + " · " : string.Empty)}{v.FileSystem} · {Formats.Size(v.TotalBytes)} · {Formats.Size(v.FreeBytes)} libres",
                 v.TotalBytes == 0 ? 0 : (int)Math.Round(100.0 * (v.TotalBytes - v.FreeBytes) / v.TotalBytes))));
+            IReadOnlyList<DiskInfo> disks = await Optional(() => _manager.DisksAsync(cancellationToken));
+            Fill(Disks, disks.Select(d => $"Disque {d.Number} · {(d.Name.Length > 0 ? d.Name + " · " : string.Empty)}{Formats.Size(d.SizeBytes)} · {Formats.Size(d.UnallocatedBytes)} non alloués"));
             await RecordAndShowMeasuresAsync(cancellationToken);
         }
         catch (EngineException ex)

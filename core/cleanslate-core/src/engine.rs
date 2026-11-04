@@ -284,6 +284,7 @@ impl Engine {
             ManagerRequest::Caches => serde_json::to_value(manager::caches(fs, &self.folders))?,
             ManagerRequest::RecycleBins => serde_json::to_value(self.shell.recycle_bins()?)?,
             ManagerRequest::Volumes => serde_json::to_value(self.shell.volumes()?)?,
+            ManagerRequest::Disks => serde_json::to_value(self.shell.disks()?)?,
             ManagerRequest::PendingAtRestart => {
                 serde_json::to_value(self.shell.pending_at_restart()?)?
             }

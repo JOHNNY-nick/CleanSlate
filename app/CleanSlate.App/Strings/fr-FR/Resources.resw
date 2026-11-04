@@ -1125,4 +1125,7 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="StorageOperation_Manager" xml:space="preserve">
     <value>Gestionnaire</value>
   </data>
+  <data name="ManagerDisks.Text" xml:space="preserve">
+    <value>Disques physiques (affichage seul)</value>
+  </data>
 </root>

@@ -24,6 +24,9 @@ public interface IManagerService
     /// <summary>Drives and partitions.</summary>
     Task<IReadOnlyList<VolumeInfo>> VolumesAsync(CancellationToken cancellationToken);
 
+    /// <summary>Physical disks and their unallocated space.</summary>
+    Task<IReadOnlyList<DiskInfo>> DisksAsync(CancellationToken cancellationToken);
+
     /// <summary>Deletions waiting for the next restart.</summary>
     Task<IReadOnlyList<string>> PendingAtRestartAsync(CancellationToken cancellationToken);
 
