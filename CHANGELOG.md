@@ -3,7 +3,22 @@
 Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 [`docs/decisions.md`](docs/decisions.md) (identifiants Dxx).
 
-## [Non publié] — 3 nov. 2026
+## [Non publié] — 4 nov. 2026
+
+### Modifié
+- Thème **Multicolore** au style « street » de la maquette de la carte du stockage (D76) :
+  - un mur couvert de peinture vive (grandes éclaboussures, aquarelle, traînées, coulures, gouttes, ville) ;
+  - du texte toujours sur des autocollants à contour épais et ombre décalée ;
+  - des titres inclinés sur une éclaboussure, le menu autocollant avec l'élément actif en vert ;
+  - des lignes de liste à contour coloré et des pastilles d'état ;
+  - une carte du stockage en dégradés.
+
+  Trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages.
+
+### Corrigé
+- Historique : une session purgée n'affiche plus une date de purge à venir ; elle dit « supprimée définitivement, plus restaurable » (D76).
+
+## 3 nov. 2026
 
 ### Ajouté
 - **Carte du stockage** (D73), dans la page Stockage :

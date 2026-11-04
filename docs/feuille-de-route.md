@@ -2,10 +2,10 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. Les tâches demandées par le porteur se font une à une, avec un arrêt pour validation après chacune. **Faits le 3 nov. 2026, en attente de validation** : thème Multicolore revu et badges visibles (D72), carte du stockage (D73), mode de développement en simulation et captures d'écran (D74), éclaboussures de peinture du Multicolore d'après les références (D75). Captures : `artifacts\captures\2026-11-03\` (24 images : chaque page en Clair, Sombre et Multicolore, l'assistant, la carte et un niveau de détail).
-- **Prochaine action** : le porteur regarde les captures, réinstalle par-dessus avec l'installeur du 3 nov. 2026 (`artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `4C61B72A0B5012AAEC5A1B8EF01C034C8F684A0569C7B5EEE9C0EB0A681FBA84`), ouvre Stockage, clique sur « Actualiser », puis valide.
+- **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, en attente de validation** : Multicolore au style « street » de la maquette (D76), captures `artifacts\captures\2026-11-04\multicolore-v2\` (6 pages en clair et en sombre, contrôle de contraste : 0 échec sur 480 textes) ; Historique : sessions purgées expliquées (option « Supprimer définitivement » activée), affichage corrigé.
+- **Prochaine action** : le porteur regarde les captures, puis répond sur le rendu et sur la police Nunito ; sur sa réponse, Claude régénère Release et installeur.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « thème, badges et carte OK », ou ce qui ne va pas.
+- **Réponse attendue** : « style OK » (ou les pages à reprendre), « Nunito oui / non », et s'il veut garder « Supprimer définitivement » activé.
 - **File des tâches**, dans cet ordre sauf avis contraire du porteur :
   2. barre de progression pendant la mise en quarantaine des restes ;
   3. critères de confiance plus pointus :
@@ -17,7 +17,7 @@
 
      S'y ajoute une section de l'application qui explique comment le niveau de confiance est calculé.
 
-Dernière mise à jour : 3 nov. 2026.
+Dernière mise à jour : 4 nov. 2026.
 ## Règles de pilotage
 
 - Claude pilote : à la fin de **chaque** réponse, il donne la prochaine action, qui la fait, la commande exacte et le dossier d'où la lancer, la durée et ce qu'il faut lui répondre.

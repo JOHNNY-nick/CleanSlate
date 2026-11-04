@@ -54,16 +54,20 @@ Les fonds des badges se distinguent de la carte qui les porte (contraste d'au mo
 
 Réglages → Thème propose quatre choix, appliqués aussitôt à toutes les pages : **Système** (suit Windows), **Clair**, **Sombre**, **Multicolore**.
 
-**Multicolore** met beaucoup de couleurs partout, sur la base claire :
-- fond de fenêtre en dégradé doux (rouge, jaune, vert, bleu, violet) et **éclaboussures de peinture** vives (D75, d'après les références de `docs/design/reference-multicolore/`) aux cinq couleurs (`Blob0` à `Blob4`) : dans la partie vide du menu, à droite de chaque en-tête de page et dans le cadre de 28 px autour du contenu ; purement décoratives, jamais sous du texte (le titre garde la couleur unie de son en-tête derrière lui) ;
-- contenu des pages posé sur une surface blanche unie (`ContentSurfaceBrush`), volet de navigation uni (`PaneBackgroundBrush`) : **aucun texte n'est posé sur une tache** ;
-- en-tête de chaque page dans une bande de sa couleur (`PageHeader…Brush` : Accueil bleu #1565C0, Applications vert #2E7D32, Restes orphelins orange #BF360C, Historique violet #6A1B9A, Stockage rouge #C62828, Réglages framboise #AD1457, assistant vert d'eau #00695C), titre blanc, et sous elle une bande arc-en-ciel (`PageHeaderStripBrush`) : les cinq couleurs sont visibles sur chaque page ;
-- cartes de couleurs différentes, à tour de rôle : fond pâle (`CardTint0` à `CardTint4`) et bandeau supérieur vif (`CardBand0` à `CardBand4`) ;
-- icônes du menu, chacune de sa couleur (`Nav…Brush`), barres de progression en arc-en-ciel (`ProgressBarForeground`), boutons principaux en dégradé violet → bleu, badges de confiance vert / jaune / bleu vifs.
+**Multicolore** (D76) reprend le style « street » de la maquette de la carte du stockage du porteur (références dans `docs/design/reference-multicolore/`, inspirations seulement, jamais livrées ni commitées) :
+- fond de chaque page : un mur clair (#FBF9F1) ou sombre (#141826) couvert de peinture générée par CleanSlate (`PaintComposer`) : très grandes éclaboussures en dégradé (certaines sur un tiers de la fenêtre), moyennes, taches d'aquarelle translucides qui se mélangent, traînées qui partent d'un centre, coulures, centaines de gouttes et projections fines, grain de bombe, silhouette de ville ; chaque page a sa composition et sa couleur dominante ;
+- huit couleurs vives (`Paint0` à `Paint7`) : rouge, orange, jaune, vert, bleu, violet, rose, turquoise ;
+- tout texte sur un autocollant de papier uni et opaque (`PaintSurfaceColor`), contour encre épais #17213B (3 px), coins arrondis, ombre décalée nette de 5 px sans flou ; les panneaux sont espacés, le mur se voit entre eux et une éclaboussure déborde d'un coin de chacun ;
+- titre de page : autocollant de papier incliné de −2°, lettres encre très grasses, posé sur une éclaboussure de la couleur de la page avec coulures ; plus de bandeau ni de liseré ;
+- lignes de liste : petits autocollants de papier, contour de couleur à tour de rôle ; états de session en pastilles colorées (`Status…Color`) ;
+- menu : panneau autocollant, chaque icône encre sur une goutte de la couleur de sa page, élément actif en vert (`NavActiveColor`) ;
+- boutons principaux (`MainButtonStyle`) verts à contour encre ; carte du stockage : rectangles en dégradé vif, contour encre, nom et taille sur une étiquette autocollante inclinée ;
+- trois styles dans Réglages (Éclaboussures, Aquarelle, Explosion : le dosage change) et un fond sombre au choix ;
+- police : Segoe UI en gras et très gras ; Nunito (maquette) attend l'accord du porteur (nouvel élément à livrer, licence OFL).
 
-**Lisibilité** (vérifiée par `ThemeTests`) : tout texte a un contraste d'au moins 4,5:1 avec chaque couleur de son fond (7:1 pour le texte principal, 3:1 pour les grands titres).
+**Lisibilité** (vérifiée par `ThemeTests`, et sur l'écran réel par `TextContrast` à chaque capture du mode de développement) : tout texte a un contraste d'au moins 4,5:1 sur un fond uni à 90 % au moins ; les icônes au moins 3:1.
 
-**Sécurité** : les boutons qui mettent en quarantaine ou suppriment (`DangerButtonStyle`) restent reconnaissables malgré le rouge décoratif : rouge foncé uni #B71C1C (jamais en dégradé), libellé blanc en gras et explicite (« Mettre en quarantaine », « Supprimer définitivement »), icône de corbeille, contour foncé de 2 px. Les éléments décoratifs (taches, bandes) sont masqués au Narrateur et ne prennent pas le focus ; tout reste utilisable au clavier.
+**Sécurité** : les boutons qui mettent en quarantaine ou suppriment (`DangerButtonStyle`) restent reconnaissables malgré le rouge décoratif : rouge foncé uni #B71C1C (jamais en dégradé), libellé blanc en gras et explicite (« Mettre en quarantaine », « Supprimer définitivement »), icône de corbeille, contour foncé de 2 px. Les éléments décoratifs (peinture, ombres) sont masqués au Narrateur et ne prennent pas le focus ; tout reste utilisable au clavier.
 
 **Carte du stockage** (D73) : une couleur par catégorie, dans chaque thème (`StorageApplicationsBrush`, `StorageLeftoversBrush`, `StorageQuarantineBrush`, `StorageUserFilesBrush`, `StorageSystemBrush`, `StorageOtherBrush`), texte des rectangles `StorageTileTextBrush` ≥ 4,5:1 sur chacune. La couleur ne suffit jamais : la légende nomme chaque catégorie avec sa taille, chaque rectangle porte son nom et sa taille quand il est assez grand, et son nom complet, sa taille et sa part du disque au survol et pour le Narrateur. Sous le pointeur, un rectangle garde sa couleur et son contour s'épaissit. Restes orphelins : le badge de la meilleure confiance du groupe figure aussi sur son en-tête, visible groupe replié.
 
