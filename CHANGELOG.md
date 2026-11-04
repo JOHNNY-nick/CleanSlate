@@ -3,48 +3,38 @@
 Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 [`docs/decisions.md`](docs/decisions.md) (identifiants Dxx).
 
-## [Non publié] — 4 nov. 2026
+## 0.1.0 bêta 1 — 5 nov. 2026
+
+Première version de test, publiée sur GitHub : https://github.com/JOHNNY-nick/CleanSlate/releases/tag/v0.1.0-beta.1
+(l'état ci-dessous est celui de cette version ; le détail de chaque étape est dans les décisions D76 à D86).
 
 ### Ajouté
-- **Gestionnaire** (D79) : comprendre et libérer l'espace de toute la machine, fichiers personnels compris.
-  - Onglets : Diagnostic, Carte, Explorateur, Catégories, Gros fichiers, Fichiers anciens, Doublons, Système, Suppressions en attente, Évolution, Volumes.
-  - Le Diagnostic donne une phrase par disque, les 5 plus gros consommateurs, et ce qui peut être libéré, « sans risque » ou « à vérifier », avec « Tout libérer maintenant (sans risque) ».
-  - Chaque suppression se confirme, en mode « Sûr » (Corbeille) ou « Immédiat » (définitif).
-  - Autres actions : suppression au redémarrage, suppression sécurisée, déplacement vérifié vers un autre disque, nettoyage des caches et des Corbeilles, nettoyage système par les outils officiels de Windows.
-  - Rapport HTML et CSV, alerte d'espace faible à l'ouverture.
-  - Une suppression prévue au redémarrage peut être annulée ; en mode « Sûr », un fichier d'un autre disque va dans la quarantaine de CleanSlate (l'espace est libéré tout de suite, restaurable 30 jours).
-  - Les actions du Gestionnaire apparaissent dans l'Historique avec l'espace libéré ; l'onglet Volumes montre les disques physiques et leur espace non alloué.
-  - Scénario Windows Sandbox « Gestionnaire » (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`).
+- **Gestionnaire** (D79, D82, D86) : comprendre et libérer l'espace de toute la machine, fichiers personnels compris.
+  - 8 onglets : Diagnostic, Catégories, Gros fichiers, Fichiers anciens, Doublons, Système, Suppressions en attente, Volumes.
+  - Le Diagnostic donne une phrase par disque, les 5 plus gros consommateurs, et ce qui peut être libéré, « sans risque » ou « à vérifier », avec « Tout libérer maintenant (sans risque) » et un lien vers la carte du stockage.
+  - En bas : « Supprimer… » (mode « Sûr », Corbeille ou quarantaine de CleanSlate pour un autre disque, ou « Immédiat », définitif), « Ouvrir dans l'Explorateur », « Exporter le rapport » et « ? » qui explique chaque action.
+  - Système : nettoyage par les outils officiels de Windows (« Nettoyer… ») ; Suppressions en attente : annuler une suppression prévue au redémarrage ; Volumes : disques physiques et espace non alloué.
+  - « Exporter le rapport » (D85) : un PDF dans le style du livre (couverture, diagnostic, ce qui peut être libéré, catégories, plus gros fichiers, fichiers anciens) et le tableau CSV, sur le Bureau ou dans le dossier d'export.
+  - Les actions apparaissent dans l'Historique avec l'espace libéré ; alerte d'espace faible à l'ouverture.
+- **Stockage** (D81, D83) : la carte se parcourt sans limite de profondeur, et sous la carte, la liste du dossier affiché (dossiers et fichiers, taille, date, type), liée à la carte ; on coche puis on supprime avec la même confirmation. Les dossiers des applications se parcourent aussi, avec un lien vers Applications.
 - Zones sensibles et mode expert (D79) : les zones de Windows et des programmes ne sont jamais proposées automatiquement ; y agir à la main demande le mode expert et « CONFIRMER ».
+- Un indicateur en bas du menu montre l'opération longue en cours sur toutes les pages et y ramène d'un clic (D82).
 - Barre de progression pendant la mise en quarantaine des restes (D77).
-- Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.
+- Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents ; leur calcul est expliqué par le « ? » de Restes orphelins.
 
 ### Modifié
-- Gestionnaire allégé (D86) : 8 onglets (sans Recherche ni Évolution), 3 actions en bas (Supprimer, Ouvrir dans l'Explorateur, Exporter le rapport) et « ? » ; Doublons sans texte superflu ; « Exécuter » devient « Nettoyer… ». Texte de la carte net (étiquettes droites). Aide de Stockage et de Restes orphelins dans un bouton « ? ».
-- Gestionnaire (D85) : « Exporter le rapport » crée un PDF dans le style du livre (couverture, diagnostic, ce qui peut être libéré, catégories, plus gros fichiers, fichiers anciens) et le tableau CSV, puis ouvre le dossier ; sans analyse, il dit quoi faire au lieu de ne rien faire.
-- Stockage (D83) : sous la carte, la liste du dossier affiché (dossiers et fichiers, taille, date, type), liée à la carte : un clic sur un dossier l'ouvre des deux côtés ; on coche puis on supprime avec la confirmation habituelle. Les dossiers des applications (Steam, Microsoft, Adobe…) se parcourent comme les autres, avec un lien vers Applications.
-- Gestionnaire (D83) : l'onglet « Explorateur » s'appelle « Recherche » et dit ce qu'il fait.
-- Gestionnaire (D82) : onglet « Carte » retiré (la carte est la page Stockage) ; « Analyse en cours… (Annuler) » ; infobulle de chaque action et bouton « ? ».
-- Carte (D82) : double-clic sur un dossier qui ne contient que des fichiers, ou clic droit « Voir les fichiers » sur tout dossier : la liste de ses fichiers dans l'Explorateur du Gestionnaire, et « Revenir à la carte » au même endroit.
-- Menu (D82) : la section active marquée dans le style street (trois variantes à choisir), le bouton du menu dans une bulle.
-- Carte du stockage (D81) : on peut creuser sans limite (un dossier pas encore détaillé est calculé au clic) ; un clic sur un dossier qui ne contient que des fichiers, ou sur un fichier, ouvre le Gestionnaire avec ces fichiers pour choisir quoi supprimer ; le nom des petits rectangles s'affiche.
-- Thème **Multicolore** au style « street » de la maquette de la carte du stockage (D76) :
-  - un mur couvert de peinture vive (grandes éclaboussures, aquarelle, traînées, coulures, gouttes, ville) ;
-  - du texte toujours sur des autocollants à contour épais et ombre décalée ;
-  - des titres inclinés sur une éclaboussure, le menu autocollant avec l'élément actif en vert ;
-  - des lignes de liste à contour coloré et des pastilles d'état ;
-  - une carte du stockage en dégradés.
-
-  Trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages.
+- Thème **Multicolore** au style « street » (D76) : un mur couvert de peinture vive, du texte toujours sur des autocollants à contour épais et ombre décalée, des lignes de liste à contour coloré, une carte du stockage en dégradés ; trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages. La section active du menu est marquée d'un autocollant (deux autres variantes à l'essai), le bouton du menu est dans une bulle (D82).
+- Les explications de Stockage et de Restes orphelins sont dans un bouton « ? » (D86).
+- Une analyse continue quand on change de page, et on la retrouve au retour ; une demande faite pendant une opération attend son tour (D82).
 
 ### Corrigé
-- Plus rapide (D84) : la liste des applications n'est plus relue à chaque page ni à chaque niveau de la carte ; chaque niveau de la carte se dessine en une fois ; le Gestionnaire ne relit pas tout à chaque visite. Après une action du Gestionnaire, l'espace libéré reste affiché.
-- Carte : un dossier comme VirtualBox ne fait plus attendre plusieurs minutes (une analyse complète des restes était relancée avant chaque niveau) ; le bouton du menu n'a plus d'ombre décalée en Clair et Sombre (D83).
 - Plus aucune fenêtre de console : les disques sont lus par une fonction de Windows, et les outils de Windows se lancent sans fenêtre (D82).
-- Gestionnaire : une analyse continue quand on change de page, et on la retrouve au retour, avec sa progression ; une demande faite pendant une analyse attend son tour au lieu d'afficher « Busy ». Un indicateur en bas du menu montre l'opération en cours sur toutes les pages. Tous les messages d'erreur sont en français (D82).
-- Carte du stockage : plus de « Busy » au clic sur un dossier ; un niveau encore à calculer affiche un rond de chargement (D82).
-- Gestionnaire : annuler une suppression au redémarrage ne retirait rien quand Windows avait d'autres opérations en attente, et aurait pu décaler la liste (D80) ; le nettoyage du cache de Windows Update n'échoue plus quand ce cache n'existe pas. En mode « Sûr », un fichier d'un autre disque va bien dans la quarantaine (l'espace libre du disque de la quarantaine était mal lu).
-- Historique : une session purgée n'affiche plus une date de purge à venir ; elle dit « supprimée définitivement, plus restaurable » (D76).
+- Plus de « Busy » : ni dans le Gestionnaire ni au clic sur la carte ; tous les messages d'erreur sont en français (D82).
+- Plus rapide (D83, D84) : un niveau de la carte ne relance plus une analyse complète des restes (plusieurs minutes sur VirtualBox), la liste des applications n'est plus relue à chaque page, chaque niveau de la carte se dessine en une fois, le Gestionnaire ne relit pas tout à chaque visite.
+- Texte de la carte net : les étiquettes ne sont plus inclinées (D86).
+- Annuler une suppression au redémarrage ne retirait rien quand Windows avait d'autres opérations en attente (D80) ; le cache de Windows Update absent n'est plus une erreur ; en mode « Sûr », un fichier d'un autre disque va bien dans la quarantaine.
+- Après une action du Gestionnaire, l'espace libéré reste affiché (D84) ; sans analyse, « Exporter le rapport » dit quoi faire (D85).
+- Historique : une session purgée dit « supprimée définitivement, plus restaurable » (D76).
 
 ## 3 nov. 2026
 

@@ -16,8 +16,23 @@ env:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    # The workspace of the hosted runner (D:\a\...) does not resolve to itself: the guard of
+    # rule 6 refuses the test folders made there (13 tests, first run of 4 Nov. 2026). The
+    # job works on a copy of the repository on C:, the guard stays as it is.
+    defaults:
+      run:
+        working-directory: C:\cs
     steps:
       - uses: actions/checkout@v7
+
+      - name: Copy the repository to C:\cs
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          Get-Item -Force $env:GITHUB_WORKSPACE, (Split-Path $env:GITHUB_WORKSPACE) | Format-List FullName, LinkType, Target, Attributes
+          robocopy . C:\cs /MIR /NFL /NDL /NJH /NJS /NP
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          exit 0
 
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -26,7 +41,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: core
+          workspaces: C:\cs\core -> target
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
@@ -38,23 +53,23 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: cargo fmt
-        working-directory: core
+        working-directory: C:\cs\core
         run: cargo fmt --all --check
 
       - name: cargo clippy
-        working-directory: core
+        working-directory: C:\cs\core
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: cargo test
-        working-directory: core
+        working-directory: C:\cs\core
         run: cargo test --workspace
 
       - name: cargo test, with the guard of the test commands (D53)
-        working-directory: core
+        working-directory: C:\cs\core
         run: cargo test --workspace --all-features
 
       - name: Coverage of the engine (ENF-12, >= 80 %)
-        working-directory: core
+        working-directory: C:\cs\core
         run: cargo llvm-cov --workspace --fail-under-lines 80 --summary-only
 
       # Scripts run with -File: the step fails on their real exit code (each ends with an explicit exit).
@@ -123,4 +138,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: CleanSlate-win-x64
-          path: app/CleanSlate.App/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/
+          path: C:\cs\app\CleanSlate.App\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\
