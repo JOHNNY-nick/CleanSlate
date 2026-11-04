@@ -490,3 +490,11 @@ v1.0 : installeur **Inno Setup 6** (réalisé en J6) pour une application WinUI 
 Script `installer/cleanslate.iss` : `SetupIconFile=..\assets\branding\cleanslate.ico`, `PrivilegesRequired=admin`, installation dans `{autopf}\CleanSlate` (64 bits, Windows 10 2004 minimum), raccourci dans le menu Démarrer et, en option, sur le bureau, licence MIT affichée, assistant en français. La désinstallation de CleanSlate garde `%LOCALAPPDATA%\CleanSlate` (quarantaine restaurable, D43).
 
 Sortie : `artifacts/installer/CleanSlate-<version>-setup.exe` (environ 59 Mo).
+
+## Gestionnaire du stockage (D79)
+
+- `zones` : `Zone::{Normal, Sensitive}` d'un chemin ou d'une clé (la liste de `safety.rs`) ; `authorize(cible, expert, confirmation)` pour une action manuelle : zone sensible → `EXPERT_REQUIRED` hors mode expert, `CONFIRMATION_REQUIRED` sans « CONFIRMER » ; chemins malformés, liens, jonctions et racines de lecteur → `PROTECTED` toujours.
+- `manager` : analyses en lecture seule (diagnostic, catégories, gros fichiers, fichiers anciens, doublons, caches, Corbeilles, suppressions en attente, volumes) et actions (`DeleteMode::{Safe, Immediate}`, déplacement vérifié par SHA-256, suppression au redémarrage, sécurisée) ; chaque accès réel au système passe par un trait injectable (`RecycleBin`, `RebootDeleter`, `SystemCleaner`, `VolumeReader`) qui refuse tout sur un moteur de test.
+- FFI : une fonction `cs_manager_*` par analyse et par action, JSON UTF-8, `dry_run` par défaut, progression et annulation comme `cs_scan_orphans`.
+- Application : page « Gestionnaire » à onglets ; confirmation commune (mode, aperçu, zones sensibles, « CONFIRMER ») ; mode expert et seuil d'alerte dans Réglages.
+

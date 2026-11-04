@@ -5,10 +5,11 @@
 
 # CleanSlate
 
-Dernière mise à jour : 30 oct. 2026
+Dernière mise à jour : 4 nov. 2026
 
-Utilitaire Windows qui désinstalle complètement une application et retrouve les
-restes d'applications déjà désinstallées.
+Utilitaire Windows qui facilite la gestion du stockage : il désinstalle
+complètement une application, retrouve les restes d'applications déjà
+désinstallées, et permet de comprendre et de libérer l'espace de toute la machine.
 
 ## Pourquoi CleanSlate ?
 
@@ -21,9 +22,14 @@ qui répond à deux besoins :
    fichiers qu'elle laisse derrière elle.
 2. **Retrouver les restes d'applications déjà désinstallées** et les supprimer,
    sans avoir besoin de connaître leur nom.
+3. **Gérer le stockage sans fouiller dans les paramètres de Windows** (section
+   « Gestionnaire », en cours, D79) : voir ce qui occupe chaque disque, et libérer
+   l'espace tout de suite, fichiers personnels compris.
 
-Par sécurité, rien n'est effacé directement : tout passe par une quarantaine
-restaurable pendant 30 jours, et le mode simulation est actif par défaut.
+Par sécurité, chaque suppression se confirme et propose deux modes : « Sûr »
+(Corbeille ou quarantaine restaurable, par défaut) ou « Immédiat » (définitif).
+Les zones sensibles de Windows ne sont jamais proposées automatiquement ; y agir
+à la main demande le mode expert et la saisie de « CONFIRMER ».
 
 > **État : v0.1.0, jalons J1 à J6 terminés.** Installeur Windows disponible ; les
 > critères d'acceptation en conditions réelles se vérifient dans Windows Sandbox

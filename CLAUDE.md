@@ -70,21 +70,25 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
    Le moteur reçoit son disque et son registre par injection : Engine::new(config, fs, registry)
    avec les traits FileSystem et Registry (FakeFileSystem, WinRegistry::sandboxed).
 3. Toute action destructive appelle safety::validate juste avant d'agir.
-4. Ne jamais affaiblir la liste noire de safety.rs. Toute modification de ce fichier
-   doit être ajoutée avec des tests et signalée explicitement dans ton résumé.
-   Seules dérogations, décidées par le porteur : les exceptions étroites D20 (menu Démarrer),
-   D47 (tâches, services) et D48 (données de paquets du Store), chacune dans une fonction
-   dédiée de safety.rs ; les règles générales (check_path, validate_key) restent inchangées.
+4. Zones sensibles (D79, décision explicite du porteur, qui remplace la liste noire bloquante) :
+   la liste de safety.rs (check_path, validate_key) définit les zones sensibles. Les propositions
+   automatiques (analyses, catégories récupérables, « Tout libérer ») n'en proposent ni n'en
+   précochent jamais un élément ; une action manuelle dans une zone sensible n'est possible qu'en
+   mode expert avec la saisie de « CONFIRMER » (zones::authorize). Toujours refusés, même en
+   mode expert : chemins malformés, liens et jonctions, racines de lecteur. Ne jamais réduire la
+   liste des zones sensibles ni contourner authorize ; toute modification de safety.rs ou de
+   zones.rs s'accompagne de tests et est signalée dans le résumé. Exceptions étroites
+   antérieures conservées : D20, D47, D48.
 5. dry_run vaut true par défaut dans tous les types et toutes les API du moteur, de la FFI
-   et de la CLI. Seule dérogation, décidée par le porteur (D66) : l'application n'a plus de
+   et de la CLI, Gestionnaire compris (D79). Seule dérogation, décidée par le porteur (D66) : l'application n'a plus de
    mode simulation ; elle passe dry_run = false explicitement à chaque appel, après
    l'acceptation du premier lancement, une liste à relire et une confirmation.
 6. Ne jamais suivre de lien symbolique ni de point de jonction (reparse point).
-7. Jamais de suppression directe : tout passe par quarantine avec manifeste écrit
-   avant le déplacement. Seule dérogation, décidée par le porteur (D66) : l'option
-   « Supprimer définitivement, sans quarantaine », décochée par défaut, purge aussitôt
-   la seule session qui vient d'être mise en quarantaine (avec ses garde-fous) ;
-   rien n'est alors restaurable, et l'interface le dit avant la confirmation.
+7. Deux modes de suppression (D79) : « Sûr » (Corbeille ou quarantaine avec manifeste écrit
+   avant le déplacement, restaurable), proposé par défaut, et « Immédiat » (définitif), choisi
+   dans la confirmation qui affiche le gain ; « Immédiat » dans une zone sensible exige en plus
+   le mode expert et « CONFIRMER ». Les caches régénérables se suppriment directement (jamais un
+   fichier ouvert). Le D66 (« Supprimer définitivement, sans quarantaine ») reste valable.
 8. UninstallString : découpage exécutable + arguments, jamais via cmd /c ni un shell.
 
 ## Conventions Rust

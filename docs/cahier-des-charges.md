@@ -97,8 +97,8 @@ La sécurité prime sur tout le reste : un faux positif supprimé est bien plus 
 
 | ID | Domaine | Exigence | Mesure de vérification |
 | --- | --- | --- | --- |
-| ENF-01 | Sécurité | Liste noire non désactivable : `C:\Windows`, racines des lecteurs, dossiers utilisateur racines, `Microsoft`, `Windows`, `Common Files`, pilotes, clés `HKLM\SYSTEM`, `HKLM\SOFTWARE\Microsoft` et `\Classes`. | Tests unitaires sur chaque chemin protégé |
-| ENF-02 | Sécurité | Aucune suppression sans confirmation explicite ; aucune suppression définitive sans passage en quarantaine (même avec la suppression immédiate, D66). | Tests d'intégration |
+| ENF-01 | Sécurité | Zones sensibles (D79, remplace la liste noire bloquante) : `C:\Windows`, Program Files, ProgramData, dossiers utilisateur racines, `Microsoft`, `Windows`, `Common Files`, pilotes, clés `HKLM\SYSTEM`, `SAM`, `SECURITY`, `HARDWARE`, `HKLM\SOFTWARE\Microsoft`, `\Classes`, `Policies`. Jamais proposées ni précochées automatiquement ; action manuelle seulement en mode expert avec « CONFIRMER ». Toujours refusés : chemins malformés, liens et jonctions, racines de lecteur. | Tests de zones sensibles sur chaque chemin |
+| ENF-02 | Sécurité | Chaque action a une confirmation explicite et un mode « Sûr » (Corbeille ou quarantaine, restaurable, par défaut) ou « Immédiat » (définitif) ; simulation par défaut dans toutes les API (D79). | Tests d'intégration |
 | ENF-03 | Sécurité | Ne jamais suivre les liens symboliques ni les points de jonction pendant le scan et la suppression. | Test avec jonction piégée vers `C:\Windows` |
 | ENF-04 | Sécurité | Mode « simulation » (dry run) qui produit la liste sans rien toucher : par défaut dans le moteur, la FFI et la CLI ; l'application n'a plus de mode simulation, mais garde l'aperçu « Simuler » des restes (D66). | Test : aucun fichier modifié |
 | ENF-05 | Performance | Inventaire des applications en moins de 2 s ; scan complet des restes en moins de 60 s sur SSD avec 500 000 fichiers. | Benchmark Criterion + chronométrage UI |
@@ -179,3 +179,27 @@ Compléments de la v1.0 (30 oct. 2026) : EF-04 (remontée en S), EF-07 complète
 
 - **v1.1** : version portable sans installation.
 - **J6** : évaluation de la ligne Windows App SDK 2.x.
+
+## Gestionnaire du stockage (D79, 4 nov. 2026)
+
+Détail et étapes : [`docs/journal/gestionnaire-plan.md`](journal/gestionnaire-plan.md).
+
+| ID | Exigence |
+| --- | --- |
+| EF-22 | Zones sensibles : jamais proposées ni précochées automatiquement ; action manuelle seulement en mode expert avec « CONFIRMER ». |
+| EF-23 | Modes « Sûr » (Corbeille ou quarantaine) et « Immédiat » (définitif) dans chaque confirmation ; « Sûr » par défaut ; aperçu : nombre, taille, zones sensibles, mode, gain libéré maintenant. |
+| EF-24 | Quarantaine sur un autre lecteur, choisi dans Réglages, avec vérification de l'espace libre ; la confirmation dit « libéré maintenant » ou « libéré après purge ». |
+| EF-25 | Caches régénérables (temporaires, navigateurs, miniatures, rapports d'erreurs et vidages, caches de paquets de développement) supprimés directement, jamais un fichier ouvert ; navigateur ouvert : proposition de le fermer. |
+| EF-26 | Nettoyage système par les mécanismes officiels : DISM `StartComponentCleanup`, caches de Windows Update et de l'Optimisation de la distribution (arrêt et redémarrage propres des services), Windows.old, hibernation (`powercfg`), points de restauration (API système ; on garde le plus récent et ceux de moins de 30 jours, sauf mode expert). |
+| EF-27 | Fichiers personnels : accès complet, jamais précochés ; Corbeille, déplacement vers un autre lecteur (espace vérifié, copie, comparaison SHA-256, puis suppression de l'original), suppression définitive, suppression sécurisée. Jamais les deux copies d'un doublon. |
+| EF-28 | Fonctions de suppression : Corbeille, définitive, « supprimer et vider la Corbeille » ; vider les Corbeilles (taille par lecteur) ; purger la quarantaine (tout, session, élément) ; dossiers vides ; suppression au redémarrage (liste, annulation) ; suppression en masse par filtre avec aperçu ; suppression sécurisée (avertissement SSD, BitLocker recommandé). |
+| EF-29 | Diagnostic : une phrase par lecteur, les 5 plus gros consommateurs expliqués, récupérable par catégorie (« sans risque » / « à vérifier »), « Libérer » par catégorie et « Tout libérer maintenant (sans risque) ». |
+| EF-30 | Carte (la page Stockage), Explorateur trié par taille (taille, %, fichiers, date, recherche, sélection multiple, badge « zone sensible »), Catégories, Gros fichiers, Fichiers anciens, Doublons (taille puis SHA-256 via BCrypt, original proposé, actions sur les copies). |
+| EF-31 | Système : hibernation, fichier d'échange, points de restauration, magasin de composants, Windows.old, caches de mise à jour, stockage réservé : taille, explication, conséquence, bouton qui l'exécute avec progression. |
+| EF-32 | Suppressions en attente : redémarrage, Corbeilles, quarantaine, avec taille et bouton pour libérer. |
+| EF-33 | Évolution : mesures enregistrées (SQLite) à chaque ouverture et analyse ; courbe de l'espace libre par lecteur, « ce qui a le plus grossi ». |
+| EF-34 | Volumes : lecteurs et partitions (taille, utilisé, libre, système de fichiers, non alloué), affichage seul. |
+| EF-35 | Partout : ouvrir dans l'Explorateur, propriétés, copier le chemin, désinstaller via l'assistant ; après chaque action, « X Go libérés maintenant » mesuré, entrée dans l'Historique, « Annuler » quand c'est possible ; export d'un rapport HTML et CSV sur le Bureau. |
+| ENF-13 | Analyses en lecture seule, parallèles, avec progression et annulation, sans suivre liens ni jonctions, accès refusés ignorés proprement ; analyse des restes < 60 s ; explorateur, doublons et nettoyage système en tâches séparées. |
+| ENF-14 | Opérations système par API ou commandes officielles, code de retour vérifié, journalisation complète, message clair en cas d'échec ou de redémarrage nécessaire. |
+| ENF-15 | Aucune donnée ne quitte la machine ; textes dans les `.resw` ; thèmes Clair, Sombre, Multicolore ; clavier et Narrateur. |
