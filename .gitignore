@@ -25,8 +25,11 @@ Thumbs.db
 .DS_Store
 .reference/
 
-# Livre (branche livre) : PDF et HTML générés
-book/dist/
+# Le livre reste sur le PC du porteur, jamais sur GitHub (D87) : son texte, sa chaîne de
+# génération (Docker) et la consigne de sa session. Il a son propre dépôt Git local dans book/.
+book/
+docker/
+docs/prompts/livre.md
 
 # Références du porteur pour le thème Multicolore : inspiration seulement, jamais commitées (D76)
 docs/design/reference-multicolore/

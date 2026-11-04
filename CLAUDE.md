@@ -115,10 +115,12 @@ Avant de dire qu'une tâche est finie : fmt, clippy et tous les tests passent.
   n'appellent jamais EngineClient directement.
 - Tests de ViewModels avec NSubstitute (IEngineService simulé).
 
-## Session du livre (même dossier, même branche main)
-Une autre session de Claude Code rédige le livre ici, sur main, uniquement dans book/ et
-docs/prompts/livre.md.
-- Ne jamais modifier book/ ni docs/prompts/livre.md.
+## Session du livre (même dossier, livre local uniquement)
+Une autre session de Claude Code rédige le livre ici, dans book/, docker/book/ et
+docs/prompts/livre.md. Décision du porteur (D87) : le livre reste sur ce PC, jamais sur
+GitHub ; ces chemins sont ignorés par ce dépôt (.gitignore) et retirés de tout son historique,
+et le livre a son propre dépôt Git local dans book/.
+- Ne jamais modifier book/, docker/book/ ni docs/prompts/livre.md, ni les ajouter à ce dépôt.
 - Lire book/constats-pour-main.md au début de chaque session et avant chaque commit ;
   une faille ou un bug signalé se traite comme une correction normale, avec un test.
 - Commits : uniquement ses propres fichiers, nommés un par un (git add <fichier>…).
