@@ -35,9 +35,10 @@ pub enum StorageCategory {
 /// Request of `cs_disk_map`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiskMapRequest {
-    /// Root of the drive, e.g. `C:\`.
+    /// Root of the drive, e.g. `C:\`, or a folder to detail further (D81).
     pub root: PathBuf,
-    /// Levels kept below the root (1 to 3, D73).
+    /// Levels kept below the root (1 to 3, D73); a deeper folder is detailed by a new map
+    /// rooted at it.
     #[serde(default = "default_depth")]
     pub max_depth: u8,
 }
@@ -65,6 +66,10 @@ pub struct DiskMapNode {
     pub is_group: bool,
     /// A folder (`false`: a file or a group).
     pub is_folder: bool,
+    /// A folder with sub-folders (D81): `false` for a terminal folder, holding only files,
+    /// which the map opens in the Gestionnaire. Missing in a map saved before D81.
+    #[serde(default)]
+    pub has_folders: bool,
 }
 
 /// Result of `cs_disk_map`.
@@ -272,7 +277,9 @@ pub fn build(
         .to_owned();
     let used = total.saturating_sub(free);
     let cancelled = env.cancel.load(Ordering::Relaxed);
-    if !cancelled && used > root.size_bytes {
+    // Only the whole drive accounts for the used space; a folder detailed later does not.
+    let whole_drive = request.root.parent().is_none();
+    if whole_drive && !cancelled && used > root.size_bytes {
         let missing = used - root.size_bytes;
         root.children.push(DiskMapNode {
             name: NOT_MEASURED.to_owned(),
@@ -283,6 +290,7 @@ pub fn build(
             children: Vec::new(),
             is_group: true,
             is_folder: false,
+            has_folders: false,
         });
         root.size_bytes = used;
         root.children
@@ -319,6 +327,7 @@ impl Walk<'_> {
             children: Vec::new(),
             is_group: false,
             is_folder: true,
+            has_folders: false,
         };
         if self.env.cancel.load(Ordering::Relaxed) {
             return node;
@@ -337,6 +346,7 @@ impl Walk<'_> {
             .into_iter()
             .filter(|e| !e.metadata.is_reparse_point || !e.metadata.is_dir)
             .partition(|e| e.metadata.is_dir);
+        node.has_folders = !dirs.is_empty();
         let mut children: Vec<DiskMapNode> = dirs
             .par_iter()
             .map(|d| self.folder(&d.path, level + 1, depth, own))
@@ -369,6 +379,7 @@ impl Walk<'_> {
                     children: Vec::new(),
                     is_group: false,
                     is_folder: false,
+                    has_folders: false,
                 });
             }
         }
@@ -430,6 +441,7 @@ pub fn group_small(mut children: Vec<DiskMapNode>, parent_size: u64) -> Vec<Disk
             children: Vec::new(),
             is_group: true,
             is_folder: false,
+            has_folders: false,
         });
     }
     children
@@ -577,6 +589,40 @@ mod tests {
         assert_eq!(allocated(10, 1), 10);
     }
 
+    /// D81: any folder can be detailed further; a terminal folder says so.
+    #[test]
+    fn a_folder_is_detailed_by_its_own_map_and_terminal_folders_are_marked() {
+        let (fs, folders) = machine();
+        let cancel = AtomicBool::new(false);
+        let categorizer = Categorizer::new(&folders, &[], &[], None);
+        let env = DiskMapEnv {
+            fs: &fs,
+            categorizer: &categorizer,
+            cluster: 4096,
+            cancel: &cancel,
+        };
+        let request = DiskMapRequest {
+            root: PathBuf::from(r"C:\Users\Ana"),
+            max_depth: 3,
+        };
+        let map = build(&env, &request, 100_000 * MB, 10_000 * MB, &|_| {});
+        assert!(
+            map.root.children.iter().all(|c| c.name != NOT_MEASURED),
+            "a folder never claims the unmeasured space of the drive"
+        );
+        assert!(map.root.has_folders);
+        let videos = find(&map.root, r"C:\Users\Ana\Videos").unwrap();
+        assert!(
+            videos.is_folder && !videos.has_folders,
+            "only files: terminal"
+        );
+        let appdata = find(&map.root, r"C:\Users\Ana\AppData").unwrap();
+        assert!(appdata.has_folders);
+        // Third level below Ana: OldTool is on the map, terminal, its files left for a click.
+        let old = find(&map.root, r"C:\Users\Ana\AppData\Roaming\OldTool").unwrap();
+        assert!(old.children.is_empty() && !old.has_folders && old.size_bytes >= 100 * MB);
+    }
+
     #[test]
     fn small_items_are_grouped() {
         let leaf = |name: &str, size: u64| DiskMapNode {
@@ -588,6 +634,7 @@ mod tests {
             children: Vec::new(),
             is_group: false,
             is_folder: false,
+            has_folders: false,
         };
         let mut children = vec![leaf("big", 10_000), leaf("empty", 0)];
         children.extend((0..50).map(|i| leaf(&format!("tiny{i}"), 10)));

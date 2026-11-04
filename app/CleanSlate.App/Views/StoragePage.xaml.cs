@@ -51,14 +51,18 @@ public sealed partial class StoragePage : Page
         {
             var text = StorageCategoryBrushConverter.Themed("StorageTileTextBrush") as Brush;
             var label = new StackPanel { Spacing = 2, Visibility = tile.ShowLabel ? Visibility.Visible : Visibility.Collapsed };
-            label.Children.Add(new TextBlock { Text = tile.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = text, TextTrimming = TextTrimming.CharacterEllipsis });
-            label.Children.Add(new TextBlock { Text = tile.SizeText, Foreground = text, FontSize = 12 });
+            // A small rectangle shows its name alone, in a smaller font (D81).
+            label.Children.Add(new TextBlock { Text = tile.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = text, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = tile.ShowSize ? 14 : 11 });
+            if (tile.ShowSize)
+            {
+                label.Children.Add(new TextBlock { Text = tile.SizeText, Foreground = text, FontSize = 12 });
+            }
             var fill = Brushes.Convert(tile.Category, typeof(Brush), string.Empty, string.Empty) as Brush;
             var button = new Button
             {
                 Width = Math.Max(1, tile.Width - 2),
                 Height = Math.Max(1, tile.Height - 2),
-                Padding = new Thickness(6, 4, 6, 4),
+                Padding = tile.ShowSize ? new Thickness(6, 4, 6, 4) : new Thickness(3, 1, 3, 1),
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 VerticalContentAlignment = VerticalAlignment.Top,
                 Background = fill,
@@ -87,7 +91,7 @@ public sealed partial class StoragePage : Page
 
             ToolTipService.SetToolTip(button, tile.ToolTip);
             AutomationProperties.SetName(button, tile.ToolTip.Replace('\n', ' '));
-            button.Click += (_, _) => ViewModel.Open(tile);
+            button.Click += async (_, _) => await ViewModel.OpenAsync(tile);
             Canvas.SetLeft(button, tile.X + 1);
             Canvas.SetTop(button, tile.Y + 1);
             MapCanvas.Children.Add(button);

@@ -135,14 +135,14 @@ public sealed class StorageMapTests
     }
 
     [Fact]
-    public void Clicking_GoesDownToThreeLevels_WithABreadcrumbToGoBack()
+    public async Task Clicking_GoesDownToThreeLevels_WithABreadcrumbToGoBack()
     {
         var (vm, _, _) = Create(Machine());
         vm.Load();
         vm.Arrange(800, 500);
 
-        vm.Open(vm.Tiles.Single(t => t.Name == "Users"));
-        vm.Open(vm.Tiles.Single(t => t.Name == "Ana"));
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Ana"), TestContext.Current.CancellationToken);
         Assert.Equal(["C:", "Users", "Ana"], vm.Breadcrumb.Select(b => b.Name));
         Assert.Contains(vm.Tiles, t => t.Name == "AppData");
 
@@ -151,21 +151,21 @@ public sealed class StorageMapTests
     }
 
     [Fact]
-    public void Clicking_LeftoversOrAnApplication_OpensItsPage()
+    public async Task Clicking_LeftoversOrAnApplication_OpensItsPage()
     {
         var (vm, _, navigation) = Create(Machine());
         vm.Load();
         vm.Arrange(800, 500);
-        vm.Open(vm.Tiles.Single(t => t.Name == "Users"));
-        vm.Open(vm.Tiles.Single(t => t.Name == "Ana"));
-        vm.Open(vm.Tiles.Single(t => t.Name == "AppData"));
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Users"), TestContext.Current.CancellationToken);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Ana"), TestContext.Current.CancellationToken);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "AppData"), TestContext.Current.CancellationToken);
 
-        vm.Open(vm.Tiles.Single(t => t.Name == "OldTool"));
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "OldTool"), TestContext.Current.CancellationToken);
         navigation.Received(1).OpenOrphans(false);
 
         vm.GoTo(vm.Breadcrumb[0]);
-        vm.Open(vm.Tiles.Single(t => t.Name == "Program Files"));
-        vm.Open(vm.Tiles.Single(t => t.Name == "Steam"));
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Program Files"), TestContext.Current.CancellationToken);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Steam"), TestContext.Current.CancellationToken);
         navigation.Received(1).OpenApps();
     }
 
@@ -219,5 +219,67 @@ public sealed class StorageMapTests
         Assert.Equal(StorageOperation.Quarantine, row.Operation);
         Assert.Equal("100 Go", row.BeforeText);
         Assert.Equal("0 octets", row.DifferenceText);
+    }
+
+    /// <summary>D81: below the levels of the map, a folder gets a map of its own (no depth limit).</summary>
+    [Fact]
+    public async Task AFolderNotDetailedYet_GetsAMapOfItsOwn()
+    {
+        DiskMapNode downloads = Node(@"C:\Users\Ana\Downloads", 30 * Gb, StorageCategory.UserFiles) with { HasFolders = true };
+        DiskMapNode setups = Node(@"C:\Users\Ana\Downloads\Setups", 20 * Gb, StorageCategory.UserFiles) with { HasFolders = false };
+        DiskMapNode detail = Node(@"C:\Users\Ana\Downloads", 30 * Gb, StorageCategory.UserFiles, setups) with { HasFolders = true };
+        var map = new DiskMap(Node(@"C:\", 30 * Gb, StorageCategory.Other, downloads) with { HasFolders = true }, 512 * Gb, 100 * Gb, 0, 1, false);
+        var (vm, _, navigation) = Create(map);
+        var engine = Substitute.For<IEngineService>();
+        engine.DiskMapAsync(Arg.Is<DiskMapRequest>(r => r.Root == downloads.Path), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new DiskMap(detail, 512 * Gb, 100 * Gb, 0, 1, false));
+        vm = new StorageMapViewModel(engine, StorageOf(map), navigation);
+        vm.Load();
+        vm.Arrange(800, 500);
+
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Downloads"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(["C:", "Downloads"], vm.Breadcrumb.Select(b => b.Name));
+        StorageTile tile = Assert.Single(vm.Tiles);
+        Assert.Equal("Setups", tile.Name);
+        Assert.Contains("Gestionnaire", tile.ToolTip);
+
+        // Back up and down again: the detail is kept for the session, computed once.
+        vm.GoTo(vm.Breadcrumb[0]);
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Downloads"), TestContext.Current.CancellationToken);
+        await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
+
+        // A terminal folder opens the Gestionnaire with its files, without a new map.
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "Setups"), TestContext.Current.CancellationToken);
+        navigation.Received(1).OpenManager(setups.Path);
+        await engine.Received(1).DiskMapAsync(Arg.Any<DiskMapRequest>(), Arg.Any<IProgress<DiskMapProgress>?>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>D81: a file opens the Gestionnaire on its folder; a small rectangle still shows its name.</summary>
+    [Fact]
+    public async Task AFile_OpensTheGestionnaireOnItsFolder_AndSmallRectanglesShowTheirName()
+    {
+        var file = new DiskMapNode("film.mp4", @"C:\Users\Ana\Videos\film.mp4", 10 * Gb, 1, StorageCategory.UserFiles, [], false, false);
+        var tiny = Node(@"C:\Users\Ana\Videos\Clips", 1 * Gb, StorageCategory.UserFiles) with { HasFolders = false };
+        var map = new DiskMap(Node(@"C:\", 11 * Gb, StorageCategory.Other, file, tiny) with { HasFolders = true }, 512 * Gb, 100 * Gb, 0, 1, false);
+        var (vm, _, navigation) = Create(map);
+        vm.Load();
+        vm.Arrange(800, 500);
+
+        StorageTile small = vm.Tiles.Single(t => t.Name == "Clips");
+        Assert.True(small.ShowLabel, $"{small.Width} x {small.Height}: the name is shown");
+        Assert.False(small.ShowSize);
+
+        await vm.OpenAsync(vm.Tiles.Single(t => t.Name == "film.mp4"), TestContext.Current.CancellationToken);
+        navigation.Received(1).OpenManager(@"C:\Users\Ana\Videos");
+    }
+
+    private static IStorageService StorageOf(DiskMap map)
+    {
+        var storage = Substitute.For<IStorageService>();
+        storage.Drives().Returns([new DriveSpace("C:", 512 * Gb, 100 * Gb)]);
+        storage.CachedMap("C:").Returns(new CachedDiskMap(map, DateTimeOffset.Now));
+        storage.Journal().Returns([]);
+        return storage;
     }
 }

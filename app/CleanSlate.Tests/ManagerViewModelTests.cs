@@ -27,7 +27,7 @@ public sealed class ManagerViewModelTests
         0,
         false);
 
-    private static (ManagerViewModel Vm, IManagerService Manager, IDialogService Dialogs, ISettingsService Settings) Create(bool expert = false, ManagerDecision? decision = null)
+    private static (ManagerViewModel Vm, IManagerService Manager, IDialogService Dialogs, ISettingsService Settings) Create(bool expert = false, ManagerDecision? decision = null, INavigationService? navigation = null)
     {
         var manager = Substitute.For<IManagerService>();
         manager.AnalyzeAsync(Arg.Any<string>(), Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>()).Returns(Analysis());
@@ -53,7 +53,7 @@ public sealed class ManagerViewModelTests
         settings.ExpertMode.Returns(expert);
         var engine = Substitute.For<IEngineService>();
         engine.PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>()).Returns(new PurgeResult(0, false));
-        var vm = new ManagerViewModel(manager, storage, dialogs, settings, engine, Substitute.For<INavigationService>());
+        var vm = new ManagerViewModel(manager, storage, dialogs, settings, engine, navigation ?? Substitute.For<INavigationService>());
         return (vm, manager, dialogs, settings);
     }
 
@@ -167,5 +167,21 @@ public sealed class ManagerViewModelTests
         Assert.Contains("Supprimer : 3 élément(s), 2 Go", line);
         Assert.EndsWith("C: +2 Go", line);
         Assert.True(history.HasManagerActions);
+    }
+
+    /// <summary>D81: a terminal folder of the storage map opens « Gros fichiers » with its files.</summary>
+    [Fact]
+    public async Task AFolderFromTheMap_IsAnalyzed_AndItsFilesShown()
+    {
+        var navigation = Substitute.For<INavigationService>();
+        navigation.TakeManagerFolder().Returns(@"C:\Users\Ana\Downloads\Setups", (string?)null);
+        var (vm, manager, _, _) = Create(navigation: navigation);
+
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        await manager.Received(1).AnalyzeAsync(@"C:\Users\Ana\Downloads\Setups", Arg.Any<IProgress<ManagerProgress>?>(), Arg.Any<CancellationToken>());
+        Assert.Equal(4, vm.TabIndex);
+        Assert.NotEmpty(vm.Largest);
+        Assert.Contains("Setups", vm.ResultText);
     }
 }

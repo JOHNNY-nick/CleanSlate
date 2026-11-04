@@ -24,7 +24,8 @@ public sealed record StorageTile(
     string ToolTip,
     StorageCategory Category,
     bool ShowLabel,
-    DiskMapNode Node);
+    DiskMapNode Node,
+    bool ShowSize = true);
 
 /// <summary>A line of the legend: category, its name is shown by the view (<c>StorageCategory_{value}</c>).</summary>
 /// <param name="Category">Category.</param>
@@ -39,21 +40,27 @@ public sealed record BreadcrumbItem(string Name, DiskMapNode Node);
 
 /// <summary>
 /// Storage map of the « Stockage » page (D73): one bar per drive, a treemap of what takes the
-/// space (by category, with a legend), three levels to go down with a breadcrumb, a click on
-/// leftovers or an application opening its page. Read-only: nothing is deleted from here.
+/// space (by category, with a legend), as many levels to go down as the disk has (D81: a
+/// folder not detailed yet gets a map of its own), with a breadcrumb. A click on leftovers or
+/// an application opens its page, on a terminal folder (files only) or a file the Gestionnaire
+/// with those files. Read-only: nothing is deleted from here.
 /// </summary>
 public sealed partial class StorageMapViewModel : ObservableObject
 {
-    /// <summary>Levels a click can go down below the drive.</summary>
+    /// <summary>Levels of one computed map; deeper, a folder gets a map of its own (D81).</summary>
     public const int MaxDepth = 3;
 
+    // Name and size from this size on; the name alone from the smaller one.
     private const double MinLabelWidth = 90;
     private const double MinLabelHeight = 36;
+    private const double MinNameWidth = 48;
+    private const double MinNameHeight = 22;
     private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
 
     private readonly IEngineService _engine;
     private readonly IStorageService _storage;
     private readonly INavigationService _navigation;
+    private readonly Dictionary<string, DiskMapNode> _details = new(StringComparer.OrdinalIgnoreCase);
     private double _width;
     private double _height;
 
@@ -183,10 +190,12 @@ public sealed partial class StorageMapViewModel : ObservableObject
 
     /// <summary>
     /// A click: leftovers open « Restes orphelins », an application (a folder right below the
-    /// programs folders) opens « Applications », another folder goes down one level (up to
-    /// <see cref="MaxDepth"/>). Nothing is ever deleted from the map.
+    /// programs folders) opens « Applications ». A folder with sub-folders goes down one level,
+    /// computing its own map first when it was not detailed yet (D81, no depth limit); a
+    /// terminal folder (files only) or a file opens the Gestionnaire with the files of that
+    /// folder. Nothing is ever deleted from the map.
     /// </summary>
-    public void Open(StorageTile tile)
+    public async Task OpenAsync(StorageTile tile, CancellationToken cancellationToken = default)
     {
         DiskMapNode node = tile.Node;
         if (node.Category == StorageCategory.Leftovers)
@@ -203,10 +212,97 @@ public sealed partial class StorageMapViewModel : ObservableObject
             return;
         }
 
-        if (node.IsFolder && node.Children.Count > 0 && Breadcrumb.Count <= MaxDepth)
+        if (node.IsGroup)
         {
-            Breadcrumb.Add(new BreadcrumbItem(node.Name, node));
-            Layout();
+            return;
+        }
+
+        if (!node.IsFolder)
+        {
+            if (Path.GetDirectoryName(node.Path) is { Length: > 0 } parent)
+            {
+                _navigation.OpenManager(parent);
+            }
+
+            return;
+        }
+
+        if (node.Children.Any(c => c.IsFolder))
+        {
+            GoDown(node.Name, node);
+            return;
+        }
+
+        if (node.HasFolders == false)
+        {
+            _navigation.OpenManager(node.Path);
+            return;
+        }
+
+        // Sub-folders not on the map yet (below the levels of the map, or a map saved before
+        // D81): a map of this folder alone.
+        if (await DetailAsync(node, cancellationToken) is not { } detail)
+        {
+            return;
+        }
+
+        if (detail.HasFolders == false)
+        {
+            _navigation.OpenManager(node.Path);
+            return;
+        }
+
+        GoDown(node.Name, detail);
+    }
+
+    /// <summary>The next action of a click on <paramref name="node"/>, for its tooltip.</summary>
+    public static string ClickHint(DiskMapNode node) => node switch
+    {
+        { Category: StorageCategory.Leftovers } => "Clic : ouvrir Restes orphelins",
+        { IsGroup: true } => string.Empty,
+        { IsFolder: false } => "Clic : voir les fichiers de ce dossier dans le Gestionnaire",
+        { HasFolders: false } => "Clic : voir ses fichiers dans le Gestionnaire",
+        _ => "Clic : détailler",
+    };
+
+    private void GoDown(string name, DiskMapNode node)
+    {
+        Breadcrumb.Add(new BreadcrumbItem(name, node));
+        Layout();
+    }
+
+    // A map rooted at the folder (read-only), kept for the session; null when cancelled or failed.
+    private async Task<DiskMapNode?> DetailAsync(DiskMapNode node, CancellationToken cancellationToken)
+    {
+        if (_details.TryGetValue(node.Path, out DiskMapNode? known))
+        {
+            return known;
+        }
+
+        IsComputing = true;
+        ErrorText = string.Empty;
+        ProgressText = string.Empty;
+        try
+        {
+            var progress = new Progress<DiskMapProgress>(p =>
+                ProgressText = string.Format(French, "{0} · {1:N0} fichiers · {2} comptés", node.Name, p.Files, Formats.Size(p.Bytes)));
+            DiskMap map = await _engine.DiskMapAsync(new DiskMapRequest(node.Path), progress, cancellationToken);
+            if (map.Cancelled)
+            {
+                return null;
+            }
+
+            _details[node.Path] = map.Root;
+            return map.Root;
+        }
+        catch (EngineException ex)
+        {
+            ErrorText = ex.Message;
+            return null;
+        }
+        finally
+        {
+            IsComputing = false;
         }
     }
 
@@ -227,6 +323,7 @@ public sealed partial class StorageMapViewModel : ObservableObject
         Map = map;
         HasMap = true;
         LastComputedText = $"Calculée le {Formats.Date(DateOnly.FromDateTime(computedAt.LocalDateTime))} à {computedAt.LocalDateTime:HH:mm}";
+        _details.Clear();
         Breadcrumb.Clear();
         Breadcrumb.Add(new BreadcrumbItem(map.Root.Name.TrimEnd('\\'), map.Root));
         Layout();
@@ -251,12 +348,14 @@ public sealed partial class StorageMapViewModel : ObservableObject
                 DiskMapNode c = children[r.Index];
                 double share = disk == 0 ? 0 : 100.0 * c.SizeBytes / disk;
                 string where = c.Path.Length > 0 ? c.Path : c.Name;
+                string hint = ClickHint(c);
                 Tiles.Add(new StorageTile(
                     r.X, r.Y, r.Width, r.Height, c.Name, Formats.Size(c.SizeBytes),
-                    string.Format(French, "{0}\n{1} · {2:0} % du disque", where, Formats.Size(c.SizeBytes), share),
+                    string.Format(French, "{0}\n{1} · {2:0} % du disque{3}", where, Formats.Size(c.SizeBytes), share, hint.Length > 0 ? "\n" + hint : string.Empty),
                     c.Category,
-                    r.Width >= MinLabelWidth && r.Height >= MinLabelHeight,
-                    c));
+                    r.Width >= MinNameWidth && r.Height >= MinNameHeight,
+                    c,
+                    r.Width >= MinLabelWidth && r.Height >= MinLabelHeight));
             }
         }
 

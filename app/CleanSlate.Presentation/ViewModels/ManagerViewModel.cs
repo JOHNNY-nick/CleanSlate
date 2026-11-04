@@ -253,6 +253,15 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
 
         Diagnose();
+
+        // Opened from a terminal folder of the storage map (D81): its files, to choose from.
+        if (_navigation.TakeManagerFolder() is { } folder)
+        {
+            AnalysisRoot = folder;
+            TabIndex = 4;
+            await AnalyzeAsync(cancellationToken);
+            ResultText = $"Fichiers de {folder} : cochez ceux à supprimer.";
+        }
     }
 
     /// <summary>Walks C: (read-only), with progress and cancel.</summary>

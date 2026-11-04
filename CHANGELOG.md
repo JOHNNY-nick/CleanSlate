@@ -20,6 +20,7 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 - Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.
 
 ### Modifié
+- Carte du stockage (D81) : on peut creuser sans limite (un dossier pas encore détaillé est calculé au clic) ; un clic sur un dossier qui ne contient que des fichiers, ou sur un fichier, ouvre le Gestionnaire avec ces fichiers pour choisir quoi supprimer ; le nom des petits rectangles s'affiche.
 - Thème **Multicolore** au style « street » de la maquette de la carte du stockage (D76) :
   - un mur couvert de peinture vive (grandes éclaboussures, aquarelle, traînées, coulures, gouttes, ville) ;
   - du texte toujours sur des autocollants à contour épais et ombre décalée ;

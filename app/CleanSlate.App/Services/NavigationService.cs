@@ -30,8 +30,25 @@ public sealed class NavigationService : INavigationService
     /// <inheritdoc/>
     public void OpenStorage() => Window.ShowPage("Storage");
 
+    private string? _managerFolder;
+
     /// <inheritdoc/>
     public void OpenManager() => Window.ShowPage("Manager");
+
+    /// <inheritdoc/>
+    public void OpenManager(string folder)
+    {
+        _managerFolder = folder;
+        Window.ShowPage("Manager");
+    }
+
+    /// <inheritdoc/>
+    public string? TakeManagerFolder()
+    {
+        string? folder = _managerFolder;
+        _managerFolder = null;
+        return folder;
+    }
 
     /// <inheritdoc/>
     public void OpenSettings() => Window.ShowPage("Settings");

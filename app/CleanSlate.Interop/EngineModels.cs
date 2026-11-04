@@ -411,7 +411,8 @@ public sealed record DiskMapNode(
     StorageCategory Category,
     IReadOnlyList<DiskMapNode> Children,
     bool IsGroup,
-    bool IsFolder);
+    bool IsFolder,
+    bool? HasFolders = null);
 
 /// <summary>Result of <c>cs_disk_map</c>.</summary>
 public sealed record DiskMap(DiskMapNode Root, ulong TotalBytes, ulong FreeBytes, ulong Denied, ulong DurationMs, bool Cancelled);

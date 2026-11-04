@@ -94,7 +94,7 @@ internal static class Capture
                             break;
                         }
 
-                        storage.ViewModel.Open(tile);
+                        await storage.ViewModel.OpenAsync(tile);
                     }
 
                     await Save(window, Path.Combine(folder, $"{name}-Storage-detail.png"), log);

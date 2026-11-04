@@ -32,4 +32,13 @@ public interface INavigationService
 
     /// <summary>Opens the Gestionnaire (D79).</summary>
     void OpenManager();
+
+    /// <summary>
+    /// Opens the Gestionnaire on the files of <paramref name="folder"/> (from the storage map,
+    /// D81): it analyzes that folder and shows « Gros fichiers ».
+    /// </summary>
+    void OpenManager(string folder);
+
+    /// <summary>Folder handed by <see cref="OpenManager(string)"/>, once; null otherwise.</summary>
+    string? TakeManagerFolder();
 }
