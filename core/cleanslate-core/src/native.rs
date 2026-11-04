@@ -194,6 +194,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_volume_root_of_a_folder_is_its_drive() {
+        assert_eq!(
+            volume_root(Path::new(r"C:\Users\Ana\AppData\Local\CleanSlate")),
+            Path::new(r"C:\")
+        );
+        assert_eq!(volume_root(Path::new(r"X:\")), Path::new(r"X:\"));
+        assert_eq!(
+            volume_root(Path::new(r"\\server\share\folder")),
+            Path::new(r"\\server\share\")
+        );
+        assert_eq!(volume_root(Path::new("relative")), Path::new("relative"));
+        // A folder is accepted now: the free space of the volume of the temporary folder.
+        let dir = tempfile::tempdir().unwrap();
+        assert!(volume_space(dir.path()).is_some_and(|v| v.total > 0));
+    }
+
+    #[test]
     fn sha256_known_vectors() {
         assert_eq!(
             Sha256::of_bytes(b"").unwrap(),
@@ -257,10 +274,29 @@ pub fn compressed_size(path: &Path) -> Option<u64> {
     Some((u64::from(high) << 32) | u64::from(low))
 }
 
-/// Total, free and cluster size of the volume holding `root` (D73).
-pub fn volume_space(root: &Path) -> Option<VolumeSpace> {
+/// Root of the volume of `path`: `C:\Users\Ana` gives `C:\`, `\\server\share\x` gives
+/// `\\server\share\`. A path without a drive is returned as it is.
+pub fn volume_root(path: &Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut root = std::path::PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::Prefix(_) | Component::RootDir => root.push(part.as_os_str()),
+            _ => break,
+        }
+    }
+    if root.as_os_str().is_empty() {
+        path.to_path_buf()
+    } else {
+        root
+    }
+}
+
+/// Total, free and cluster size of the volume holding `path`, a root or any folder on it
+/// (D73). `GetDiskFreeSpaceW` only accepts a root: a folder failed before D80.
+pub fn volume_space(path: &Path) -> Option<VolumeSpace> {
     use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDiskFreeSpaceW};
-    let path = wide(root);
+    let path = wide(&volume_root(path));
     let (mut free, mut total) = (0u64, 0u64);
     // SAFETY: NUL-terminated path that lives for the call; out-pointers to locals.
     unsafe {

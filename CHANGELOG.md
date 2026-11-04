@@ -30,7 +30,7 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
   Trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages.
 
 ### Corrigé
-- Gestionnaire : annuler une suppression au redémarrage ne retirait rien quand Windows avait d'autres opérations en attente, et aurait pu décaler la liste (D80) ; le nettoyage du cache de Windows Update n'échoue plus quand ce cache n'existe pas.
+- Gestionnaire : annuler une suppression au redémarrage ne retirait rien quand Windows avait d'autres opérations en attente, et aurait pu décaler la liste (D80) ; le nettoyage du cache de Windows Update n'échoue plus quand ce cache n'existe pas. En mode « Sûr », un fichier d'un autre disque va bien dans la quarantaine (l'espace libre du disque de la quarantaine était mal lu).
 - Historique : une session purgée n'affiche plus une date de purge à venir ; elle dit « supprimée définitivement, plus restaurable » (D76).
 
 ## 3 nov. 2026
