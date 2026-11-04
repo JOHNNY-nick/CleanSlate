@@ -12,6 +12,9 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
   - Chaque suppression se confirme, en mode « Sûr » (Corbeille) ou « Immédiat » (définitif).
   - Autres actions : suppression au redémarrage, suppression sécurisée, déplacement vérifié vers un autre disque, nettoyage des caches et des Corbeilles, nettoyage système par les outils officiels de Windows.
   - Rapport HTML et CSV, alerte d'espace faible à l'ouverture.
+  - Une suppression prévue au redémarrage peut être annulée ; en mode « Sûr », un fichier d'un autre disque va dans la quarantaine de CleanSlate (l'espace est libéré tout de suite, restaurable 30 jours).
+  - Les actions du Gestionnaire apparaissent dans l'Historique avec l'espace libéré ; l'onglet Volumes montre les disques physiques et leur espace non alloué.
+  - Scénario Windows Sandbox « Gestionnaire » (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`).
 - Zones sensibles et mode expert (D79) : les zones de Windows et des programmes ne sont jamais proposées automatiquement ; y agir à la main demande le mode expert et « CONFIRMER ».
 - Barre de progression pendant la mise en quarantaine des restes (D77).
 - Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.

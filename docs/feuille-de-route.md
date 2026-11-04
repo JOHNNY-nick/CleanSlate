@@ -3,20 +3,11 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures\2026-11-04\multicolore-v2\` et `artifacts\captures\2026-11-04\gestionnaire\`.
-- **Prochaine action** : le porteur relit les captures, réinstalle avec l'installeur du 4 nov. 2026, essaie le Gestionnaire en mode « Sûr », puis fait ses remarques.
+- **Prochaine action** : le porteur lance le scénario Sandbox du Gestionnaire (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`, depuis la racine du dépôt, 10 à 20 min), puis réinstalle avec l'installeur du 4 nov. 2026 (SHA-256 `300F6D6F…94756`), essaie le Gestionnaire en mode « Sûr » et fait ses remarques.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : les remarques, ou « tout OK » ; « Nunito oui / non ».
-- **Reste du Gestionnaire** (voir `docs/securite/audit.md` § 4) : annuler une suppression au redémarrage, actions dans l'Historique, espace non alloué, scénarios Sandbox (liste dans `docs/journal/gestionnaire-plan.md` § 4).
-- **File des tâches**, dans cet ordre sauf avis contraire du porteur :
-  2. barre de progression pendant la mise en quarantaine des restes ;
-  3. critères de confiance plus pointus :
-     - raccourcis qui fonctionnent ;
-     - registre de Windows Installer ;
-     - gestionnaires de paquets ;
-     - associations de fichiers et « App Paths » ;
-     - usage récent des programmes.
-
-     S'y ajoute une section de l'application qui explique comment le niveau de confiance est calculé.
+- **Réponse attendue** : « fait » après le Sandbox (Claude lit le rapport), puis les remarques ou « tout OK » ; « Nunito oui / non ».
+- **Reste du Gestionnaire** : fait le 4 nov. 2026 (annulation au redémarrage, actions dans l'Historique, quarantaine sur un autre disque, espace non alloué, scénario Sandbox) ; limites dans `docs/securite/audit.md` § 4.
+- **File des tâches** : vide (tâches 2 et 3 faites : D77, D78).
 
 Dernière mise à jour : 4 nov. 2026.
 ## Règles de pilotage
