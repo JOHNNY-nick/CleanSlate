@@ -9,6 +9,7 @@
 
     <Page.Resources>
         <conv:ResourceStringConverter x:Key="ResourceString" />
+        <conv:SessionStatusBrushConverter x:Key="StatusBrush" />
     </Page.Resources>
 
     <Grid Margin="{StaticResource PageMargin}" RowSpacing="12">
@@ -85,11 +86,18 @@
                                             <Run Text="{x:Bind PurgeNote}" />
                                         </TextBlock>
                                     </StackPanel>
-                                    <TextBlock
+                                    <!-- State: a colored pill in Multicolore (D76), plain text in the other themes. -->
+                                    <Border
                                         Grid.Column="1"
+                                        Padding="10,3"
                                         VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextSecondaryBrush}"
-                                        Text="{x:Bind Status, Converter={StaticResource ResourceString}, ConverterParameter=SessionStatus}" />
+                                        Background="{x:Bind Status, Converter={StaticResource StatusBrush}, ConverterParameter=Background}"
+                                        CornerRadius="12">
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Foreground="{x:Bind Status, Converter={StaticResource StatusBrush}, ConverterParameter=Foreground}"
+                                            Text="{x:Bind Status, Converter={StaticResource ResourceString}, ConverterParameter=SessionStatus}" />
+                                    </Border>
                                 </Grid>
                             </Expander.Header>
                             <StackPanel Spacing="8">
@@ -146,7 +154,7 @@
             </ListView>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
                 <TextBlock x:Uid="HistoryEmpty" HorizontalAlignment="Center" Style="{StaticResource SecondaryTextBlockStyle}" />
-                <Button x:Uid="HistoryAnalyze" HorizontalAlignment="Center" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Uid="HistoryAnalyze" HorizontalAlignment="Center" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource MainButtonStyle}" />
             </StackPanel>
         </Grid>
     </Grid>

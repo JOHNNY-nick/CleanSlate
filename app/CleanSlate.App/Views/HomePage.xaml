@@ -22,7 +22,7 @@
                 <Border Style="{StaticResource PageHeaderBorderStyle}" Background="{ThemeResource PageHeaderHomeBrush}">
                     <TextBlock x:Uid="HomeTitle" Style="{StaticResource PageHeaderTextBlockStyle}" />
                 </Border>
-                <Button x:Uid="HomeAnalyze" Grid.Column="1" VerticalAlignment="Top" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Uid="HomeAnalyze" Grid.Column="1" VerticalAlignment="Top" Command="{x:Bind ViewModel.AnalyzeLeftoversCommand}" Style="{StaticResource MainButtonStyle}" />
             </Grid>
 
             <InfoBar x:Uid="HomeNeedsElevation" IsClosable="False" IsOpen="{x:Bind ViewModel.NeedsElevation}" Severity="Warning">

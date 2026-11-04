@@ -24,7 +24,7 @@
                         <TextBlock x:Uid="OnboardingWelcomeSteps" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-                <Button x:Uid="OnboardingStart" HorizontalAlignment="Center" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Uid="OnboardingStart" HorizontalAlignment="Center" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource MainButtonStyle}" />
             </StackPanel>
 
             <!-- Step 2: how it works, in plain words, and acceptance -->
@@ -48,7 +48,7 @@
                 </Border>
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button x:Uid="OnboardingBack" Command="{x:Bind ViewModel.BackCommand}" />
-                    <Button x:Uid="OnboardingContinue" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource AccentButtonStyle}" />
+                    <Button x:Uid="OnboardingContinue" Command="{x:Bind ViewModel.NextCommand}" Style="{StaticResource MainButtonStyle}" />
                 </StackPanel>
             </StackPanel>
 
@@ -104,7 +104,7 @@
                 <TextBlock x:Uid="OnboardingLater" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button x:Uid="OnboardingBack" Command="{x:Bind ViewModel.BackCommand}" />
-                    <Button x:Uid="OnboardingFinish" Command="{x:Bind ViewModel.FinishCommand}" Style="{StaticResource AccentButtonStyle}" />
+                    <Button x:Uid="OnboardingFinish" Command="{x:Bind ViewModel.FinishCommand}" Style="{StaticResource MainButtonStyle}" />
                 </StackPanel>
             </StackPanel>
         </StackPanel>

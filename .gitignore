@@ -25,3 +25,7 @@ Thumbs.db
 
 # Livre (branche livre) : PDF et HTML générés
 book/dist/
+
+# Références du porteur pour le thème Multicolore : inspiration seulement, jamais commitées (D76)
+docs/design/reference-multicolore/
+docs/design/references-multicolore/

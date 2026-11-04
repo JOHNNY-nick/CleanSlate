@@ -48,13 +48,17 @@ public sealed class ThemeTests
         };
     }
 
-    [Fact]
-    public void EveryTokenOfTheTheme_IsInThePalette()
+    [Theory]
+    [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
+    public void EveryTokenOfTheTheme_IsInThePalette(string palette)
     {
-        Assert.All(ThemePalette.Tokens, t => Assert.NotNull(Palette.Elements().SingleOrDefault(e => (string?)e.Attribute(X + "Key") == t)));
-        Assert.Equal("LinearGradientBrush", Entry("WindowBackgroundBrush").Name.LocalName);
-        Assert.Equal("LinearGradientBrush", Entry("BorderBrush").Name.LocalName);
-        Assert.Equal("LinearGradientBrush", Entry("TitleBrush").Name.LocalName);
+        XElement d = ThemeDictionary(palette);
+        Assert.All(ThemePalette.Tokens, t => Assert.NotNull(d.Elements().SingleOrDefault(e => (string?)e.Attribute(X + "Key") == t)));
+        // D76: a plain wall, no rainbow edging, no colored band under the titles.
+        Assert.Equal("Color", d.Elements().Single(e => (string?)e.Attribute(X + "Key") == "WindowBackgroundBrush").Name.LocalName);
+        Assert.Equal("3", d.Elements().Single(e => (string?)e.Attribute(X + "Key") == "CardBorderThickness").Value.Trim()); // ink outline
+        Assert.StartsWith("#00", ColorOf(d, "PageHeaderStripBrush")[0], StringComparison.Ordinal);
     }
 
     /// <summary>Every token changed by Multicolore exists in the three other dictionaries, so that every theme has it (D72).</summary>
@@ -72,16 +76,21 @@ public sealed class ThemeTests
         Assert.All(tokens, t => Assert.True(d.Elements().Any(e => (string?)e.Attribute(X + "Key") == t), $"{dictionary} : {t}"));
     }
 
-    [Fact]
-    public void Multicolore_HasRedYellowGreenBlueAndViolet()
+    /// <summary>The eight paint colors asked by the owner (D76), vivid in both palettes.</summary>
+    [Theory]
+    [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
+    public void Multicolore_PaintsInEveryVividColor(string palette)
     {
-        double[] hues = Palette.Descendants()
-            .SelectMany(e => e.Name.LocalName == "GradientStop" ? [(string)e.Attribute("Color")!] : e.Name.LocalName == "Color" ? [e.Value.Trim()] : Array.Empty<string>())
-            .Where(c => Saturation(c) >= 0.5)
+        XElement d = ThemeDictionary(palette);
+        double[] hues = Enumerable.Range(0, PaintComposer.ColorCount)
+            .Select(i => ColorOf(d, $"Paint{i}")[0])
+            .Where(c => Saturation(c) >= 0.55)
             .Select(Hue)
             .ToArray();
+        Assert.Equal(PaintComposer.ColorCount, hues.Length);
         (string Name, double From, double To)[] families =
-            [("rouge", 345, 375), ("jaune", 40, 65), ("vert", 90, 160), ("bleu", 200, 235), ("violet", 255, 300)];
+            [("rouge", 350, 365), ("orange", 25, 40), ("jaune", 45, 60), ("vert", 100, 140), ("bleu", 200, 215), ("violet", 265, 295), ("rose", 325, 345), ("turquoise", 170, 195)];
         Assert.All(families, f => Assert.True(
             hues.Any(h => (h >= f.From && h <= f.To) || (h + 360 >= f.From && h + 360 <= f.To)),
             $"pas de {f.Name}"));
@@ -100,24 +109,6 @@ public sealed class ThemeTests
     [InlineData("ConfidenceMediumForegroundBrush", "ConfidenceMediumBackgroundBrush", 4.5)]
     [InlineData("ConfidenceLowForegroundBrush", "ConfidenceLowBackgroundBrush", 4.5)]
     [InlineData("OnDangerBrush", "DangerBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderHomeBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderAppsBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderOrphansBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderHistoryBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderStorageBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderSettingsBrush", 4.5)]
-    [InlineData("PageHeaderForegroundBrush", "PageHeaderWizardBrush", 4.5)]
-    [InlineData("TextPrimaryBrush", "CardTint0", 7.0)]
-    [InlineData("TextPrimaryBrush", "CardTint1", 7.0)]
-    [InlineData("TextPrimaryBrush", "CardTint2", 7.0)]
-    [InlineData("TextPrimaryBrush", "CardTint3", 7.0)]
-    [InlineData("TextPrimaryBrush", "CardTint4", 7.0)]
-    [InlineData("TextSecondaryBrush", "CardTint0", 4.5)]
-    [InlineData("TextSecondaryBrush", "CardTint1", 4.5)]
-    [InlineData("TextSecondaryBrush", "CardTint2", 4.5)]
-    [InlineData("TextSecondaryBrush", "CardTint3", 4.5)]
-    [InlineData("TextSecondaryBrush", "CardTint4", 4.5)]
-    [InlineData("TextPrimaryBrush", "ContentSurfaceBrush", 7.0)]
     public void EveryText_StaysReadable_OnEveryColorOfItsBackground(string text, string background, double minimum)
     {
         foreach (string t in Colors(text))
@@ -128,6 +119,66 @@ public sealed class ThemeTests
                 Assert.True(ratio >= minimum, $"{text} {t} on {background} {b}: {ratio:0.00}");
             }
         }
+    }
+
+    /// <summary>
+    /// D76: cards, lists and loose text sit on a slightly translucent surface; laid over any
+    /// paint color, the text on it stays readable (at least 4.5:1).
+    /// </summary>
+    [Theory]
+    [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
+    public void TextOnTheSurface_StaysReadable_OverEveryPaint(string palette)
+    {
+        XElement d = ThemeDictionary(palette);
+        string surface = ColorOf(d, "PaintSurfaceColor")[0];
+        IEnumerable<string> below = Enumerable.Range(0, PaintComposer.ColorCount).Select(i => ColorOf(d, $"Paint{i}")[0]).Append(ColorOf(d, "WindowBackgroundBrush")[0]);
+        foreach (string paint in below)
+        {
+            string seen = ThemePalette.Over(surface, paint);
+            foreach (string text in new[] { "TextPrimaryBrush", "TextSecondaryBrush" })
+            {
+                double ratio = ThemePalette.Contrast(ColorOf(d, text)[0], seen);
+                Assert.True(ratio >= 4.5, $"{palette} {text} over {paint}: {ratio:0.00}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// D76, street style: titles in ink on a paper sticker; menu icons in ink on a drop of the
+    /// page color (an icon: 3:1); the active item in green with its text readable.
+    /// </summary>
+    [Theory]
+    [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
+    public void TitlesIconsAndTheActiveItem_StayReadable(string palette)
+    {
+        XElement d = ThemeDictionary(palette);
+        string paper = ColorOf(d, "PaintSurfaceColor")[0][3..];
+        Assert.True(ThemePalette.Contrast(ColorOf(d, "PageHeaderForegroundBrush")[0], "#" + paper) >= 4.5, $"{palette} title on its sticker");
+        foreach (string page in new[] { "Home", "Apps", "Orphans", "History", "Storage", "Settings" })
+        {
+            double icon = ThemePalette.Contrast(ColorOf(d, $"Nav{page}Brush")[0], ColorOf(d, $"PageHeader{page}Brush")[0]);
+            Assert.True(icon >= 3.0, $"{palette} icon {page} on its drop: {icon:0.00}");
+        }
+
+        Assert.True(ThemePalette.Contrast(ColorOf(d, "NavActiveTextColor")[0], ColorOf(d, "NavActiveColor")[0]) >= 4.5, $"{palette} active item");
+        Assert.True(ThemePalette.Contrast(ColorOf(d, "AccentButtonForeground")[0], ColorOf(d, "AccentButtonBackground")[0]) >= 4.5, $"{palette} main button");
+        foreach (string state in new[] { "Completed", "Partial", "Restored", "Purged" })
+        {
+            Assert.True(ThemePalette.Contrast(ColorOf(d, "Ink")[0], ColorOf(d, $"Status{state}Color")[0]) >= 4.5, $"{palette} state {state}");
+        }
+
+        string label = ThemePalette.Over(ColorOf(d, "LabelStickerColor")[0], ColorOf(d, "StorageQuarantineBrush")[0]);
+        Assert.True(ThemePalette.Contrast(ColorOf(d, "StorageTileTextBrush")[0], label) >= 4.5, $"{palette} map label");
+    }
+
+    [Fact]
+    public void Over_And_Mix_BlendColors()
+    {
+        Assert.Equal("#FFFFFF", ThemePalette.Over("#FFFFFFFF", "#000000"));
+        Assert.Equal("#000000", ThemePalette.Over("#00FFFFFF", "#000000"));
+        Assert.Equal("#808080", ThemePalette.Mix("#000000", "#FFFFFF", 0.502));
     }
 
     [Fact]
@@ -161,11 +212,20 @@ public sealed class ThemeTests
     public void Badges_UseTheChosenTheme_NotWindowsOne(AppTheme chosen, bool windowsIsDark, string dictionary) =>
         Assert.Equal(dictionary, ThemePalette.DictionaryKey(chosen, windowsIsDark));
 
+    [Fact]
+    public void MulticoloreOnDark_UsesTheDarkDictionary()
+    {
+        Assert.Equal("Dark", ThemePalette.DictionaryKey(AppTheme.Colorful, windowsIsDark: false, paintDark: true));
+        Assert.Equal(ThemePalette.ColorfulDarkKey, ThemePalette.PaletteKey(paintDark: true));
+        Assert.Equal(ThemePalette.ColorfulKey, ThemePalette.PaletteKey(paintDark: false));
+    }
+
     /// <summary>Each badge shows its text readably and stands out from the card it sits on (D72).</summary>
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
     [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
     public void Badges_AreVisibleInEveryTheme(string dictionary)
     {
         XElement d = ThemeDictionary(dictionary);
@@ -184,6 +244,7 @@ public sealed class ThemeTests
     [InlineData("Light")]
     [InlineData("Dark")]
     [InlineData(ThemePalette.ColorfulKey)]
+    [InlineData(ThemePalette.ColorfulDarkKey)]
     public void StorageMapLabels_AreReadableOnEveryCategory(string dictionary)
     {
         XElement d = ThemeDictionary(dictionary);
@@ -200,8 +261,24 @@ public sealed class ThemeTests
     {
         var settings = OrphansViewModelTests.Settings();
         var vm = new SettingsViewModel(settings);
+        Assert.False(vm.IsColorful);
         vm.ThemeIndex = 3;
         settings.Received().Theme = AppTheme.Colorful;
+        Assert.True(vm.IsColorful); // its three styles and the dark background are offered
+    }
+
+    [Theory]
+    [InlineData(0, PaintStyle.Splashes)]
+    [InlineData(1, PaintStyle.Watercolor)]
+    [InlineData(2, PaintStyle.Explosion)]
+    public void ThePaintStyle_AndTheDarkBackground_AreSaved(int index, PaintStyle style)
+    {
+        var settings = OrphansViewModelTests.Settings();
+        var vm = new SettingsViewModel(settings) { PaintStyleIndex = index == 0 ? 2 : 0 };
+        vm.PaintStyleIndex = index;
+        vm.PaintDark = true;
+        settings.Received().PaintStyle = style;
+        settings.Received().PaintDark = true;
     }
 
     private static XElement ThemeDictionary(string key)

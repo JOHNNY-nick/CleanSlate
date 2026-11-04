@@ -30,6 +30,7 @@ public static class ThemePalette
         "PageHeaderForegroundBrush", "PageHeaderStripBrush", "ProgressBarForeground", "ContentSurfaceBrush", "PaneBackgroundBrush", "OnDangerBrush",
         "PageHeaderHomeBrush", "PageHeaderAppsBrush", "PageHeaderOrphansBrush", "PageHeaderHistoryBrush", "PageHeaderStorageBrush", "PageHeaderSettingsBrush", "PageHeaderWizardBrush",
         "StorageApplicationsBrush", "StorageLeftoversBrush", "StorageQuarantineBrush", "StorageUserFilesBrush", "StorageSystemBrush", "StorageOtherBrush", "StorageTileTextBrush",
+        "ControlCornerRadius",
     ];
 
     /// <summary>
@@ -37,15 +38,43 @@ public static class ThemePalette
     /// (Multicolore recolors the light one; Système follows Windows). Badges must be looked up
     /// there: Application.Resources answers with Windows' theme, whatever was chosen (D72).
     /// </summary>
-    public static string DictionaryKey(AppTheme theme, bool windowsIsDark) => theme switch
+    public static string DictionaryKey(AppTheme theme, bool windowsIsDark, bool paintDark = false) => theme switch
     {
         AppTheme.Dark => "Dark",
         AppTheme.System => windowsIsDark ? "Dark" : "Light",
+        AppTheme.Colorful when paintDark => "Dark",
         _ => "Light",
     };
 
     /// <summary>Key of the Multicolore palette in App.xaml (one <c>Color</c> per token).</summary>
     public const string ColorfulKey = "ColorfulPalette";
+
+    /// <summary>Key of the Multicolore palette on a dark background (D76), over the Dark dictionary.</summary>
+    public const string ColorfulDarkKey = "ColorfulDarkPalette";
+
+    /// <summary>The Multicolore palette shown: on white, or on a dark background (D76).</summary>
+    public static string PaletteKey(bool paintDark) => paintDark ? ColorfulDarkKey : ColorfulKey;
+
+    /// <summary>
+    /// « #AARRGGBB » <paramref name="top"/> laid over the opaque « #RRGGBB » <paramref name="below"/>:
+    /// the color seen through a translucent surface (D76), « #RRGGBB ».
+    /// </summary>
+    public static string Over(string top, string below)
+    {
+        double alpha = Hex(top, 1) / 255.0;
+        int Channel(int start) => (int)Math.Round((alpha * Hex(top, start + 2)) + ((1 - alpha) * Hex(below, start)));
+        return $"#{Channel(1):X2}{Channel(3):X2}{Channel(5):X2}";
+    }
+
+    /// <summary>« #RRGGBB » between <paramref name="first"/> (t = 0) and <paramref name="second"/> (t = 1).</summary>
+    public static string Mix(string first, string second, double t)
+    {
+        int Channel(int start) => (int)Math.Round(((1 - t) * Hex(first, start)) + (t * Hex(second, start)));
+        return $"#{Channel(1):X2}{Channel(3):X2}{Channel(5):X2}";
+    }
+
+    private static int Hex(string color, int start) =>
+        int.Parse(color.AsSpan(start, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
     /// <summary>Position in the Réglages radio buttons: Système, Clair, Sombre, Multicolore (D72).</summary>
     public static int IndexOf(AppTheme theme) => Enum.IsDefined(theme) ? (int)theme : 0;

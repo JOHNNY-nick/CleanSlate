@@ -40,6 +40,12 @@ public interface ISettingsService
     /// <summary>Theme, following Windows by default.</summary>
     AppTheme Theme { get; set; }
 
+    /// <summary>Style of the Multicolore paint (D76): Éclaboussures by default.</summary>
+    PaintStyle PaintStyle { get; set; }
+
+    /// <summary>Multicolore on a dark background (D76): vivid paint, dark surfaces.</summary>
+    bool PaintDark { get; set; }
+
     /// <summary>Folders or registry keys never proposed (EF-20).</summary>
     IReadOnlyList<string> Exclusions { get; }
 

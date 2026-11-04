@@ -200,7 +200,7 @@
                     x:Uid="AppsUninstallCompletely"
                     Grid.Column="2"
                     Command="{x:Bind ViewModel.UninstallCompletelyCommand}"
-                    Style="{StaticResource AccentButtonStyle}" />
+                    Style="{StaticResource MainButtonStyle}" />
             </Grid>
         </Border>
     </Grid>

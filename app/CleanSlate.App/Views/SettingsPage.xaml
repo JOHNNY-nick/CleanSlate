@@ -87,6 +87,18 @@
                 </RadioButtons>
             </Border>
 
+            <!-- Multicolore (D76): three styles of paint, each on a light or a dark background. -->
+            <Border Style="{StaticResource CardBorderStyle}" Visibility="{x:Bind ViewModel.IsColorful, Mode=OneWay}">
+                <StackPanel Spacing="8">
+                    <RadioButtons x:Uid="SettingsPaintStyle" SelectedIndex="{x:Bind ViewModel.PaintStyleIndex, Mode=TwoWay}">
+                        <RadioButton x:Uid="SettingsPaintSplashes" />
+                        <RadioButton x:Uid="SettingsPaintWatercolor" />
+                        <RadioButton x:Uid="SettingsPaintExplosion" />
+                    </RadioButtons>
+                    <ToggleSwitch x:Uid="SettingsPaintDark" IsOn="{x:Bind ViewModel.PaintDark, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="8">
                     <TextBlock x:Uid="SettingsLogsTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />

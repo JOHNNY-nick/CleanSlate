@@ -12,6 +12,7 @@
             <!-- Design tokens (docs/design.md § 3). Views never hard-code colors. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
                     <SolidColorBrush x:Key="AccentBrush" Color="#0F766E" />
                     <SolidColorBrush x:Key="AccentHoverBrush" Color="#115E59" />
                     <SolidColorBrush x:Key="AccentSubtleBrush" Color="#E3F2F1" />
@@ -84,6 +85,7 @@
                     <Color x:Key="SystemAccentColorDark3">#0A3D3A</Color>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
                     <SolidColorBrush x:Key="AccentBrush" Color="#4FB8AD" />
                     <SolidColorBrush x:Key="AccentHoverBrush" Color="#6CCBC1" />
                     <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1E3A38" />
@@ -156,6 +158,7 @@
                 </ResourceDictionary>
                 <!-- High contrast: tokens follow the Windows contrast theme (design § 6). -->
                 <ResourceDictionary x:Key="HighContrast">
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
                     <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="AccentHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="AccentSubtleBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -214,36 +217,19 @@
                 Applied by MainWindow.ApplyTheme; colors and contrasts checked by ThemeTests.
             -->
             <ResourceDictionary x:Key="ColorfulPalette">
+                <!-- Multicolore on white (D76): recolors the Light dictionary. -->
                 <Color x:Key="AccentBrush">#7B2FF7</Color>
                 <Color x:Key="AccentHoverBrush">#5B12D6</Color>
                 <Color x:Key="AccentSubtleBrush">#F1E6FF</Color>
                 <Color x:Key="OnAccentBrush">#FFFFFF</Color>
-                <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Offset="0" Color="#FFE1E1" />
-                    <GradientStop Offset="0.25" Color="#FFF4C2" />
-                    <GradientStop Offset="0.5" Color="#DDF7E2" />
-                    <GradientStop Offset="0.75" Color="#DCEBFF" />
-                    <GradientStop Offset="1" Color="#EEDDFF" />
-                </LinearGradientBrush>
+                <Color x:Key="WindowBackgroundBrush">#FBF9F1</Color>
                 <Color x:Key="SurfaceBrush">#FFFFFF</Color>
-                <LinearGradientBrush x:Key="BorderBrush" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#E53935" />
-                    <GradientStop Offset="0.25" Color="#FDD835" />
-                    <GradientStop Offset="0.5" Color="#43A047" />
-                    <GradientStop Offset="0.75" Color="#1E88E5" />
-                    <GradientStop Offset="1" Color="#8E24AA" />
-                </LinearGradientBrush>
-                <Thickness x:Key="CardBorderThickness">1,6,1,1</Thickness>
+                <Color x:Key="BorderBrush">#17213B</Color>
+                <Thickness x:Key="CardBorderThickness">3</Thickness>
                 <Color x:Key="ControlBorderBrush">#B9A6F2</Color>
-                <Color x:Key="TextPrimaryBrush">#1B1740</Color>
-                <Color x:Key="TextSecondaryBrush">#4E4A6B</Color>
-                <LinearGradientBrush x:Key="TitleBrush" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#C62828" />
-                    <GradientStop Offset="0.25" Color="#D84315" />
-                    <GradientStop Offset="0.5" Color="#2E7D32" />
-                    <GradientStop Offset="0.75" Color="#1565C0" />
-                    <GradientStop Offset="1" Color="#6A1B9A" />
-                </LinearGradientBrush>
+                <Color x:Key="TextPrimaryBrush">#17213B</Color>
+                <Color x:Key="TextSecondaryBrush">#3F4763</Color>
+                <Color x:Key="TitleBrush">#17213B</Color>
                 <Color x:Key="DangerBrush">#B71C1C</Color>
                 <Color x:Key="OnDangerBrush">#FFFFFF</Color>
                 <Color x:Key="ConfidenceHighForegroundBrush">#1B5E20</Color>
@@ -252,49 +238,34 @@
                 <Color x:Key="ConfidenceMediumBackgroundBrush">#FFE066</Color>
                 <Color x:Key="ConfidenceLowForegroundBrush">#0D47A1</Color>
                 <Color x:Key="ConfidenceLowBackgroundBrush">#CFE3FF</Color>
-                <LinearGradientBrush x:Key="AccentButtonBackground" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#7B2FF7" />
-                    <GradientStop Offset="1" Color="#1565C0" />
-                </LinearGradientBrush>
-                <LinearGradientBrush x:Key="AccentButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#5B12D6" />
-                    <GradientStop Offset="1" Color="#0D47A1" />
-                </LinearGradientBrush>
-                <LinearGradientBrush x:Key="AccentButtonBackgroundPressed" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#5B12D6" />
-                    <GradientStop Offset="1" Color="#0D47A1" />
-                </LinearGradientBrush>
-                <Color x:Key="AccentButtonForeground">#FFFFFF</Color>
-                <Color x:Key="AccentButtonForegroundPointerOver">#FFFFFF</Color>
-                <Color x:Key="AccentButtonForegroundPressed">#FFFFFF</Color>
+                <Color x:Key="AccentButtonBackground">#42D62B</Color>
+                <Color x:Key="AccentButtonBackgroundPointerOver">#37BD25</Color>
+                <Color x:Key="AccentButtonBackgroundPressed">#2E9E1F</Color>
+                <Color x:Key="AccentButtonForeground">#17213B</Color>
+                <Color x:Key="AccentButtonForegroundPointerOver">#17213B</Color>
+                <Color x:Key="AccentButtonForegroundPressed">#17213B</Color>
                 <Color x:Key="AccentFillColorDefaultBrush">#7B2FF7</Color>
                 <Color x:Key="AccentFillColorSecondaryBrush">#8E44FF</Color>
                 <Color x:Key="AccentFillColorTertiaryBrush">#5B12D6</Color>
                 <Color x:Key="AccentTextFillColorPrimaryBrush">#5B12D6</Color>
                 <Color x:Key="AccentTextFillColorSecondaryBrush">#4A0FB0</Color>
                 <Color x:Key="AccentTextFillColorTertiaryBrush">#7B2FF7</Color>
-                <Color x:Key="NavHomeBrush">#1E88E5</Color>
-                <Color x:Key="NavAppsBrush">#43A047</Color>
-                <Color x:Key="NavOrphansBrush">#FB8C00</Color>
-                <Color x:Key="NavHistoryBrush">#8E24AA</Color>
-                <Color x:Key="NavStorageBrush">#E53935</Color>
-                <Color x:Key="NavSettingsBrush">#D81B60</Color>
-                <!-- Page headers: one saturated color per page, white title (D72). -->
-                <Color x:Key="PageHeaderForegroundBrush">#FFFFFF</Color>
-                <Color x:Key="PageHeaderHomeBrush">#1565C0</Color>
-                <Color x:Key="PageHeaderAppsBrush">#2E7D32</Color>
-                <Color x:Key="PageHeaderOrphansBrush">#BF360C</Color>
-                <Color x:Key="PageHeaderHistoryBrush">#6A1B9A</Color>
-                <Color x:Key="PageHeaderStorageBrush">#C62828</Color>
-                <Color x:Key="PageHeaderSettingsBrush">#AD1457</Color>
-                <Color x:Key="PageHeaderWizardBrush">#00695C</Color>
-                <LinearGradientBrush x:Key="PageHeaderStripBrush" StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Offset="0" Color="#E53935" />
-                    <GradientStop Offset="0.25" Color="#FDD835" />
-                    <GradientStop Offset="0.5" Color="#43A047" />
-                    <GradientStop Offset="0.75" Color="#1E88E5" />
-                    <GradientStop Offset="1" Color="#8E24AA" />
-                </LinearGradientBrush>
+                <Color x:Key="NavHomeBrush">#17213B</Color>
+                <Color x:Key="NavAppsBrush">#17213B</Color>
+                <Color x:Key="NavOrphansBrush">#17213B</Color>
+                <Color x:Key="NavHistoryBrush">#17213B</Color>
+                <Color x:Key="NavStorageBrush">#17213B</Color>
+                <Color x:Key="NavSettingsBrush">#17213B</Color>
+                <!-- Menu icons: white, each on a drop of its page color (D76). Page titles: white on a blot of that color. -->
+                <Color x:Key="PageHeaderForegroundBrush">#17213B</Color>
+                <Color x:Key="PageHeaderHomeBrush">#159CE8</Color>
+                <Color x:Key="PageHeaderAppsBrush">#42D62B</Color>
+                <Color x:Key="PageHeaderOrphansBrush">#FF8B16</Color>
+                <Color x:Key="PageHeaderHistoryBrush">#9638ED</Color>
+                <Color x:Key="PageHeaderStorageBrush">#E53935</Color>
+                <Color x:Key="PageHeaderSettingsBrush">#FF3994</Color>
+                <Color x:Key="PageHeaderWizardBrush">#16C9C2</Color>
+                <Color x:Key="PageHeaderStripBrush">#00FFFFFF</Color>
                 <LinearGradientBrush x:Key="ProgressBarForeground" StartPoint="0,0" EndPoint="1,0">
                     <GradientStop Offset="0" Color="#E53935" />
                     <GradientStop Offset="0.25" Color="#FDD835" />
@@ -302,35 +273,126 @@
                     <GradientStop Offset="0.75" Color="#1E88E5" />
                     <GradientStop Offset="1" Color="#8E24AA" />
                 </LinearGradientBrush>
-                <!-- Text always sits on a plain surface, never on a blob of the background. -->
-                <Color x:Key="ContentSurfaceBrush">#FFFFFF</Color>
-                <Color x:Key="PaneBackgroundBrush">#FFFFFF</Color>
-                <!-- Cards: each one its own pale color and band, in turn (MainWindow.TintCards). -->
-                <Color x:Key="CardTint0">#FFEBEE</Color>
-                <Color x:Key="CardTint1">#FFF8E1</Color>
-                <Color x:Key="CardTint2">#E8F5E9</Color>
-                <Color x:Key="CardTint3">#E3F2FD</Color>
-                <Color x:Key="CardTint4">#F3E5F5</Color>
-                <Color x:Key="CardBand0">#E53935</Color>
-                <Color x:Key="CardBand1">#FDD835</Color>
-                <Color x:Key="CardBand2">#43A047</Color>
-                <Color x:Key="CardBand3">#1E88E5</Color>
-                <Color x:Key="CardBand4">#8E24AA</Color>
+                <Color x:Key="ContentSurfaceBrush">#00FFFFFF</Color>
+                <Color x:Key="PaneBackgroundBrush">#00FFFFFF</Color>
                 <!-- Storage map: vivid category colors, dark ink names (≥ 4,5:1). -->
-                <Color x:Key="StorageApplicationsBrush">#64B5F6</Color>
-                <Color x:Key="StorageLeftoversBrush">#FFB74D</Color>
-                <Color x:Key="StorageQuarantineBrush">#BA68C8</Color>
-                <Color x:Key="StorageUserFilesBrush">#81C784</Color>
-                <Color x:Key="StorageSystemBrush">#B0BEC5</Color>
-                <Color x:Key="StorageOtherBrush">#FFF176</Color>
-                <Color x:Key="StorageTileTextBrush">#1B1740</Color>
-                <!-- Background blobs (MainWindow.xaml): decoration only. -->
-                <!-- Paint splashes (D75): saturated, like the references in docs/design/reference-multicolore. -->
-                <Color x:Key="Blob0">#E53935</Color>
-                <Color x:Key="Blob1">#FDD835</Color>
-                <Color x:Key="Blob2">#43A047</Color>
-                <Color x:Key="Blob3">#1E88E5</Color>
-                <Color x:Key="Blob4">#8E24AA</Color>
+                <Color x:Key="StorageApplicationsBrush">#159CE8</Color>
+                <Color x:Key="StorageLeftoversBrush">#FF8B16</Color>
+                <Color x:Key="StorageQuarantineBrush">#B36BF5</Color>
+                <Color x:Key="StorageUserFilesBrush">#42D62B</Color>
+                <Color x:Key="StorageSystemBrush">#16C9C2</Color>
+                <Color x:Key="StorageOtherBrush">#FFDF18</Color>
+                <Color x:Key="StorageTileTextBrush">#17213B</Color>
+                <!-- Paint (D76), drawn by CleanSlate (PaintComposer); never under text. -->
+                <Color x:Key="Paint0">#E53935</Color>
+                <Color x:Key="Paint1">#FF8B16</Color>
+                <Color x:Key="Paint2">#FFDF18</Color>
+                <Color x:Key="Paint3">#42D62B</Color>
+                <Color x:Key="Paint4">#159CE8</Color>
+                <Color x:Key="Paint5">#9638ED</Color>
+                <Color x:Key="Paint6">#FF3994</Color>
+                <Color x:Key="Paint7">#16C9C2</Color>
+                <!-- Cards, lists and loose text: a plain, slightly translucent surface. -->
+                <Color x:Key="PaintSurfaceColor">#FFFFFFFF</Color>
+                <CornerRadius x:Key="ControlCornerRadius">12</CornerRadius>
+                <!-- Street style (D76): ink outlines and offset shadows, paper stickers, the active item in green. -->
+                <Color x:Key="Ink">#17213B</Color>
+                <Color x:Key="NavActiveColor">#B9FF82</Color>
+                <Color x:Key="NavActiveBorderColor">#37BD25</Color>
+                <Color x:Key="NavActiveTextColor">#17213B</Color>
+                <!-- Labels of the map and session states: light stickers with ink text, in both modes. -->
+                <Color x:Key="LabelStickerColor">#F2FFFDF7</Color>
+                <Color x:Key="StatusCompletedColor">#B9FF82</Color>
+                <Color x:Key="StatusPartialColor">#FFE76A</Color>
+                <Color x:Key="StatusRestoredColor">#9FE3FF</Color>
+                <Color x:Key="StatusPurgedColor">#FFB3D1</Color>
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="ColorfulDarkPalette">
+                <!-- Multicolore on a dark background (D76): recolors the Dark dictionary. -->
+                <Color x:Key="AccentBrush">#4FB8AD</Color>
+                <Color x:Key="AccentHoverBrush">#6CCBC1</Color>
+                <Color x:Key="AccentSubtleBrush">#1E3A38</Color>
+                <Color x:Key="OnAccentBrush">#0B2B28</Color>
+                <Color x:Key="WindowBackgroundBrush">#141826</Color>
+                <Color x:Key="SurfaceBrush">#1E2333</Color>
+                <Color x:Key="BorderBrush">#070A14</Color>
+                <Thickness x:Key="CardBorderThickness">3</Thickness>
+                <Color x:Key="ControlBorderBrush">#4A4A4A</Color>
+                <Color x:Key="TextPrimaryBrush">#FFFFFF</Color>
+                <Color x:Key="TextSecondaryBrush">#C9CEDC</Color>
+                <Color x:Key="TitleBrush">#FFFFFF</Color>
+                <Color x:Key="DangerBrush">#E0473A</Color>
+                <Color x:Key="OnDangerBrush">#1A0000</Color>
+                <Color x:Key="ConfidenceHighForegroundBrush">#6CCB5F</Color>
+                <Color x:Key="ConfidenceHighBackgroundBrush">#3F4A1E</Color>
+                <Color x:Key="ConfidenceMediumForegroundBrush">#FCE100</Color>
+                <Color x:Key="ConfidenceMediumBackgroundBrush">#554215</Color>
+                <Color x:Key="ConfidenceLowForegroundBrush">#C5C5C5</Color>
+                <Color x:Key="ConfidenceLowBackgroundBrush">#4A4A4A</Color>
+                <Color x:Key="AccentButtonBackground">#42D62B</Color>
+                <Color x:Key="AccentButtonBackgroundPointerOver">#37BD25</Color>
+                <Color x:Key="AccentButtonBackgroundPressed">#2E9E1F</Color>
+                <Color x:Key="AccentButtonForeground">#17213B</Color>
+                <Color x:Key="AccentButtonForegroundPointerOver">#17213B</Color>
+                <Color x:Key="AccentButtonForegroundPressed">#17213B</Color>
+                <Color x:Key="AccentFillColorDefaultBrush">#4FB8AD</Color>
+                <Color x:Key="AccentFillColorSecondaryBrush">#6CCBC1</Color>
+                <Color x:Key="AccentFillColorTertiaryBrush">#2A9D93</Color>
+                <Color x:Key="AccentTextFillColorPrimaryBrush">#8ED9D1</Color>
+                <Color x:Key="AccentTextFillColorSecondaryBrush">#B3E8E2</Color>
+                <Color x:Key="AccentTextFillColorTertiaryBrush">#6CCBC1</Color>
+                <Color x:Key="NavHomeBrush">#17213B</Color>
+                <Color x:Key="NavAppsBrush">#17213B</Color>
+                <Color x:Key="NavOrphansBrush">#17213B</Color>
+                <Color x:Key="NavHistoryBrush">#17213B</Color>
+                <Color x:Key="NavStorageBrush">#17213B</Color>
+                <Color x:Key="NavSettingsBrush">#17213B</Color>
+                <Color x:Key="PageHeaderForegroundBrush">#FFFFFF</Color>
+                <Color x:Key="PageHeaderHomeBrush">#159CE8</Color>
+                <Color x:Key="PageHeaderAppsBrush">#42D62B</Color>
+                <Color x:Key="PageHeaderOrphansBrush">#FF8B16</Color>
+                <Color x:Key="PageHeaderHistoryBrush">#9638ED</Color>
+                <Color x:Key="PageHeaderStorageBrush">#E53935</Color>
+                <Color x:Key="PageHeaderSettingsBrush">#FF3994</Color>
+                <Color x:Key="PageHeaderWizardBrush">#16C9C2</Color>
+                <Color x:Key="PageHeaderStripBrush">#00000000</Color>
+                <LinearGradientBrush x:Key="ProgressBarForeground" StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#E53935" />
+                    <GradientStop Offset="0.25" Color="#FDD835" />
+                    <GradientStop Offset="0.5" Color="#43A047" />
+                    <GradientStop Offset="0.75" Color="#1E88E5" />
+                    <GradientStop Offset="1" Color="#8E24AA" />
+                </LinearGradientBrush>
+                <Color x:Key="ContentSurfaceBrush">#00000000</Color>
+                <Color x:Key="PaneBackgroundBrush">#00000000</Color>
+                <Color x:Key="StorageApplicationsBrush">#159CE8</Color>
+                <Color x:Key="StorageLeftoversBrush">#FF8B16</Color>
+                <Color x:Key="StorageQuarantineBrush">#B36BF5</Color>
+                <Color x:Key="StorageUserFilesBrush">#42D62B</Color>
+                <Color x:Key="StorageSystemBrush">#16C9C2</Color>
+                <Color x:Key="StorageOtherBrush">#FFDF18</Color>
+                <Color x:Key="StorageTileTextBrush">#070A14</Color>
+                <Color x:Key="Paint0">#E53935</Color>
+                <Color x:Key="Paint1">#FF8B16</Color>
+                <Color x:Key="Paint2">#FFDF18</Color>
+                <Color x:Key="Paint3">#42D62B</Color>
+                <Color x:Key="Paint4">#159CE8</Color>
+                <Color x:Key="Paint5">#9638ED</Color>
+                <Color x:Key="Paint6">#FF3994</Color>
+                <Color x:Key="Paint7">#16C9C2</Color>
+                <Color x:Key="PaintSurfaceColor">#FF1E2333</Color>
+                <CornerRadius x:Key="ControlCornerRadius">12</CornerRadius>
+                <!-- Street style (D76) on a dark wall. -->
+                <Color x:Key="Ink">#070A14</Color>
+                <Color x:Key="NavActiveColor">#2E7D1E</Color>
+                <Color x:Key="NavActiveBorderColor">#7CF25A</Color>
+                <Color x:Key="NavActiveTextColor">#FFFFFF</Color>
+                <!-- Labels of the map and session states: light stickers with ink text, in both modes. -->
+                <Color x:Key="LabelStickerColor">#F2FFFDF7</Color>
+                <Color x:Key="StatusCompletedColor">#B9FF82</Color>
+                <Color x:Key="StatusPartialColor">#FFE76A</Color>
+                <Color x:Key="StatusRestoredColor">#9FE3FF</Color>
+                <Color x:Key="StatusPurgedColor">#FFB3D1</Color>
             </ResourceDictionary>
             <!-- Shapes and spacing (docs/design.md § 3). -->
             <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
@@ -357,6 +419,11 @@
                 Buttons that move or delete (EF-16, D72): plain dark red, white bold label, an
                 icon and a dark outline, so that they never pass for the decorative reds.
             -->
+            <!--
+                Main action of a page: the WinUI accent button, under a name of CleanSlate so that
+                Multicolore can find it and paint it green with an ink outline (D76).
+            -->
+            <Style x:Key="MainButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}" />
             <Style x:Key="DangerButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="{ThemeResource DangerBrush}" />
                 <Setter Property="Foreground" Value="{ThemeResource OnDangerBrush}" />

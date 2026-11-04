@@ -99,8 +99,8 @@ public partial class App : Application
         _window = window;
         var settings = GetService<ISettingsService>();
 
-        window.ApplyTheme(settings.Theme);
-        settings.Changed += (_, _) => window.DispatcherQueue.TryEnqueue(() => window.ApplyTheme(settings.Theme));
+        window.ApplyTheme(settings.Theme, settings.PaintStyle, settings.PaintDark);
+        settings.Changed += (_, _) => window.DispatcherQueue.TryEnqueue(() => window.ApplyTheme(settings.Theme, settings.PaintStyle, settings.PaintDark));
         window.Closed += (_, _) => _host.Dispose();
         window.Activate();
         _ = StartAsync(window);

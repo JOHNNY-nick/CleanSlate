@@ -25,6 +25,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _deleteImmediately = settings.DeleteImmediately;
         _quarantineDays = settings.QuarantineDays;
         _themeIndex = ThemePalette.IndexOf(settings.Theme);
+        _paintStyleIndex = (int)settings.PaintStyle;
+        _paintDark = settings.PaintDark;
         Exclusions = new ObservableCollection<string>(settings.Exclusions);
     }
 
@@ -42,7 +44,19 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Theme: 0 Système, 1 Clair, 2 Sombre, 3 Multicolore (D72).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsColorful))]
     private int _themeIndex;
+
+    /// <summary>Multicolore is chosen: its style and background are offered (D76).</summary>
+    public bool IsColorful => ThemePalette.FromIndex(ThemeIndex) == AppTheme.Colorful;
+
+    /// <summary>Style of the Multicolore paint: 0 Éclaboussures, 1 Aquarelle, 2 Explosion (D76).</summary>
+    [ObservableProperty]
+    private int _paintStyleIndex;
+
+    /// <summary>Multicolore on a dark background (D76).</summary>
+    [ObservableProperty]
+    private bool _paintDark;
 
     /// <summary>Folder or key being typed in the exclusion box.</summary>
     [ObservableProperty]
@@ -277,6 +291,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnDeleteImmediatelyChanged(bool value) => _settings.DeleteImmediately = value;
 
     partial void OnThemeIndexChanged(int value) => _settings.Theme = ThemePalette.FromIndex(value);
+
+    partial void OnPaintStyleIndexChanged(int value) =>
+        _settings.PaintStyle = Enum.IsDefined(typeof(PaintStyle), value) ? (PaintStyle)value : PaintStyle.Splashes;
+
+    partial void OnPaintDarkChanged(bool value) => _settings.PaintDark = value;
 
     partial void OnQuarantineDaysChanged(double value)
     {

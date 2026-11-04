@@ -57,7 +57,7 @@
                             <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.LastComputedText, Mode=OneWay}" TextWrapping="Wrap" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Button x:Uid="StorageMapRefresh" Command="{x:Bind ViewModel.RefreshCommand}" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Uid="StorageMapRefresh" Command="{x:Bind ViewModel.RefreshCommand}" Style="{StaticResource MainButtonStyle}" />
                             <Button x:Uid="StorageMapCancel" Command="{x:Bind ViewModel.RefreshCancelCommand}" Visibility="{x:Bind ViewModel.IsComputing, Mode=OneWay}" />
                         </StackPanel>
                     </Grid>

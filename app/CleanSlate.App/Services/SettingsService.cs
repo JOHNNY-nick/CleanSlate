@@ -69,6 +69,20 @@ public sealed class SettingsService : ISettingsService
     }
 
     /// <inheritdoc/>
+    public PaintStyle PaintStyle
+    {
+        get => _stored.PaintStyle;
+        set => Update(_stored with { PaintStyle = value });
+    }
+
+    /// <inheritdoc/>
+    public bool PaintDark
+    {
+        get => _stored.PaintDark;
+        set => Update(_stored with { PaintDark = value });
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<string> Exclusions => _stored.Exclusions;
 
     /// <inheritdoc/>
@@ -128,7 +142,9 @@ public sealed class SettingsService : ISettingsService
         AppTheme Theme = AppTheme.System,
         bool FirstRunDone = false,
         string? QuarantineFolder = null,
-        string? ExportFolder = null)
+        string? ExportFolder = null,
+        PaintStyle PaintStyle = PaintStyle.Splashes,
+        bool PaintDark = false)
     {
         public IReadOnlyList<string> Exclusions { get; init; } = [];
 
@@ -140,6 +156,8 @@ public sealed class SettingsService : ISettingsService
             && FirstRunDone == other.FirstRunDone
             && QuarantineFolder == other.QuarantineFolder
             && ExportFolder == other.ExportFolder
+            && PaintStyle == other.PaintStyle
+            && PaintDark == other.PaintDark
             && Exclusions.SequenceEqual(other.Exclusions);
 
         public override int GetHashCode() => HashCode.Combine(DeleteImmediately, QuarantineDays, Theme, FirstRunDone, QuarantineFolder, ExportFolder, Exclusions.Count);

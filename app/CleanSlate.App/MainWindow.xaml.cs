@@ -79,86 +79,101 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public static string CurrentThemeDictionary { get; private set; } = "Light";
 
-    private Presentation.Services.AppTheme _theme = Presentation.Services.AppTheme.System;
+    /// <summary>Multicolore is shown: the paint is drawn and controls get their rounded look (D76).</summary>
+    public static bool IsPainted => Paint is not null;
 
-    // Light values of App.xaml changed by Multicolore, to put them back (colors and objects).
-    private readonly Dictionary<string, Windows.UI.Color> _lightColors = [];
-    private readonly Dictionary<string, object> _lightObjects = [];
+    /// <summary>The paint of Multicolore, or null in the other themes (D76).</summary>
+    internal static PaintDecorator? Paint { get; private set; }
 
-    /// <summary>Applies the theme of the settings (ENF-08, D71, D72) to every page, at once.</summary>
-    public void ApplyTheme(Presentation.Services.AppTheme theme)
+    private (Presentation.Services.AppTheme Theme, PaintStyle Style, bool Dark)? _applied;
+    private PaintDecorator? _paint;
+    private string _navSignature = string.Empty;
+
+    // Values of App.xaml changed by Multicolore, to put them back: (dictionary, token) → color
+    // of the shared brush, or the replaced object.
+    private readonly Dictionary<(string Dictionary, string Token), object> _originals = [];
+
+    /// <summary>
+    /// Applies the theme of the settings (ENF-08, D71, D72, D76) to every page, at once:
+    /// Multicolore recolors the Light dictionary (or the Dark one, on a dark background) and
+    /// paints the window in the chosen style.
+    /// </summary>
+    public void ApplyTheme(Presentation.Services.AppTheme theme, PaintStyle style = PaintStyle.Splashes, bool paintDark = false)
     {
-        if (Content is not Panel root)
+        if (Content is not Panel root || _applied == (theme, style, paintDark))
         {
             return;
         }
 
-        _theme = theme;
-        bool colorful = theme == Presentation.Services.AppTheme.Colorful;
+        _applied = (theme, style, paintDark);
+        bool painted = theme == Presentation.Services.AppTheme.Colorful;
         var resources = Application.Current.Resources;
-        ResourceDictionary? palette = resources.TryGetValue(Presentation.ThemePalette.ColorfulKey, out object? p) ? p as ResourceDictionary : null;
-        if (resources.ThemeDictionaries.TryGetValue("Light", out object? l) && l is ResourceDictionary light && palette is not null)
+        Restore(resources);
+        ResourceDictionary? palette = painted && resources.TryGetValue(ThemePalette.PaletteKey(paintDark), out object? p) ? p as ResourceDictionary : null;
+        if (palette is not null)
         {
-            foreach (string token in Presentation.ThemePalette.Tokens)
-            {
-                if (!light.TryGetValue(token, out object? current) || !palette.TryGetValue(token, out object? wanted))
-                {
-                    continue;
-                }
+            Recolor(resources, paintDark ? "Dark" : "Light", palette);
+        }
 
-                if (wanted is Windows.UI.Color color && current is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
-                {
-                    // Plain color: recolor the shared brush, every element follows at once.
-                    _lightColors.TryAdd(token, brush.Color);
-                    brush.Color = colorful ? color : _lightColors[token];
-                }
-                else
-                {
-                    // Gradient or thickness: swap the resource; ThemeResource lookups take it
-                    // again when the theme is reapplied below.
-                    _lightObjects.TryAdd(token, current);
-                    light[token] = colorful ? wanted : _lightObjects[token];
-                }
+        _paint = palette is null ? null : new PaintDecorator(palette, style);
+        Paint = _paint;
+        root.Background = _paint is null ? null : new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("WindowBackgroundBrush"));
+        SystemBackdrop = IsPainted ? null : SystemBackdrop ?? new Microsoft.UI.Xaml.Media.MicaBackdrop();
+        var clear = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        // Pane, content and selection without their plain boxes: the paint shows, the selected
+        // item is marked by a blot (drawn in NavPaint).
+        string[] boxes =
+        [
+            "NavigationViewDefaultPaneBackground", "NavigationViewExpandedPaneBackground", "NavigationViewContentBackground",
+            "NavigationViewContentGridBorderBrush", "NavigationViewItemBackgroundSelected", "NavigationViewItemBackgroundSelectedPointerOver",
+            "NavigationViewItemBackgroundSelectedPressed", "NavigationViewSelectionIndicatorForeground",
+            "NavigationViewItemBackgroundPointerOver", "NavigationViewItemBackgroundPressed",
+        ];
+        foreach (string key in boxes)
+        {
+            if (IsPainted)
+            {
+                NavView.Resources[key] = clear;
+            }
+            else
+            {
+                NavView.Resources.Remove(key);
             }
         }
 
-        root.Background = colorful && palette is not null && palette.TryGetValue("WindowBackgroundBrush", out object? window)
-            ? window as Microsoft.UI.Xaml.Media.Brush
-            : null;
-        SystemBackdrop = colorful ? null : SystemBackdrop ?? new Microsoft.UI.Xaml.Media.MicaBackdrop();
-        ShowBlobs(colorful ? palette : null);
-        ContentSurface.Margin = colorful ? new Thickness(28) : new Thickness(0);
-        if (colorful && palette is not null && palette.TryGetValue("PaneBackgroundBrush", out object? pane) && pane is Windows.UI.Color paneColor)
+        foreach (string key in new[] { "NavigationViewItemForegroundSelected", "NavigationViewItemForegroundSelectedPointerOver", "NavigationViewItemForegroundSelectedPressed" })
         {
-            var brush = new Microsoft.UI.Xaml.Media.SolidColorBrush(paneColor);
-            NavView.Resources["NavigationViewDefaultPaneBackground"] = brush;
-            NavView.Resources["NavigationViewExpandedPaneBackground"] = brush;
-            // The content area of the NavigationView is a veil of white: the splashes of the
-            // frame show at full color without it.
-            NavView.Resources["NavigationViewContentBackground"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            NavView.Resources["NavigationViewContentGridBorderBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            if (_paint is not null)
+            {
+                NavView.Resources[key] = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("NavActiveTextColor"));
+            }
+            else
+            {
+                NavView.Resources.Remove(key);
+            }
         }
-        else
-        {
-            NavView.Resources.Remove("NavigationViewDefaultPaneBackground");
-            NavView.Resources.Remove("NavigationViewExpandedPaneBackground");
-            NavView.Resources.Remove("NavigationViewContentBackground");
-            NavView.Resources.Remove("NavigationViewContentGridBorderBrush");
-        }
+
+        Blobs.Children.Clear();
+        NavPaint.Children.Clear();
+        _navSignature = string.Empty;
+        Blobs.Visibility = IsPainted ? Visibility.Visible : Visibility.Collapsed;
+        NavPaint.Visibility = Blobs.Visibility;
+        ContentSurface.Margin = new Thickness(0);
 
         ElementTheme wantedTheme = theme switch
         {
             Presentation.Services.AppTheme.Dark => ElementTheme.Dark,
             Presentation.Services.AppTheme.System => ElementTheme.Default,
+            Presentation.Services.AppTheme.Colorful when paintDark => ElementTheme.Dark,
             _ => ElementTheme.Light,
         };
 
         // Switching away and back makes every ThemeResource look its value up again.
         root.RequestedTheme = wantedTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
         root.RequestedTheme = wantedTheme;
-        CurrentThemeDictionary = Presentation.ThemePalette.DictionaryKey(theme, Application.Current.RequestedTheme == ApplicationTheme.Dark);
+        CurrentThemeDictionary = ThemePalette.DictionaryKey(theme, Application.Current.RequestedTheme == ApplicationTheme.Dark, paintDark);
 
-        // The page shown is built again: badges and card colors follow the new theme.
+        // The page shown is built again: badges, cards and paint follow the new theme.
         if (ContentFrame.CurrentSourcePageType is Type page)
         {
             ContentFrame.Navigate(page);
@@ -169,149 +184,154 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // Paint splashes of the five colors (Multicolore, D75) around the content and in the empty
-    // part of the menu; hidden in the other themes. Never under text: the content surface and
-    // the menu items stay on plain white.
-    private void ShowBlobs(ResourceDictionary? palette)
+    private void Restore(ResourceDictionary resources)
     {
-        _splashColors = palette is null ? [] : SplashColors(palette);
-        Blobs.Visibility = palette is null ? Visibility.Collapsed : Visibility.Visible;
-        Blobs.SizeChanged -= OnBlobsSizeChanged;
-        // The pane footer keeps its place and size in every theme, empty outside Multicolore:
-        // hiding it or taking it out of the NavigationView pushed the menu items down.
-        if (palette is null)
+        foreach (((string dictionary, string token), object original) in _originals)
         {
-            Blobs.Children.Clear();
-            PaneSplash.Children.Clear();
+            if (resources.ThemeDictionaries.TryGetValue(dictionary, out object? d) && d is ResourceDictionary theme)
+            {
+                if (original is Windows.UI.Color color && theme[token] is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
+                {
+                    brush.Color = color;
+                }
+                else
+                {
+                    theme[token] = original;
+                }
+            }
+        }
+
+        _originals.Clear();
+    }
+
+    private void Recolor(ResourceDictionary resources, string dictionary, ResourceDictionary palette)
+    {
+        if (!resources.ThemeDictionaries.TryGetValue(dictionary, out object? d) || d is not ResourceDictionary theme)
+        {
             return;
         }
 
-        Blobs.SizeChanged += OnBlobsSizeChanged;
-        DrawFrameSplashes();
-        DrawPaneSplashes();
-    }
-
-    private void OnPaneSplashSizeChanged(object sender, SizeChangedEventArgs e) => DrawPaneSplashes();
-
-    // A large splash in the empty part of the menu, above « Réglages ».
-    private void DrawPaneSplashes()
-    {
-        DrawSplashes(PaneSplash, new Windows.Foundation.Size(PaneSplash.ActualWidth, PaneSplash.ActualHeight),
-            [(0.30, 0.45, 0.30, 0), (0.70, 0.35, 0.22, 3), (0.55, 0.80, 0.18, 1), (0.85, 0.75, 0.12, 2), (0.15, 0.85, 0.12, 4)], seed: 40);
-    }
-
-    private Windows.UI.Color[] _splashColors = [];
-
-    private static Windows.UI.Color[] SplashColors(ResourceDictionary palette) => Enumerable.Range(0, 5)
-        .Select(i => palette.TryGetValue($"Blob{i}", out object? value) && value is Windows.UI.Color color ? color : default)
-        .ToArray();
-
-    private void OnBlobsSizeChanged(object sender, SizeChangedEventArgs e) => DrawFrameSplashes();
-
-    // Splashes along the edges of the window: they show in the frame around the content.
-    private void DrawFrameSplashes() => DrawSplashes(Blobs, new Windows.Foundation.Size(Blobs.ActualWidth, Blobs.ActualHeight),
-        [(0.40, 0.00, 0.10, 0), (0.70, 0.01, 0.12, 1), (0.99, 0.10, 0.12, 2), (0.995, 0.55, 0.10, 3), (0.97, 0.99, 0.12, 4), (0.62, 1.00, 0.10, 0), (0.36, 0.99, 0.09, 2)], seed: 10);
-
-    // Each splash: (center x, center y, radius) in parts of the area (radius of its smaller
-    // side), and its color among Blob0 to Blob4.
-    private void DrawSplashes(Canvas canvas, Windows.Foundation.Size size, (double X, double Y, double R, int Color)[] splashes, int seed)
-    {
-        canvas.Children.Clear();
-        canvas.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, size.Width, size.Height) };
-        double side = Math.Min(size.Width, size.Height) > 0 ? Math.Max(Math.Min(size.Width, size.Height), 400) : 0;
-        for (int i = 0; i < splashes.Length && side > 0 && _splashColors.Length == 5; i++)
+        foreach (string token in ThemePalette.Tokens)
         {
-            var fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(_splashColors[splashes[i].Color]);
-            foreach (SplatterDot dot in Splatter.Generate(seed + i, splashes[i].X * size.Width, splashes[i].Y * size.Height, splashes[i].R * side))
-            {
-                var ellipse = new Microsoft.UI.Xaml.Shapes.Ellipse
-                {
-                    Width = dot.Width,
-                    Height = dot.Height,
-                    Fill = fill,
-                    Opacity = 0.9,
-                    RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
-                    RenderTransform = new Microsoft.UI.Xaml.Media.RotateTransform { Angle = dot.Angle },
-                };
-                Canvas.SetLeft(ellipse, dot.X);
-                Canvas.SetTop(ellipse, dot.Y);
-                canvas.Children.Add(ellipse);
-            }
-        }
-    }
-
-    // Multicolore: a splash on the right of each page header; the title keeps the plain
-    // color of the header behind it, so that no letter sits on the paint.
-    private void SplashHeaders(FrameworkElement page)
-    {
-        Style? headerStyle = Application.Current.Resources.TryGetValue("PageHeaderBorderStyle", out object? h) ? h as Style : null;
-        foreach (Border header in Descendants(page).OfType<Border>().Where(b => b.Style == headerStyle).ToList())
-        {
-            if (header.Child is not TextBlock title)
+            if (!theme.TryGetValue(token, out object? current) || !palette.TryGetValue(token, out object? wanted))
             {
                 continue;
             }
 
-            header.Child = null;
-            var splash = new Canvas { IsHitTestVisible = false };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(splash, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-            splash.SizeChanged += (_, e) => DrawSplashes(splash, e.NewSize,
-                [(0.93, 0.5, 0.11, 1), (0.80, 0.3, 0.07, 3), (0.70, 0.75, 0.05, 2), (0.86, 0.95, 0.04, 4), (0.62, 0.2, 0.035, 0)], seed: 70);
-            var grid = new Grid();
-            grid.Children.Add(splash);
-            grid.Children.Add(new Border
+            if (wanted is Windows.UI.Color color && current is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
             {
-                Background = header.Background,
-                CornerRadius = new CornerRadius(6),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(0, 0, 16, 0),
-                Child = title,
-            });
-            header.Child = grid;
+                // Plain color: recolor the shared brush, every element follows at once.
+                _originals[(dictionary, token)] = brush.Color;
+                brush.Color = color;
+            }
+            else
+            {
+                // Gradient, thickness or corner radius: swap the resource; ThemeResource
+                // lookups take it again when the theme is reapplied.
+                _originals[(dictionary, token)] = current;
+                theme[token] = wanted;
+            }
         }
     }
 
     private void OnContentNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
-        if (e.Content is FrameworkElement page)
+        if (_paint is null || e.Content is not Page page)
         {
-            page.Loaded += (_, _) =>
-            {
-                TintCards(page);
-                if (_theme == Presentation.Services.AppTheme.Colorful)
-                {
-                    SplashHeaders(page);
-                }
-            };
+            return;
+        }
+
+        // Each page its own composition, under the whole window (the menu included).
+        Blobs.Children.Clear();
+        UIElement background = _paint.Background(page.GetType().Name);
+        if (background is FrameworkElement element)
+        {
+            element.Width = Blobs.ActualWidth;
+            element.Height = Blobs.ActualHeight;
+        }
+
+        Blobs.Children.Add(background);
+        PaintDecorator decorator = _paint;
+        page.Loaded += (_, _) => decorator.Decorate(page);
+    }
+
+    private void OnBlobsSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        foreach (FrameworkElement child in Blobs.Children.OfType<FrameworkElement>())
+        {
+            child.Width = e.NewSize.Width;
+            child.Height = e.NewSize.Height;
         }
     }
 
-    // Multicolore: every card takes its own pale color and band, in turn (D72); the other
-    // themes keep the card style untouched.
-    private void TintCards(FrameworkElement page)
+    // Menu (D76): a plain surface behind the items, each icon on a drop of its page color, the
+    // selected item on a blot of its tint. Redrawn only when an item moved.
+    private void OnNavLayoutUpdated(object? sender, object e)
     {
-        var resources = Application.Current.Resources;
-        bool colorful = _theme == Presentation.Services.AppTheme.Colorful
-            && resources.TryGetValue(Presentation.ThemePalette.ColorfulKey, out object? p) && p is ResourceDictionary;
-        ResourceDictionary? palette = colorful ? (ResourceDictionary)resources[Presentation.ThemePalette.ColorfulKey] : null;
-        Style? cardStyle = resources.TryGetValue("CardBorderStyle", out object? s) ? s as Style : null;
-        int index = 0;
-        foreach (Border card in Descendants(page).OfType<Border>().Where(b => b.Style == cardStyle))
+        if (_paint is null || NavView.Visibility != Visibility.Visible || NavPaint.XamlRoot is null)
         {
-            if (palette is not null
-                && palette[$"CardTint{index % 5}"] is Windows.UI.Color tint
-                && palette[$"CardBand{index % 5}"] is Windows.UI.Color band)
+            return;
+        }
+
+        var items = NavView.MenuItems.Concat(NavView.FooterMenuItems).OfType<NavigationViewItem>()
+            .Where(i => i.ActualWidth > 0 && i.XamlRoot is not null)
+            .Select(i => (Item: i, Box: i.TransformToVisual(NavPaint).TransformBounds(new Windows.Foundation.Rect(0, 0, i.ActualWidth, i.ActualHeight))))
+            .ToList();
+        string signature = string.Join(";", items.Select(i => $"{i.Box.X:0},{i.Box.Y:0},{i.Box.Width:0}")) + (NavView.SelectedItem as NavigationViewItem)?.Tag;
+        if (signature == _navSignature || items.Count == 0)
+        {
+            return;
+        }
+
+        _navSignature = signature;
+        NavPaint.Children.Clear();
+        // The menu as a paper sticker (ink outline, offset shadow): one behind the main items,
+        // one behind the footer item; their text never sits on the paint.
+        foreach (var group in items.GroupBy(i => NavView.FooterMenuItems.Contains(i.Item)))
+        {
+            double top = group.Min(i => i.Box.Top) - 10, bottom = group.Max(i => i.Box.Bottom) + 10;
+            double left = group.Min(i => i.Box.Left) - 2, right = group.Max(i => i.Box.Right) + 4;
+            foreach ((double shift, bool shadow) in new[] { (PaintDecorator.ShadowOffset, true), (0.0, false) })
             {
-                card.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(tint);
-                card.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(band);
+                var sticker = new Border
+                {
+                    Width = right - left,
+                    Height = bottom - top,
+                    CornerRadius = new CornerRadius(18),
+                    Background = shadow ? _paint.Ink : _paint.Paper,
+                    BorderBrush = shadow ? null : _paint.Ink,
+                    BorderThickness = new Thickness(shadow ? 0 : 3),
+                };
+                Canvas.SetLeft(sticker, left + shift);
+                Canvas.SetTop(sticker, top + shift);
+                NavPaint.Children.Add(sticker);
             }
-            else
+        }
+
+        foreach ((NavigationViewItem item, Windows.Foundation.Rect box) in items)
+        {
+            if (ReferenceEquals(item, NavView.SelectedItem))
             {
-                card.ClearValue(Border.BackgroundProperty);
-                card.ClearValue(Border.BorderBrushProperty);
+                // The active item in green, as on the owner's mock-up.
+                var active = new Border
+                {
+                    Width = box.Width - 6,
+                    Height = box.Height - 4,
+                    CornerRadius = new CornerRadius(12),
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("NavActiveColor")),
+                    BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(_paint.ColorOf("NavActiveBorderColor")),
+                    BorderThickness = new Thickness(2),
+                };
+                Canvas.SetLeft(active, box.X + 3);
+                Canvas.SetTop(active, box.Y + 2);
+                NavPaint.Children.Add(active);
             }
 
-            index++;
+            if (item.Icon is FrameworkElement icon && icon.ActualWidth > 0)
+            {
+                Windows.Foundation.Point center = icon.TransformToVisual(NavPaint).TransformPoint(new Windows.Foundation.Point(icon.ActualWidth / 2, icon.ActualHeight / 2));
+                _paint.Draw(NavPaint, [PaintComposer.Drop((item.Tag as string ?? "x")[0], center.X, center.Y, 18, 0)], _paint.ColorOf($"PageHeader{item.Tag}Brush"));
+            }
         }
     }
 

@@ -3,6 +3,9 @@ using CleanSlate.App.Views;
 using CleanSlate.Interop;
 using CleanSlate.Presentation.Services;
 using CleanSlate.Presentation.ViewModels;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
@@ -44,6 +47,17 @@ internal static class Capture
             App.GetService<IStorageService>().SaveMap("C:", map);
             log.Add($"carte: {(DateTimeOffset.Now - started).TotalSeconds:0} s, {map.Denied} dossiers refusés");
             InstalledApp? app = (await engine.ListAppsAsync(CancellationToken.None)).FirstOrDefault(a => a.HiddenReason is null);
+            if (DevMode.Options.CaptureSet == "multicolore-v2")
+            {
+                await AllPages(window, Path.Combine(folder, "multicolore-v2"), settings, log);
+                return;
+            }
+
+            if (DevMode.Options.CaptureSet == "multicolore")
+            {
+                await MockUp(window, Path.Combine(folder, "multicolore"), settings, log);
+                return;
+            }
 
             foreach ((AppTheme theme, string name) in Themes)
             {
@@ -91,9 +105,141 @@ internal static class Capture
         {
             log.Add(ex.ToString());
         }
+        finally
+        {
+            await File.WriteAllLinesAsync(Path.Combine(folder, "capture.log"), log);
+            window.Close();
+        }
+    }
 
-        await File.WriteAllLinesAsync(Path.Combine(folder, "capture.log"), log);
-        window.Close();
+    // Every page in Multicolore (D76), on white and on dark, with the check of every text.
+    private static async Task AllPages(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        Report = [];
+        foreach (bool dark in new[] { false, true })
+        {
+            settings.PaintStyle = Presentation.PaintStyle.Splashes;
+            settings.PaintDark = dark;
+            settings.Theme = AppTheme.Colorful;
+            await Task.Delay(1000);
+            foreach (string tag in Tags)
+            {
+                for (int attempt = 0; attempt < 5 && window.CurrentPage?.GetType().Name != $"{tag}Page"; attempt++)
+                {
+                    window.ShowPage(tag);
+                    await Task.Delay(700);
+                }
+
+                log.Add($"{tag} : page {window.CurrentPage?.GetType().Name} avant la capture");
+                await Save(window, Path.Combine(folder, $"{(dark ? "sombre" : "clair")}-{tag}.png"), log);
+                log.Add($"{tag} : page {window.CurrentPage?.GetType().Name} après la capture");
+            }
+        }
+
+        int failures = Report.Count(l => l.StartsWith("ÉCHEC", StringComparison.Ordinal));
+        Report.Insert(0, $"{failures} texte(s) en échec, {Report.Count} mesuré(s) : contraste ≥ {Presentation.TextMeasure.MinRatio}:1 sur un fond uni à ≥ {Presentation.TextMeasure.MinPlainness:P0}.");
+        await File.WriteAllLinesAsync(Path.Combine(folder, "contraste.txt"), Report);
+        log.Add($"contraste : {failures} échec(s)");
+        Report = null;
+    }
+
+    // Lines of the text check, while a set that checks texts runs.
+    private static List<string>? Report { get; set; }
+
+    // Every visible text of the window: the background under it must be plain and contrasted.
+    private static void CheckTexts(MainWindow window, byte[] pixels, int width, string shot)
+    {
+        if (window.Content is not UIElement root || Report is null)
+        {
+            return;
+        }
+
+        int height = pixels.Length / 4 / width;
+        double scale = window.Content.XamlRoot?.RasterizationScale ?? 1;
+        foreach (TextBlock text in PaintDecorator.Descendants(root).OfType<TextBlock>())
+        {
+            if (text.ActualWidth < 4 || text.ActualHeight < 4 || string.IsNullOrWhiteSpace(text.Text) || text.Foreground is not SolidColorBrush brush || !IsShown(text))
+            {
+                continue;
+            }
+
+            Windows.Foundation.Rect box = text.TransformToVisual(root).TransformBounds(new Windows.Foundation.Rect(0, 0, text.ActualWidth, text.ActualHeight));
+            int left = (int)(box.X * scale), top = (int)(box.Y * scale), w = (int)(box.Width * scale), h = (int)(box.Height * scale);
+            if (left < 0 || top < 0 || left + w > width || top + h > height || Clipped(text, root, box))
+            {
+                continue; // scrolled out of the window or of its list
+            }
+
+            Presentation.TextMeasure m = Presentation.TextContrast.Measure(pixels, width, left, top, w, h, (brush.Color.R, brush.Color.G, brush.Color.B));
+            // A glyph of Segoe Fluent Icons is an icon, not text: 3:1 is asked of icons (WCAG 1.4.11).
+            bool icon = text.Text.All(c => c is >= (char)0xE000 and <= (char)0xF8FF);
+            bool passes = icon ? m.Ratio >= 3 : m.Passes;
+            string name = icon ? "icône" : text.Text.Length > 40 ? text.Text[..40] + "…" : text.Text;
+            Report.Add($"{(passes ? "ok" : "ÉCHEC")} | {shot} | {m.Ratio:0.0}:1 | uni {m.Plainness:P0} | fond {m.Background} | « {name} »");
+        }
+    }
+
+    // Partly hidden by a scrolled area around it (a list row cut at the bottom).
+    private static bool Clipped(FrameworkElement element, UIElement root, Windows.Foundation.Rect box)
+    {
+        for (DependencyObject? e = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element); e is not null; e = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(e))
+        {
+            if (e is ScrollViewer viewer && viewer.ActualWidth > 0)
+            {
+                Windows.Foundation.Rect view = viewer.TransformToVisual(root).TransformBounds(new Windows.Foundation.Rect(0, 0, viewer.ActualWidth, viewer.ActualHeight));
+                if (box.Top < view.Top - 1 || box.Bottom > view.Bottom + 1 || box.Left < view.Left - 1 || box.Right > view.Right + 1)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Visible, along with every parent.
+    private static bool IsShown(FrameworkElement element)
+    {
+        for (DependencyObject? e = element; e is not null; e = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(e))
+        {
+            if (e is UIElement { Visibility: Visibility.Collapsed } || e is UIElement { Opacity: < 0.5 })
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Mock-up of Multicolore (D76): Accueil, Applications and Stockage in each style, on white
+    // and on a dark background, for the owner to choose.
+    private static async Task MockUp(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        (Presentation.PaintStyle Style, string Name)[] styles =
+            [(Presentation.PaintStyle.Splashes, "eclaboussures"), (Presentation.PaintStyle.Watercolor, "aquarelle"), (Presentation.PaintStyle.Explosion, "explosion")];
+        foreach ((Presentation.PaintStyle style, string name) in styles)
+        {
+            foreach (bool dark in new[] { false, true })
+            {
+                settings.PaintStyle = style;
+                settings.PaintDark = dark;
+                settings.Theme = AppTheme.Colorful;
+                await Task.Delay(1000);
+                foreach (string tag in new[] { "Home", "Apps", "Storage" })
+                {
+                    // A theme applied late rebuilds the page shown before: ask until this one is there.
+                    for (int attempt = 0; attempt < 5 && window.CurrentPage?.GetType().Name != $"{tag}Page"; attempt++)
+                    {
+                        window.ShowPage(tag);
+                        await Task.Delay(700);
+                    }
+
+                    await Save(window, Path.Combine(folder, $"{name}-{(dark ? "sombre" : "clair")}-{tag}.png"), log);
+                }
+            }
+        }
     }
 
     // Lets the page load, then copies the window as Windows composes it (Mica included).
@@ -144,6 +290,11 @@ internal static class Capture
         for (int i = 3; i < pixels.Length; i += 4)
         {
             pixels[i] = 255; // GDI leaves the alpha byte empty
+        }
+
+        if (Report is not null)
+        {
+            CheckTexts(window, pixels, width, Path.GetFileNameWithoutExtension(path));
         }
 
         using var stream = new InMemoryRandomAccessStream();

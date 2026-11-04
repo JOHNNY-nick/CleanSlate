@@ -64,7 +64,7 @@ public sealed partial class StoragePage : Page
                 Background = fill,
                 BorderBrush = text,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
+                CornerRadius = new CornerRadius(MainWindow.IsPainted ? 12 : 4),
                 Content = label,
                 Tag = tile,
             };
@@ -77,8 +77,14 @@ public sealed partial class StoragePage : Page
                 button.Resources[$"ButtonBorderBrush{state}"] = text;
             }
 
-            button.PointerEntered += (_, _) => button.BorderThickness = new Thickness(3);
-            button.PointerExited += (_, _) => button.BorderThickness = new Thickness(1);
+            double edge = MainWindow.IsPainted ? 3 : 1;
+            button.PointerEntered += (_, _) => button.BorderThickness = new Thickness(edge + 2);
+            button.PointerExited += (_, _) => button.BorderThickness = new Thickness(edge);
+            if (MainWindow.Paint is { } paint)
+            {
+                Street(button, label, fill, paint);
+            }
+
             ToolTipService.SetToolTip(button, tile.ToolTip);
             AutomationProperties.SetName(button, tile.ToolTip.Replace('\n', ' '));
             button.Click += (_, _) => ViewModel.Open(tile);
@@ -87,4 +93,42 @@ public sealed partial class StoragePage : Page
             MapCanvas.Children.Add(button);
         }
     }
+
+    // Multicolore (D76), street style of the owner's mock-up: a vivid gradient, a thick ink
+    // outline, and the name and size on a light, slightly tilted sticker.
+    private static void Street(Button button, StackPanel label, Brush? fill, PaintDecorator paint)
+    {
+        if (fill is SolidColorBrush solid)
+        {
+            var gradient = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(1, 1) };
+            gradient.GradientStops.Add(new GradientStop { Color = solid.Color, Offset = 0 });
+            gradient.GradientStops.Add(new GradientStop { Color = paint.Paint(Array.IndexOf(Enumerable.Range(0, PresentationColors).Select(paint.Paint).ToArray(), solid.Color) + 1), Offset = 1 });
+            button.Background = gradient;
+            button.Resources["ButtonBackgroundPointerOver"] = gradient;
+            button.Resources["ButtonBackgroundPressed"] = gradient;
+        }
+
+        button.BorderBrush = paint.Ink;
+        button.BorderThickness = new Thickness(3);
+        button.CornerRadius = new CornerRadius(14);
+        button.Padding = new Thickness(8);
+        button.Content = null;
+        label.Margin = new Thickness(0);
+        foreach (TextBlock text in label.Children.OfType<TextBlock>())
+        {
+            text.FontWeight = Microsoft.UI.Text.FontWeights.Black;
+        }
+
+        button.Content = new Border
+        {
+            Background = new SolidColorBrush(paint.ColorOf("LabelStickerColor")),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 3, 8, 4),
+            RenderTransform = new RotateTransform { Angle = -2 },
+            Child = label,
+            Visibility = label.Visibility,
+        };
+    }
+
+    private const int PresentationColors = Presentation.PaintComposer.ColorCount;
 }

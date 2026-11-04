@@ -47,7 +47,7 @@
                 Grid.Column="1"
                 VerticalAlignment="Top"
                 Command="{x:Bind ViewModel.ScanCommand}"
-                Style="{StaticResource AccentButtonStyle}" />
+                Style="{StaticResource MainButtonStyle}" />
         </Grid>
 
         <!-- Progress (EF-11) -->

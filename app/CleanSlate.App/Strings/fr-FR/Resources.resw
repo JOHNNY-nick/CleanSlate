@@ -228,9 +228,6 @@
   <data name="HistoryItems.Text" xml:space="preserve">
     <value>élément(s)</value>
   </data>
-  <data name="HistoryPurgeOn.Text" xml:space="preserve">
-    <value>purge le</value>
-  </data>
   <data name="HistoryRestore.Content" xml:space="preserve">
     <value>Restaurer (la sélection, sinon tout)</value>
   </data>
@@ -903,5 +900,26 @@ Joignez ce fichier si vous signalez le problème.</value>
   </data>
   <data name="HistoryStorageHelp.Text" xml:space="preserve">
     <value>Mesurée sur le disque juste avant et juste après : un autre programme qui écrit au même moment change aussi ce chiffre.</value>
+  </data>
+  <data name="SettingsPaintStyle.Header" xml:space="preserve">
+    <value>Style du thème Multicolore</value>
+  </data>
+  <data name="SettingsPaintSplashes.Content" xml:space="preserve">
+    <value>Éclaboussures</value>
+  </data>
+  <data name="SettingsPaintWatercolor.Content" xml:space="preserve">
+    <value>Aquarelle</value>
+  </data>
+  <data name="SettingsPaintExplosion.Content" xml:space="preserve">
+    <value>Explosion</value>
+  </data>
+  <data name="SettingsPaintDark.Header" xml:space="preserve">
+    <value>Fond sombre</value>
+  </data>
+  <data name="SettingsPaintDark.OnContent" xml:space="preserve">
+    <value>Activé : couleurs vives sur fond sombre</value>
+  </data>
+  <data name="SettingsPaintDark.OffContent" xml:space="preserve">
+    <value>Désactivé : couleurs vives sur fond blanc</value>
   </data>
 </root>

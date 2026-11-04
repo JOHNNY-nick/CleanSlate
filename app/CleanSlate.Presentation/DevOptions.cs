@@ -10,13 +10,17 @@ namespace CleanSlate.Presentation;
 /// </summary>
 /// <param name="Simulation">The engine simulates every action.</param>
 /// <param name="CaptureDir">Folder of the screenshots, or null.</param>
-public sealed record DevOptions(bool Simulation, string? CaptureDir)
+/// <param name="CaptureSet">« multicolore »: only the mock-up of the Multicolore styles (D76).</param>
+public sealed record DevOptions(bool Simulation, string? CaptureDir, string? CaptureSet = null)
 {
     /// <summary>Variable that turns the simulation on.</summary>
     public const string SimulationVariable = "CLEANSLATE_DEV_SIMULATION";
 
     /// <summary>Variable that names the folder of the screenshots.</summary>
     public const string CaptureVariable = "CLEANSLATE_CAPTURE_DIR";
+
+    /// <summary>Variable that picks a set of screenshots (<c>multicolore</c>).</summary>
+    public const string CaptureSetVariable = "CLEANSLATE_CAPTURE_SET";
 
     /// <summary>Normal application: nothing simulated, no screenshot.</summary>
     public static DevOptions None { get; } = new(false, null);
@@ -29,7 +33,8 @@ public sealed record DevOptions(bool Simulation, string? CaptureDir)
     {
         bool simulation = variable(SimulationVariable) == "1";
         string? capture = variable(CaptureVariable);
-        return new DevOptions(simulation, simulation && !string.IsNullOrWhiteSpace(capture) ? capture : null);
+        string? folder = simulation && !string.IsNullOrWhiteSpace(capture) ? capture : null;
+        return new DevOptions(simulation, folder, folder is null ? null : variable(CaptureSetVariable));
     }
 
     /// <summary><c>dry_run</c> of the engine configuration: true in simulation.</summary>
