@@ -486,6 +486,44 @@ pub unsafe extern "C" fn cs_disk_map(
     })
 }
 
+/// One request of the Gestionnaire (D79): `request` is a `ManagerRequest` JSON
+/// (`{"op": "analyze", …}`); `data` is the answer of that operation. Every action is
+/// simulated unless the request says `"dry_run": false` on a real engine; progress
+/// events are `ManagerProgress` JSON; `cs_cancel` stops a walk.
+///
+/// # Safety
+/// `engine` must be a live handle; `request` must point to `len` readable bytes;
+/// `callback` may be null.
+#[no_mangle]
+pub unsafe extern "C" fn cs_manager(
+    engine: *const EngineHandle,
+    request: *const u8,
+    len: i32,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
+) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
+    respond(|| {
+        // SAFETY: forwarded from this function's contract.
+        let engine = unsafe { engine_ref(engine) }?;
+        // SAFETY: forwarded from this function's contract.
+        let request: cleanslate_core::manager::ManagerRequest =
+            unsafe { parse_input(request, len) }?;
+        let progress = |event: &cleanslate_core::manager::ManagerProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.manager(&request, &progress)
+    })
+}
+
 /// Asks the running long operation of `engine` to stop (EF-11). Safe to
 /// call from any thread while the operation runs. Null is ignored.
 ///
@@ -814,6 +852,52 @@ mod tests {
             )
         });
         assert_eq!(value["ok"], false);
+        unsafe { cs_engine_free(engine) };
+    }
+
+    /// D79: the Gestionnaire through the FFI. Analyses answer; a deletion is simulated
+    /// by default; a sensitive path is refused outside expert mode; the test engine
+    /// never touches the Recycle Bin nor Windows.
+    #[test]
+    fn manager_analyses_and_simulates_through_the_ffi() {
+        let engine = fake_engine();
+        let call = |json: &[u8]| {
+            take(unsafe {
+                cs_manager(
+                    engine,
+                    json.as_ptr(),
+                    json.len() as i32,
+                    None,
+                    ptr::null_mut(),
+                )
+            })
+        };
+        let analysis = call(br#"{"op":"analyze","root":"C:\\Users"}"#);
+        assert_eq!(analysis["ok"], true, "{analysis}");
+        assert_eq!(analysis["data"]["files"], 1);
+
+        let simulated = call(br#"{"op":"delete","paths":["C:\\Users\\Ana\\AppData\\Roaming\\OldTool","C:\\Windows\\System32"]}"#);
+        assert_eq!(simulated["data"]["simulated"], true);
+        assert_eq!(simulated["data"]["items"][0]["done"], "simulated");
+        assert_eq!(
+            simulated["data"]["items"][1]["error"]["code"],
+            "EXPERT_REQUIRED"
+        );
+
+        let zone = call(br#"{"op":"zone","path":"C:\\Program Files"}"#);
+        assert_eq!(zone["data"], "sensitive");
+        assert_eq!(
+            call(br#"{"op":"system","task":"hibernation","dry_run":false}"#)["data"]["simulated"],
+            true
+        );
+        assert_eq!(
+            call(br#"{"op":"recycle_bins"}"#)["error"]["code"],
+            "INVALID_INPUT"
+        );
+        assert_eq!(
+            call(br#"{"op":"nonsense"}"#)["error"]["code"],
+            "INVALID_INPUT"
+        );
         unsafe { cs_engine_free(engine) };
     }
 

@@ -143,6 +143,19 @@ namespace CleanSlate.Interop
         internal static extern ByteBuffer* cs_disk_map(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
 
         /// <summary>
+        ///  One request of the Gestionnaire (D79): `request` is a `ManagerRequest` JSON
+        ///  (`{"op": "analyze", …}`); `data` is the answer of that operation. Every action is
+        ///  simulated unless the request says `"dry_run": false` on a real engine; progress
+        ///  events are `ManagerProgress` JSON; `cs_cancel` stops a walk.
+        ///
+        ///  # Safety
+        ///  `engine` must be a live handle; `request` must point to `len` readable bytes;
+        ///  `callback` may be null.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "cs_manager", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern ByteBuffer* cs_manager(EngineHandle* engine, byte* request, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
+
+        /// <summary>
         ///  Asks the running long operation of `engine` to stop (EF-11). Safe to
         ///  call from any thread while the operation runs. Null is ignored.
         ///

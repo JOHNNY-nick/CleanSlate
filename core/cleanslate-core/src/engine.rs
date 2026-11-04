@@ -14,6 +14,9 @@ use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
 use crate::inventory::is_guid;
+use crate::manager::{
+    self, ActionResult, ManagerProgress, ManagerRequest, NoSystemShell, SystemShell, WinShell,
+};
 use crate::model::{
     AppKind, AppLeftoversRequest, CleanPlan, CleanProgress, Confidence, InstalledApp, JobProcess,
     Leftover, PurgeRequest, PurgeResult, QuarantineStatus, RestoreRequest, ScanOptions,
@@ -30,11 +33,13 @@ use crate::store::{
     one_per_family, provisioned_families, NoPackageStore, PackageStore, StorePackage,
     WinRtPackageStore,
 };
+use crate::sysclean::{NoSystemCleaner, SystemCleaner, SystemOutcome, WinSystemCleaner};
 use crate::tasks::{ComTaskStore, NoTaskStore, TaskStore};
 use crate::uninstall::{
     build_command, program_exists, JobProcessRunner, NoProcessRunner, NoRestorePoints,
     ProcessRunner, RestorePoints, RunOutcome, SystemRestorePoints, UNINSTALL_TIMEOUT,
 };
+use crate::zones::Zones;
 
 fn default_true() -> bool {
     true
@@ -118,6 +123,10 @@ pub struct Engine {
     msi: Box<dyn MsiUninstaller>,
     /// History database, opened on first use.
     history: Mutex<Option<History>>,
+    /// Recycle Bin, deletion at restart, volumes (refused on a test engine; D79).
+    shell: Box<dyn SystemShell>,
+    /// Clean-ups of Windows (refused on a test engine; D79).
+    cleaner: Box<dyn SystemCleaner>,
 }
 
 impl Engine {
@@ -154,6 +163,8 @@ impl Engine {
             services: Box::new(NoServiceControl),
             packages: Box::new(NoPackageStore),
             msi: Box::new(NoMsiUninstaller),
+            shell: Box::new(NoSystemShell),
+            cleaner: Box::new(NoSystemCleaner),
         }
     }
 
@@ -174,7 +185,129 @@ impl Engine {
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
         engine.set_package_store(Box::new(WinRtPackageStore));
         engine.msi = Box::new(ApiMsiUninstaller);
+        engine.shell = Box::new(WinShell);
+        engine.cleaner = Box::new(WinSystemCleaner {
+            folders: engine.folders.clone(),
+        });
         engine
+    }
+
+    /// One request of the Gestionnaire (D79): analyses are read-only; actions are
+    /// simulated unless both the engine and the request say otherwise (rule 5), and
+    /// every path is authorized by the sensitive zones right before acting (EF-22).
+    pub fn manager(
+        &self,
+        request: &ManagerRequest,
+        progress: &(dyn Fn(&ManagerProgress) + Sync),
+    ) -> CoreResult<serde_json::Value> {
+        let zones = Zones::new(&self.folders);
+        let fs = self.fs.as_ref();
+        let value = match request {
+            ManagerRequest::Zone { path } => {
+                serde_json::to_value(zones.path_zone(std::path::Path::new(path))?)?
+            }
+            ManagerRequest::Caches => serde_json::to_value(manager::caches(fs, &self.folders))?,
+            ManagerRequest::RecycleBins => serde_json::to_value(self.shell.recycle_bins()?)?,
+            ManagerRequest::Volumes => serde_json::to_value(self.shell.volumes()?)?,
+            ManagerRequest::PendingAtRestart => {
+                serde_json::to_value(self.shell.pending_at_restart()?)?
+            }
+            ManagerRequest::SystemItems => serde_json::to_value(self.cleaner.inspect()?)?,
+            ManagerRequest::Analyze(analyze) => {
+                let _guard = self.begin()?;
+                serde_json::to_value(manager::analyze(
+                    fs,
+                    &self.folders,
+                    &zones,
+                    analyze,
+                    Utc::now(),
+                    &self.cancel,
+                    progress,
+                ))?
+            }
+            ManagerRequest::Duplicates { candidates } => {
+                let _guard = self.begin()?;
+                let hash = |p: &std::path::Path| crate::native::Sha256::of_file(p);
+                serde_json::to_value(manager::duplicates(
+                    fs,
+                    &self.folders,
+                    candidates,
+                    &hash,
+                    &self.cancel,
+                ))?
+            }
+            ManagerRequest::Delete(delete) => {
+                let _guard = self.begin()?;
+                let simulate = self.simulating(delete.dry_run);
+                serde_json::to_value(manager::delete(
+                    fs,
+                    &zones,
+                    self.shell.as_ref(),
+                    delete,
+                    simulate,
+                ))?
+            }
+            ManagerRequest::DeleteAtRestart(delete) => {
+                let _guard = self.begin()?;
+                let simulate = self.simulating(delete.dry_run);
+                serde_json::to_value(manager::delete_at_restart(
+                    fs,
+                    &zones,
+                    self.shell.as_ref(),
+                    delete,
+                    simulate,
+                ))?
+            }
+            ManagerRequest::SecureDelete(delete) => {
+                let _guard = self.begin()?;
+                let simulate = self.simulating(delete.dry_run);
+                serde_json::to_value(manager::secure_delete(fs, &zones, delete, simulate))?
+            }
+            ManagerRequest::Move(moving) => {
+                let _guard = self.begin()?;
+                let simulate = self.simulating(moving.dry_run);
+                serde_json::to_value(manager::move_to(fs, &zones, moving, simulate))?
+            }
+            ManagerRequest::CleanCaches {
+                paths,
+                manual,
+                dry_run,
+            } => {
+                let _guard = self.begin()?;
+                serde_json::to_value(manager::clean_caches(
+                    fs,
+                    &zones,
+                    paths,
+                    manual,
+                    self.simulating(*dry_run),
+                ))?
+            }
+            ManagerRequest::EmptyRecycleBin { drive, dry_run } => {
+                let _guard = self.begin()?;
+                let freed = if self.simulating(*dry_run) {
+                    0
+                } else {
+                    self.shell.empty_recycle_bin(drive.as_deref())?
+                };
+                serde_json::to_value(ActionResult {
+                    freed_now_bytes: freed,
+                    simulated: self.simulating(*dry_run),
+                    ..ActionResult::default()
+                })?
+            }
+            ManagerRequest::System(system) => {
+                let _guard = self.begin()?;
+                if self.simulating(system.dry_run) {
+                    serde_json::to_value(SystemOutcome {
+                        simulated: true,
+                        ..SystemOutcome::default()
+                    })?
+                } else {
+                    serde_json::to_value(self.cleaner.run(system.task, system.expert_mode)?)?
+                }
+            }
+        };
+        Ok(value)
     }
 
     /// Engine version.

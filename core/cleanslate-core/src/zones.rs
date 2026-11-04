@@ -49,6 +49,8 @@ pub struct Zones {
     // The rules without the user's exclusions: an exclusion means « never
     // propose », not « sensitive ».
     rules: SafetyRules,
+    /// Folders of the machine.
+    pub folders: KnownFolders,
 }
 
 impl Zones {
@@ -56,6 +58,7 @@ impl Zones {
     pub fn new(folders: &KnownFolders) -> Self {
         Zones {
             rules: SafetyRules::new(folders, &[]),
+            folders: folders.clone(),
         }
     }
 
@@ -96,8 +99,9 @@ impl Zones {
         action: &ManualAction,
     ) -> CoreResult<Zone> {
         let zone = self.path_zone(path)?;
-        no_link_on_the_way(fs, path)?;
+        // The zone first: a sensitive path says so even before the disk is read.
         gate(zone, &path.display().to_string(), action)?;
+        no_link_on_the_way(fs, path)?;
         Ok(zone)
     }
 

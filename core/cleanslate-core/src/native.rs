@@ -161,6 +161,23 @@ pub fn move_at_reboot(from: &Path, to: &Path) -> Result<(), u32> {
     move_with(from, to, MOVEFILE_DELAY_UNTIL_REBOOT)
 }
 
+/// Deletes a file or an empty folder at the next restart (`MoveFileExW` with no target,
+/// documented by Windows for files in use; D79).
+pub fn delete_at_reboot(path: &Path) -> CoreResult<()> {
+    let source = wide(path);
+    // SAFETY: NUL-terminated path alive for the call; a null target means « delete ».
+    unsafe {
+        MoveFileExW(
+            PCWSTR(source.as_ptr()),
+            PCWSTR::null(),
+            MOVEFILE_DELAY_UNTIL_REBOOT,
+        )
+    }
+    .map_err(|e| {
+        CoreError::InvalidInput(format!("not scheduled at restart: {}: {e}", path.display()))
+    })
+}
+
 fn move_with(
     from: &Path,
     to: &Path,
