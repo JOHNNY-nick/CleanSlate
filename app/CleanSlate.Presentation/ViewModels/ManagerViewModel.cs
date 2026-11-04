@@ -547,19 +547,33 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
     }
 
-    /// <summary>Writes the analysis as HTML and CSV on the Desktop (EF-35).</summary>
+    /// <summary>
+    /// « Exporter le rapport » (D85): a PDF in the style of the book and the CSV table, in the
+    /// export folder (else the Desktop), then the folder is shown. Without an analysis, says so:
+    /// the button used to do nothing.
+    /// </summary>
     [RelayCommand]
-    private void ExportReport()
+    private async Task ExportReportAsync(CancellationToken cancellationToken)
     {
         if (_analysis is null)
         {
+            ResultText = "Lancez d'abord « Analyser le disque » : le rapport décrit le résultat de l'analyse.";
             return;
         }
 
         string stamp = DateTime.Now.ToString("yyyyMMdd-HHmm", French);
-        string csv = _manager.SaveReport($"CleanSlate-analyse-{stamp}.csv", ReportCsv(_analysis));
-        _manager.SaveReport($"CleanSlate-analyse-{stamp}.html", ReportHtml(_analysis, DriveSentences));
-        ResultText = $"Rapport enregistré : {Path.ChangeExtension(csv, ".html")} et .csv";
+        using IDisposable operation = _operations.Begin("Création du rapport PDF", "Manager");
+        try
+        {
+            string csv = _manager.SaveReport($"CleanSlate-analyse-{stamp}.csv", ReportCsv(_analysis));
+            string pdf = await _manager.SavePdfAsync($"CleanSlate-rapport-{stamp}.pdf", StorageReport.Html(_analysis, DriveSentences, Recoverable, DateTimeOffset.Now), cancellationToken);
+            ResultText = $"Rapport enregistré : {pdf} (et le tableau {Path.GetFileName(csv)})";
+            _manager.Reveal(pdf);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ResultText = $"Le rapport n'a pas pu être enregistré : {ex.Message}";
+        }
     }
 
     /// <summary>CSV of the analysis: one line per file of the largest and of each category.</summary>
@@ -576,32 +590,6 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
 
         return text.ToString();
-    }
-
-    /// <summary>HTML of the analysis: the diagnosis, the categories and the largest files.</summary>
-    public static string ReportHtml(StorageAnalysis analysis, IEnumerable<string> sentences)
-    {
-        static string E(string s) => System.Net.WebUtility.HtmlEncode(s);
-        var html = new StringBuilder("<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>Analyse CleanSlate</title><body style=\"font-family:Segoe UI,sans-serif\">");
-        html.Append("<h1>Analyse du stockage — ").Append(E(analysis.Root)).Append("</h1>");
-        foreach (string s in sentences)
-        {
-            html.Append("<p>").Append(E(s)).Append("</p>");
-        }
-
-        html.Append("<h2>Catégories</h2><table border=\"1\" cellpadding=\"4\"><tr><th>Catégorie</th><th>Taille</th><th>Fichiers</th></tr>");
-        foreach (CategoryTotal c in analysis.Categories)
-        {
-            html.Append("<tr><td>").Append(E(CategoryName(c.Category))).Append("</td><td>").Append(E(Formats.Size(c.SizeBytes))).Append("</td><td>").Append(c.Files).Append("</td></tr>");
-        }
-
-        html.Append("</table><h2>Plus gros fichiers</h2><table border=\"1\" cellpadding=\"4\"><tr><th>Chemin</th><th>Taille</th></tr>");
-        foreach (FileEntry f in analysis.Largest)
-        {
-            html.Append("<tr><td>").Append(E(f.Path)).Append("</td><td>").Append(E(Formats.Size(f.SizeBytes))).Append("</td></tr>");
-        }
-
-        return html.Append("</table></body></html>").ToString();
     }
 
     /// <summary>French name of a category.</summary>

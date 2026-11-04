@@ -215,6 +215,17 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<string> SavePdfAsync(string fileName, string html, CancellationToken cancellationToken)
+    {
+        string folder = string.IsNullOrWhiteSpace(_settings.ExportFolder)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+            : _settings.ExportFolder;
+        string path = Path.Combine(folder, fileName);
+        await PdfPrinter.PrintAsync(html, path, "CleanSlate — rapport de stockage", cancellationToken);
+        return path;
+    }
+
+    /// <inheritdoc/>
     public void Reveal(string path) => Launcher.Explorer("/select,", path);
 
     /// <inheritdoc/>

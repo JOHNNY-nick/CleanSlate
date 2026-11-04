@@ -20,6 +20,7 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 - Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.
 
 ### Modifié
+- Gestionnaire (D85) : « Exporter le rapport » crée un PDF dans le style du livre (couverture, diagnostic, ce qui peut être libéré, catégories, plus gros fichiers, fichiers anciens) et le tableau CSV, puis ouvre le dossier ; sans analyse, il dit quoi faire au lieu de ne rien faire.
 - Stockage (D83) : sous la carte, la liste du dossier affiché (dossiers et fichiers, taille, date, type), liée à la carte : un clic sur un dossier l'ouvre des deux côtés ; on coche puis on supprime avec la confirmation habituelle. Les dossiers des applications (Steam, Microsoft, Adobe…) se parcourent comme les autres, avec un lien vers Applications.
 - Gestionnaire (D83) : l'onglet « Explorateur » s'appelle « Recherche » et dit ce qu'il fait.
 - Gestionnaire (D82) : onglet « Carte » retiré (la carte est la page Stockage) ; « Analyse en cours… (Annuler) » ; infobulle de chaque action et bouton « ? ».

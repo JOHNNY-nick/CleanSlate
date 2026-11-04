@@ -69,6 +69,12 @@ public interface IManagerService
     /// <summary>Writes a report on the Desktop (export folder) and returns its path.</summary>
     string SaveReport(string fileName, string content);
 
+    /// <summary>
+    /// Prints <paramref name="html"/> to a PDF in the export folder (else the Desktop) and returns
+    /// its path (D85). Throws <see cref="IOException"/> with a French message when it fails.
+    /// </summary>
+    Task<string> SavePdfAsync(string fileName, string html, CancellationToken cancellationToken);
+
     /// <summary>Shows the item in the Explorer (EF-35).</summary>
     void Reveal(string path);
 

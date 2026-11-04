@@ -142,9 +142,52 @@ public sealed class ManagerViewModelTests
         Assert.StartsWith("Chemin;Taille (octets);Modifié;Catégorie;Zone", csv);
         Assert.Contains("\"C:\\Windows\\big.dll\";", csv);
         Assert.Contains("sensible", csv);
-        string html = ManagerViewModel.ReportHtml(Analysis(), ["C: est plein à 94 %."]);
-        Assert.Contains("<h2>Catégories</h2>", html);
-        Assert.Contains(System.Net.WebUtility.HtmlEncode("Vidéos"), html);
+    }
+
+    /// <summary>
+    /// D85: the report in the style of the book: violet cover, numbered sections, tables with a
+    /// lavender header, the safety call-out when a sensitive file is listed; paths encoded.
+    /// </summary>
+    [Fact]
+    public void TheReport_IsAPageInTheStyleOfTheBook()
+    {
+        var recoverable = new[] { new RecoverableLine(RecoverableKind.Caches, "Caches", "2 Go", 2 * Gb, true, "Se recréent seuls.") };
+        string html = StorageReport.Html(Analysis(), ["C: est plein à 94 %."], recoverable, new DateTimeOffset(2026, 11, 4, 21, 30, 0, TimeSpan.FromHours(1)));
+
+        Assert.Contains("class=\"cover\"", html);
+        Assert.Contains("#6c4dff", html); // the violet of the book
+        Assert.Contains("<span class=\"n\">1</span>Diagnostic", html);
+        Assert.Contains("<span class=\"n\">3</span>Catégories", html);
+        Assert.Contains("C: est plein à 94 %.", html);
+        Assert.Contains("sans risque", html);
+        Assert.Contains("Point sécurité", html); // big.dll is in a sensitive zone
+        Assert.Contains(@"<code>C:\Windows\big.dll</code>", html);
+        Assert.DoesNotContain("<script", StorageReport.Html(Analysis() with { Root = "<script>" }, [], [], DateTimeOffset.Now)); // encoded
+        Assert.Contains("Généré le ", html); // at the local time of the machine
+    }
+
+    /// <summary>D85: without an analysis the button says what to do (it did nothing); with one, a PDF and the CSV.</summary>
+    [Fact]
+    public async Task ExportingTheReport_NeedsAnAnalysis_ThenWritesThePdfAndTheCsv()
+    {
+        var (vm, manager, _, _) = Create();
+        manager.SaveReport(Arg.Any<string>(), Arg.Any<string>()).Returns(@"C:\Users\Ana\Desktop\CleanSlate-analyse.csv");
+        manager.SavePdfAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(@"C:\Users\Ana\Desktop\CleanSlate-rapport.pdf");
+
+        await vm.ExportReportCommand.ExecuteAsync(null);
+        Assert.Contains("Analyser le disque", vm.ResultText);
+        await manager.DidNotReceive().SavePdfAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        await vm.AnalyzeCommand.ExecuteAsync(null);
+        await vm.ExportReportCommand.ExecuteAsync(null);
+        await manager.Received(1).SavePdfAsync(Arg.Is<string>(n => n.EndsWith(".pdf")), Arg.Is<string>(h => h.Contains("class=\"cover\"")), Arg.Any<CancellationToken>());
+        manager.Received(1).SaveReport(Arg.Is<string>(n => n.EndsWith(".csv")), Arg.Any<string>());
+        manager.Received(1).Reveal(@"C:\Users\Ana\Desktop\CleanSlate-rapport.pdf");
+        Assert.Contains("CleanSlate-rapport.pdf", vm.ResultText);
+
+        manager.SavePdfAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns<Task<string>>(_ => throw new IOException("le moteur Edge de Windows (WebView2) n'a pas pu créer le PDF."));
+        await vm.ExportReportCommand.ExecuteAsync(null);
+        Assert.Contains("n'a pas pu être enregistré", vm.ResultText);
     }
 
     /// <summary>D79: the actions of the Gestionnaire appear in the History, with the space freed.</summary>

@@ -1153,7 +1153,7 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
     <value>Ouvre la fenêtre Propriétés de Windows du premier fichier coché : taille exacte, dates, emplacement, sécurité. Ne modifie rien.</value>
   </data>
   <data name="ManagerReport.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Enregistre le résultat de l'analyse en HTML (à lire) et en CSV (pour un tableur), dans le dossier d'export choisi dans Réglages, sinon sur le Bureau. Ne modifie rien. Limite : il faut d'abord lancer une analyse.</value>
+    <value>Enregistre le résultat de l'analyse en PDF (couverture, diagnostic, ce qui peut être libéré, catégories, plus gros fichiers) et en CSV (pour un tableur), dans le dossier d'export choisi dans Réglages, sinon sur le Bureau, puis ouvre ce dossier. Ne modifie rien. Limite : il faut d'abord lancer une analyse.</value>
   </data>
   <data name="ManagerOpenMapLink.Content" xml:space="preserve">
     <value>Voir la carte du stockage</value>

@@ -47,6 +47,12 @@ internal static class Capture
             App.GetService<IStorageService>().SaveMap("C:", map);
             log.Add($"carte: {(DateTimeOffset.Now - started).TotalSeconds:0} s, {map.Denied} dossiers refusés");
             InstalledApp? app = (await engine.ListAppsAsync(CancellationToken.None)).FirstOrDefault(a => a.HiddenReason is null);
+            if (DevMode.Options.CaptureSet == "rapport")
+            {
+                await PdfReport(window, Path.Combine(folder, "rapport"), settings, log);
+                return;
+            }
+
             if (DevMode.Options.CaptureSet == "corrections")
             {
                 await Corrections(window, Path.Combine(folder, "corrections"), settings, log);
@@ -301,6 +307,23 @@ internal static class Capture
         await Show(window, "Storage");
         await Task.Delay(1500);
         await Save(window, Path.Combine(folder, "carte-retour-meme-endroit.png"), log);
+    }
+
+    // The PDF report of the Gestionnaire (D85), made by the application itself after a
+    // read-only analysis of the user profile, written in the folder of the captures.
+    private static async Task PdfReport(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        settings.ExportFolder = folder;
+        await Show(window, "Manager");
+        ManagerViewModel manager = App.GetService<ManagerViewModel>();
+        await manager.LoadCommand.ExecuteAsync(null);
+        manager.AnalysisRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        await manager.AnalyzeCommand.ExecuteAsync(null);
+        var started = DateTimeOffset.Now;
+        await manager.ExportReportCommand.ExecuteAsync(null);
+        log.Add($"rapport : {(DateTimeOffset.Now - started).TotalSeconds:0.0} s · {manager.ResultText}");
+        await Save(window, Path.Combine(folder, "gestionnaire-apres-export.png"), log);
     }
 
     // Every page in Multicolore (D76), on white and on dark, with the check of every text.
