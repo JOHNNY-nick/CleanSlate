@@ -17,8 +17,8 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
 use cleanslate_core::model::{
-    AppLeftoversRequest, CleanPlan, PurgeRequest, RestoreRequest, ScanOptions, ScanProgress,
-    UninstallProgress, UninstallRequest,
+    AppLeftoversRequest, CleanPlan, CleanProgress, PurgeRequest, RestoreRequest, ScanOptions,
+    ScanProgress, UninstallProgress, UninstallRequest,
 };
 use cleanslate_core::{CoreError, CoreResult, Engine, EngineConfig};
 use serde::Serialize;
@@ -286,7 +286,8 @@ unsafe fn parse_input<T: serde::de::DeserializeOwned>(ptr: *const u8, len: i32) 
 
 /// Moves the selected items of the last scan to quarantine (EF-17): `data`
 /// is a `Session` (`simulated: true` when the engine or the plan is in
-/// simulation, the default). `callback` is reserved for progress (unused).
+/// simulation, the default). `callback` (may be null) receives a
+/// `CleanProgress` JSON before each item and once at the end.
 ///
 /// # Safety
 /// `engine` must be a live handle; `plan` must point to `len` readable bytes.
@@ -295,15 +296,27 @@ pub unsafe extern "C" fn cs_clean(
     engine: *const EngineHandle,
     plan: *const u8,
     len: i32,
-    _callback: ProgressCallback,
-    _ctx: *mut c_void,
+    callback: ProgressCallback,
+    ctx: *mut c_void,
 ) -> *mut ByteBuffer {
+    let context = CallbackContext(ctx);
     respond(|| {
         // SAFETY: forwarded from this function's contract.
         let engine = unsafe { engine_ref(engine) }?;
         // SAFETY: forwarded from this function's contract.
         let plan: CleanPlan = unsafe { parse_input(plan, len) }?;
-        engine.clean(&plan)
+        let progress = |event: &CleanProgress| {
+            let (Some(callback), Ok(json)) = (callback, serde_json::to_vec(event)) else {
+                return;
+            };
+            let Ok(json_len) = i32::try_from(json.len()) else {
+                return;
+            };
+            // SAFETY: the caller guarantees the callback is valid for the
+            // whole call; `json` outlives this synchronous invocation.
+            unsafe { callback(context.get(), json.as_ptr(), json_len) };
+        };
+        engine.clean_with_progress(&plan, &progress)
     })
 }
 

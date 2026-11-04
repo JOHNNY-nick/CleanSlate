@@ -69,9 +69,16 @@ public sealed class EngineClient : IDisposable
         return Task.Run(() => WithEngine(engine => DiskMapNative(engine, json, progress, cancellationToken)));
     }
 
-    /// <summary>Quarantines items of the last scan (EF-17); simulated unless both the engine and the plan say otherwise.</summary>
-    public Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken = default) =>
-        CallWithInput(JsonSerializer.SerializeToUtf8Bytes(plan, EngineJsonContext.Default.CleanPlan), CleanNative, EngineJsonContext.Default.EngineResponseSession, cancellationToken);
+    /// <summary>
+    /// Quarantines items of the last scan (EF-17); simulated unless both the engine and the plan
+    /// say otherwise. <paramref name="progress"/> receives each item as it is moved (task 2).
+    /// </summary>
+    public Task<Session> CleanAsync(CleanPlan plan, IProgress<CleanProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(plan, EngineJsonContext.Default.CleanPlan);
+        return Task.Run(() => WithEngine(engine => CleanNative(engine, json, progress)), cancellationToken);
+    }
 
     /// <summary>Restores a session entirely or partly (EF-18).</summary>
     public Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken = default) =>
@@ -175,11 +182,47 @@ public sealed class EngineClient : IDisposable
     private static unsafe T ReadResponsePointer<T>(IntPtr buffer, JsonTypeInfo<EngineResponse<T>> typeInfo) =>
         ReadResponse((ByteBuffer*)buffer, typeInfo);
 
-    private static unsafe IntPtr CleanNative(IntPtr engine, byte[] json)
+    private static unsafe Session CleanNative(IntPtr engine, byte[] json, IProgress<CleanProgress>? progress)
     {
-        fixed (byte* input = json)
+        GCHandle context = progress is null ? default : GCHandle.Alloc(progress);
+        ByteBuffer* buffer;
+        try
         {
-            return (IntPtr)NativeMethods.cs_clean((EngineHandle*)engine, input, json.Length, null, null);
+            fixed (byte* input = json)
+            {
+                delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback = progress is null ? null : &OnCleanProgress;
+                void* ctx = progress is null ? null : (void*)GCHandle.ToIntPtr(context);
+                buffer = NativeMethods.cs_clean((EngineHandle*)engine, input, json.Length, callback, ctx);
+            }
+        }
+        finally
+        {
+            // The engine never calls the callback after cs_clean returned.
+            if (context.IsAllocated)
+            {
+                context.Free();
+            }
+        }
+
+        return ReadResponse(buffer, EngineJsonContext.Default.EngineResponseSession);
+    }
+
+    /// <summary>Progress callback of a quarantine.</summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void OnCleanProgress(void* ctx, byte* json, int len)
+    {
+        // An exception must never cross into native code.
+        try
+        {
+            if (GCHandle.FromIntPtr((IntPtr)ctx).Target is IProgress<CleanProgress> progress
+                && JsonSerializer.Deserialize(new ReadOnlySpan<byte>(json, len), EngineJsonContext.Default.CleanProgress) is { } value)
+            {
+                progress.Report(value);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CleanSlate quarantine progress dropped: {ex.Message}");
         }
     }
 

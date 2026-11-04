@@ -282,6 +282,22 @@ pub struct ScanProgress {
     pub path: String,
 }
 
+/// Progress of a quarantine (EF-17, task 2 of the owner): items done, bytes
+/// moved, and the item being moved. Sent before each item, then once at the end.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CleanProgress {
+    /// Items already handled (moved or failed).
+    pub done: u64,
+    /// Items of the session.
+    pub total: u64,
+    /// Bytes of the items already handled.
+    pub bytes_done: u64,
+    /// Bytes of the whole session.
+    pub bytes_total: u64,
+    /// Item being moved (empty at the end).
+    pub current: String,
+}
+
 /// What started a cleaning session.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]

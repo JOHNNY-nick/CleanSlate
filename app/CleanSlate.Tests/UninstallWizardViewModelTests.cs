@@ -35,7 +35,7 @@ public sealed class UninstallWizardViewModelTests
         engine.UninstallAsync(Arg.Any<UninstallRequest>(), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>()).Returns(Result());
         engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanReport([new LeftoverGroup("GIMP 2.10.38", "The GIMP Team", [Folder], 5_000)], [], 10, false));
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(new Session(
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>()).Returns(new Session(
             Guid.NewGuid(), DateTimeOffset.Now, Origin.ForApp("g1"),
             [new QuarantinedItem("l1", LeftoverKind.Folder, Folder.Location, @"C:\Q", 5_000, null, null, DateTimeOffset.Now, null, QuarantineStatus.Quarantined, null)],
             5_000, [], SessionStatus.Completed, false));
@@ -52,7 +52,7 @@ public sealed class UninstallWizardViewModelTests
         Assert.True(vm.IsStep4);
         Assert.Equal(1, vm.CleanedCount);
         await engine.Received(1).UninstallAsync(Arg.Is<UninstallRequest>(r => r.AppId == "g1" && r.CreateRestorePoint && !r.DryRun && !r.Quiet), Arg.Any<IProgress<UninstallProgress>?>(), Arg.Any<CancellationToken>());
-        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => p.Origin.Kind == "app" && p.Origin.AppId == "g1" && !p.DryRun), Arg.Any<CancellationToken>());
+        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => p.Origin.Kind == "app" && p.Origin.AppId == "g1" && !p.DryRun), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>());
         await dialogs.Received(1).ConfirmCleanAsync(Arg.Any<CleanSummary>());
     }
 
@@ -144,7 +144,7 @@ public sealed class UninstallWizardViewModelTests
         Leftover medium = Folder with { Confidence = Confidence.Medium };
         engine.ScanAppLeftoversAsync(Arg.Any<AppLeftoversRequest>(), Arg.Any<IProgress<ScanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanReport([new LeftoverGroup("GIMP 2.10.38", "The GIMP Team", [medium], 5_000)], [], 10, false));
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(new Session(
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>()).Returns(new Session(
             Guid.NewGuid(), DateTimeOffset.Now, Origin.ForApp("g1"), [], 0, [], SessionStatus.Completed, true));
         vm.Start(Gimp, complete: true);
         await vm.LaunchCommand.ExecuteAsync(null);
@@ -330,7 +330,7 @@ public sealed class UninstallWizardViewModelTests
             Guid.NewGuid(), DateTimeOffset.Now, Origin.ForApp("g1"),
             [new QuarantinedItem("l1", LeftoverKind.Folder, Folder.Location, @"C:\Q", 5_000, null, null, DateTimeOffset.Now, null, QuarantineStatus.Quarantined, null)],
             5_000, [], SessionStatus.Completed, false);
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(session);
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>()).Returns(session);
         vm.Start(Gimp, complete: true);
 
         await vm.LaunchCommand.ExecuteAsync(null);

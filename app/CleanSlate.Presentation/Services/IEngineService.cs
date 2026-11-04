@@ -21,7 +21,7 @@ public interface IEngineService
     Task<ScanReport> ScanOrphansAsync(ScanOptions options, IProgress<ScanProgress>? progress, CancellationToken cancellationToken);
 
     /// <summary>Quarantines items of the last scan (EF-17); simulated if the plan or the engine says so.</summary>
-    Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken);
+    Task<Session> CleanAsync(CleanPlan plan, IProgress<CleanProgress>? progress, CancellationToken cancellationToken);
 
     /// <summary>Restores a session entirely or partly (EF-18).</summary>
     Task<Session> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken);

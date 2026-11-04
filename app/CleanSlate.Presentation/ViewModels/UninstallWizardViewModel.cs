@@ -474,9 +474,10 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
         }
 
         var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.ForApp(App.App.Id), DryRun: false, Confirmation: decision.Word);
+        IProgress<CleanProgress> progress = CleanProgress.Start();
         try
         {
-            Session session = await _engine.CleanAsync(plan, CancellationToken.None);
+            Session session = await _engine.CleanAsync(plan, progress, CancellationToken.None);
             DeletedForGood = await ImmediateDeletion.ApplyAsync(_engine, _settings, session, CancellationToken.None);
             CleanSimulated = session.Simulated;
             CleanedCount = session.Simulated
@@ -490,7 +491,14 @@ public sealed partial class UninstallWizardViewModel : ObservableObject
             ErrorCode = ex.Code;
             ErrorDetails = ex.Message;
         }
+        finally
+        {
+            CleanProgress.Stop();
+        }
     }
+
+    /// <summary>Progress bar of the quarantine of step 3 (task 2).</summary>
+    public QuarantineProgressViewModel CleanProgress { get; } = new();
 
     /// <summary>Step 3 → 4 without touching the leftovers.</summary>
     [RelayCommand]

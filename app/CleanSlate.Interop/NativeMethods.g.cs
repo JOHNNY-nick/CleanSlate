@@ -64,13 +64,14 @@ namespace CleanSlate.Interop
         /// <summary>
         ///  Moves the selected items of the last scan to quarantine (EF-17): `data`
         ///  is a `Session` (`simulated: true` when the engine or the plan is in
-        ///  simulation, the default). `callback` is reserved for progress (unused).
+        ///  simulation, the default). `callback` (may be null) receives a
+        ///  `CleanProgress` JSON before each item and once at the end.
         ///
         ///  # Safety
         ///  `engine` must be a live handle; `plan` must point to `len` readable bytes.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "cs_clean", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern ByteBuffer* cs_clean(EngineHandle* engine, byte* plan, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> _callback, void* _ctx);
+        internal static extern ByteBuffer* cs_clean(EngineHandle* engine, byte* plan, int len, delegate* unmanaged[Cdecl]<void*, byte*, int, void> callback, void* ctx);
 
         /// <summary>
         ///  Restores a session, entirely or partly (EF-18): `data` is the `Session`

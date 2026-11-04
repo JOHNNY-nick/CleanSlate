@@ -254,6 +254,12 @@
                         <TextBlock Text="{x:Bind ViewModel.ActionKey, Mode=OneWay, Converter={StaticResource ResourceString}, ConverterParameter=Action}" />
                     </StackPanel>
                 </Button>
+                <!-- Task 2: progress of the quarantine, item by item. -->
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.CleanProgress.IsActive, Mode=OneWay}">
+                    <ProgressBar x:Uid="CleanProgressBar" Maximum="100" Value="{x:Bind ViewModel.CleanProgress.Percent, Mode=OneWay}" />
+                    <TextBlock Style="{StaticResource SecondaryTextBlockStyle}" Text="{x:Bind ViewModel.CleanProgress.Text, Mode=OneWay}" />
+                    <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}" Text="{x:Bind ViewModel.CleanProgress.Current, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="4" Visibility="{x:Bind ViewModel.ShowCleanResult, Mode=OneWay}">
                     <InfoBar
                         IsClosable="False"

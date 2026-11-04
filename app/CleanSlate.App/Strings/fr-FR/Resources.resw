@@ -922,4 +922,7 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="SettingsPaintDark.OffContent" xml:space="preserve">
     <value>Désactivé : couleurs vives sur fond blanc</value>
   </data>
+  <data name="CleanProgressBar.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Mise en quarantaine en cours</value>
+  </data>
 </root>

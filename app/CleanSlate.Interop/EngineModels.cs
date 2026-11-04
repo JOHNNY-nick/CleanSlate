@@ -413,12 +413,21 @@ public sealed record DiskMapNode(
 /// <summary>Result of <c>cs_disk_map</c>.</summary>
 public sealed record DiskMap(DiskMapNode Root, ulong TotalBytes, ulong FreeBytes, ulong Denied, ulong DurationMs, bool Cancelled);
 
+/// <summary>Progress of a quarantine (task 2): items and bytes handled, the item being moved.</summary>
+/// <param name="Done">Items already handled.</param>
+/// <param name="Total">Items of the session.</param>
+/// <param name="BytesDone">Bytes already handled.</param>
+/// <param name="BytesTotal">Bytes of the session.</param>
+/// <param name="Current">Item being moved; empty at the end.</param>
+public sealed record CleanProgress(ulong Done, ulong Total, ulong BytesDone, ulong BytesTotal, string Current);
+
 /// <summary>Progress of the storage map.</summary>
 public sealed record DiskMapProgress(ulong Files, ulong Bytes, string Current);
 
 /// <summary>System.Text.Json source generation, snake_case like the Rust side.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(EngineConfig))]
+[JsonSerializable(typeof(CleanProgress))]
 [JsonSerializable(typeof(EngineResponse<EngineVersion>))]
 [JsonSerializable(typeof(EngineResponse<List<InstalledApp>>))]
 [JsonSerializable(typeof(EngineResponse<ScanReport>))]

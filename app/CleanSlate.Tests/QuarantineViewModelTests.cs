@@ -41,7 +41,7 @@ public sealed class QuarantineViewModelTests
         await vm.QuarantineCommand.ExecuteAsync(null);
 
         await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.ItemCount == 2 && !s.DeleteImmediately && s.QuarantineDays == 30));
-        await engine.DidNotReceive().CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>());
+        await engine.DidNotReceive().CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -52,12 +52,12 @@ public sealed class QuarantineViewModelTests
         var dialogs = OrphansViewModelTests.Dialogs();
         var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings(deleteImmediately: true));
         Session session = SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Quarantined));
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>()).Returns(session);
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>()).Returns(session);
 
         await vm.QuarantineCommand.ExecuteAsync(null);
 
         await dialogs.Received(1).ConfirmCleanAsync(Arg.Is<CleanSummary>(s => s.DeleteImmediately));
-        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<CancellationToken>());
+        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>());
         await engine.Received(1).PurgeAsync(Arg.Is<PurgeRequest>(p => p.SessionId == session.Id && !p.DryRun), Arg.Any<CancellationToken>());
         Assert.True(vm.DeletedForGood);
         Assert.Equal(2, vm.CleanedCount);
@@ -67,12 +67,12 @@ public sealed class QuarantineViewModelTests
     public async Task Quarantine_Real_RemovesMovedItemsAndReportsOutcome()
     {
         var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings());
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Failed)));
 
         await vm.QuarantineCommand.ExecuteAsync(null);
 
-        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<CancellationToken>());
+        await engine.Received(1).CleanAsync(Arg.Is<CleanPlan>(p => !p.DryRun), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>());
         await engine.DidNotReceive().PurgeAsync(Arg.Any<PurgeRequest>(), Arg.Any<CancellationToken>());
         Assert.False(vm.DeletedForGood);
         Assert.True(vm.ShowCleanResult);
@@ -89,7 +89,7 @@ public sealed class QuarantineViewModelTests
         // list, shown by an ItemsRepeater inside an Expander, threw COMException 0x80004005
         // in WinUI. The nested lists are never changed: moved items are hidden instead.
         var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings());
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Failed)));
         LeftoverGroupViewModel group = vm.Groups[0];
         int changes = 0;
@@ -117,7 +117,7 @@ public sealed class QuarantineViewModelTests
         // Installer run of 31 Oct. 2026 (D67): « 0 élément mis en quarantaine… restaurables »
         // was shown next to « 1 élément laissé en place ».
         var (vm, engine) = await ScannedAsync(OrphansViewModelTests.Dialogs(), OrphansViewModelTests.Settings(deleteImmediately: true));
-        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<CancellationToken>())
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(SessionOf(false, Moved(High, QuarantineStatus.Failed)));
 
         await vm.QuarantineCommand.ExecuteAsync(null);
@@ -133,9 +133,9 @@ public sealed class QuarantineViewModelTests
     {
         var dialogs = OrphansViewModelTests.Dialogs(confirm: true, word: "QUARANTAINE");
         var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings());
-        engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == null), Arg.Any<CancellationToken>())
+        engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == null), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns<Task<Session>>(_ => throw new EngineException("CONFIRMATION_REQUIRED", "too big"));
-        engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == "QUARANTAINE"), Arg.Any<CancellationToken>())
+        engine.CleanAsync(Arg.Is<CleanPlan>(p => p.Confirmation == "QUARANTAINE"), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
             .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined)));
 
         await vm.QuarantineCommand.ExecuteAsync(null);
@@ -242,5 +242,42 @@ public sealed class QuarantineViewModelTests
         settings.Received().DeleteImmediately = true;
         settings.Received().QuarantineDays = 365;
         Assert.Equal(365, vm.QuarantineDays);
+    }
+
+    /// <summary>Task 2: the engine receives a progress, the bar is hidden when it is over.</summary>
+    [Fact]
+    public async Task Quarantine_ShowsItsProgress_ThenHidesTheBar()
+    {
+        var dialogs = OrphansViewModelTests.Dialogs();
+        var (vm, engine) = await ScannedAsync(dialogs, OrphansViewModelTests.Settings());
+        engine.CleanAsync(Arg.Any<CleanPlan>(), Arg.Any<IProgress<CleanProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(SessionOf(false, Moved(High, QuarantineStatus.Quarantined), Moved(Key, QuarantineStatus.Quarantined)));
+
+        await vm.QuarantineCommand.ExecuteAsync(null);
+
+        await engine.Received(1).CleanAsync(Arg.Any<CleanPlan>(), Arg.Is<IProgress<CleanProgress>?>(p => p != null), Arg.Any<CancellationToken>());
+        Assert.False(vm.CleanProgress.IsActive);
+    }
+}
+
+/// <summary>Task 2 of the owner: a progress bar while the leftovers go to quarantine.</summary>
+public sealed class QuarantineProgressTests
+{
+    [Fact]
+    public void TheBar_FollowsTheBytesMoved_AndNamesTheCurrentItem()
+    {
+        var bar = new QuarantineProgressViewModel();
+        _ = bar.Start();
+        Assert.True(bar.IsActive);
+
+        bar.Report(new CleanProgress(1, 4, 256UL * 1024 * 1024, 1024UL * 1024 * 1024, @"C:\Users\Ana\AppData\Roaming\OldTool"));
+        Assert.Equal(25, bar.Percent, 3);
+        Assert.Equal("1 / 4 élément(s) · 256 Mo sur 1 Go", bar.Text);
+        Assert.EndsWith("OldTool", bar.Current);
+
+        bar.Report(new CleanProgress(4, 4, 1024UL * 1024 * 1024, 1024UL * 1024 * 1024, string.Empty));
+        Assert.Equal(100, bar.Percent, 3);
+        bar.Stop();
+        Assert.False(bar.IsActive);
     }
 }

@@ -17,8 +17,8 @@ use uuid::Uuid;
 use crate::error::{CoreError, CoreResult};
 use crate::fs::FileSystem;
 use crate::model::{
-    ItemError, Leftover, LeftoverKind, Origin, QuarantineStatus, QuarantinedItem, Session,
-    SessionStatus,
+    CleanProgress, ItemError, Leftover, LeftoverKind, Origin, QuarantineStatus, QuarantinedItem,
+    Session, SessionStatus,
 };
 use crate::native::{self, Sha256};
 use crate::registry::{utf16_le_with_bom, KeySnapshot, RegKeyPath, Registry};
@@ -335,6 +335,19 @@ impl Quarantine<'_> {
         confirmation: Option<&str>,
         now: DateTime<Utc>,
     ) -> CoreResult<Session> {
+        self.clean_with_progress(origin, items, confirmation, now, &|_| {})
+    }
+
+    /// [`Quarantine::clean`] reporting its progress: before each item, then
+    /// once when every item is handled.
+    pub fn clean_with_progress(
+        &self,
+        origin: Origin,
+        items: &[Leftover],
+        confirmation: Option<&str>,
+        now: DateTime<Utc>,
+        progress: &(dyn Fn(&CleanProgress) + Sync),
+    ) -> CoreResult<Session> {
         self.check_ceiling(items, confirmation)?;
         let mut manifest = Manifest {
             session: Session {
@@ -357,9 +370,27 @@ impl Quarantine<'_> {
         ordered.sort_by_key(|i| {
             i.kind == LeftoverKind::Folder && self.rules.is_below_start_menu(Path::new(&i.location))
         });
-        for leftover in ordered {
+        let total = ordered.len() as u64;
+        let bytes_total: u64 = ordered.iter().map(|i| i.size_bytes).sum();
+        let mut bytes_done = 0;
+        for (done, leftover) in ordered.into_iter().enumerate() {
+            progress(&CleanProgress {
+                done: done as u64,
+                total,
+                bytes_done,
+                bytes_total,
+                current: leftover.location.clone(),
+            });
             self.quarantine_one(&mut manifest, leftover, now)?;
+            bytes_done += leftover.size_bytes;
         }
+        progress(&CleanProgress {
+            done: total,
+            total,
+            bytes_done,
+            bytes_total,
+            current: String::new(),
+        });
         let session = &mut manifest.session;
         session.freed_bytes = session
             .items

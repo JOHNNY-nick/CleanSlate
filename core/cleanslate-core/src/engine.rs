@@ -15,9 +15,10 @@ use crate::fs::{FileSystem, RealFileSystem};
 use crate::history::History;
 use crate::inventory::is_guid;
 use crate::model::{
-    AppKind, AppLeftoversRequest, CleanPlan, Confidence, InstalledApp, JobProcess, Leftover,
-    PurgeRequest, PurgeResult, QuarantineStatus, RestoreRequest, ScanOptions, ScanProgress,
-    ScanReport, Session, UninstallProgress, UninstallRequest, UninstallResult, UninstallStep,
+    AppKind, AppLeftoversRequest, CleanPlan, CleanProgress, Confidence, InstalledApp, JobProcess,
+    Leftover, PurgeRequest, PurgeResult, QuarantineStatus, RestoreRequest, ScanOptions,
+    ScanProgress, ScanReport, Session, UninstallProgress, UninstallRequest, UninstallResult,
+    UninstallStep,
 };
 use crate::msi::{ApiMsiUninstaller, MsiUninstaller, NoMsiUninstaller};
 use crate::quarantine::{simulate, Quarantine};
@@ -749,6 +750,17 @@ impl Engine {
     /// Moves the selected items of the last scan to quarantine (EF-17), or
     /// only lists them in simulation mode (ENF-04).
     pub fn clean(&self, plan: &CleanPlan) -> CoreResult<Session> {
+        self.clean_with_progress(plan, &|_| {})
+    }
+
+    /// [`Engine::clean`] reporting its progress, item by item (task 2 of the
+    /// owner: a progress bar while the leftovers go to quarantine). In
+    /// simulation nothing moves: one final event only.
+    pub fn clean_with_progress(
+        &self,
+        plan: &CleanPlan,
+        progress: &(dyn Fn(&CleanProgress) + Sync),
+    ) -> CoreResult<Session> {
         let _guard = self.begin()?;
         let items: Vec<Leftover> = {
             let last = self
@@ -765,14 +777,23 @@ impl Engine {
                 .collect::<CoreResult<_>>()?
         };
         if self.simulating(plan.dry_run) {
+            let bytes: u64 = items.iter().map(|i| i.size_bytes).sum();
+            progress(&CleanProgress {
+                done: items.len() as u64,
+                total: items.len() as u64,
+                bytes_done: bytes,
+                bytes_total: bytes,
+                current: String::new(),
+            });
             return Ok(simulate(plan.origin.clone(), &items, Utc::now()));
         }
         let session = self.with_quarantine(|q| {
-            q.clean(
+            q.clean_with_progress(
                 plan.origin.clone(),
                 &items,
                 plan.confirmation.as_deref(),
                 Utc::now(),
+                progress,
             )
         })?;
         if let Some(history) = self.history()?.as_mut() {
@@ -1142,6 +1163,63 @@ mod tests {
 
         // Once moved, it is gone from the report.
         assert_eq!(engine.clean(&plan).unwrap_err().code(), "INVALID_INPUT");
+    }
+
+    /// Task 2 of the owner: a progress bar while the leftovers go to quarantine. One
+    /// event before each item (with the item), then one at the end (all done).
+    #[test]
+    fn quarantine_reports_its_progress_item_by_item() {
+        use crate::fs::strip_verbatim;
+        use crate::model::Origin;
+
+        let parent =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\target\engine-tests");
+        std::fs::create_dir_all(&parent).unwrap();
+        let dir = tempfile::tempdir_in(&parent).unwrap();
+        let base = strip_verbatim(&dir.path().canonicalize().unwrap());
+        for name in ["OldTool", "Gone2019"] {
+            let tool = base.join(r"Users\Ana\AppData\Roaming").join(name);
+            std::fs::create_dir_all(&tool).unwrap();
+            std::fs::write(tool.join("settings.ini"), b"[x]").unwrap();
+        }
+        let area = TestRegistryKey::new();
+        let engine = Engine::with_folders(
+            EngineConfig {
+                dry_run: false,
+                data_dir: Some(base.join("data")),
+                exclusions: vec![],
+            },
+            Box::new(RealFileSystem),
+            Box::new(area.registry()),
+            KnownFolders::under(&base),
+        );
+        let report = engine
+            .scan_orphans(&ScanOptions::default(), &|_| {})
+            .unwrap();
+        let ids: Vec<String> = report
+            .groups
+            .iter()
+            .flat_map(|g| g.items.iter().map(|i| i.id.clone()))
+            .collect();
+        assert!(ids.len() >= 2);
+        let mut plan = CleanPlan::new(ids.clone(), Origin::Orphans);
+        plan.dry_run = false;
+
+        let events = std::sync::Mutex::new(Vec::new());
+        engine
+            .clean_with_progress(&plan, &|p| events.lock().unwrap().push(p.clone()))
+            .unwrap();
+        let events = events.into_inner().unwrap();
+        assert_eq!(events.len(), ids.len() + 1);
+        for (i, event) in events.iter().take(ids.len()).enumerate() {
+            assert_eq!(event.done, i as u64);
+            assert_eq!(event.total, ids.len() as u64);
+            assert!(!event.current.is_empty());
+        }
+        let last = events.last().unwrap();
+        assert_eq!(last.done, last.total);
+        assert_eq!(last.bytes_done, last.bytes_total);
+        assert!(last.current.is_empty());
     }
 
     /// Full cycle in a temporary machine under core/target (never %TEMP%,

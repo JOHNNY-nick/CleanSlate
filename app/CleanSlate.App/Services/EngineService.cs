@@ -61,17 +61,17 @@ public sealed class EngineService : IEngineService, IDisposable
         Client.ScanOrphansAsync(options, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public async Task<Session> CleanAsync(CleanPlan plan, CancellationToken cancellationToken)
+    public async Task<Session> CleanAsync(CleanPlan plan, IProgress<CleanProgress>? progress, CancellationToken cancellationToken)
     {
         if (plan.DryRun)
         {
-            return await Client.CleanAsync(plan, cancellationToken);
+            return await Client.CleanAsync(plan, progress, cancellationToken);
         }
 
         Session session = await _storage.MeasureAsync(
             StorageOperation.Quarantine,
             s => $"{s.Items.Count(i => i.Status is QuarantineStatus.Quarantined or QuarantineStatus.PendingReboot)} élément(s)",
-            () => Client.CleanAsync(plan, cancellationToken),
+            () => Client.CleanAsync(plan, progress, cancellationToken),
             s => s.FreedBytes,
             s => s.Id);
         _storage.RecordCleaned(session);

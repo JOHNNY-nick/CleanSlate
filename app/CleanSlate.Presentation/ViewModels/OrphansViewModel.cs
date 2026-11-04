@@ -194,6 +194,9 @@ public sealed partial class OrphansViewModel : ObservableObject
     }
 
 
+    /// <summary>Progress bar of the quarantine (task 2).</summary>
+    public QuarantineProgressViewModel CleanProgress { get; } = new();
+
     /// <summary>
     /// Moves the checked items to quarantine after the mandatory confirmation
     /// (EF-16, EF-17), or deletes them for good when the user chose it (D66).
@@ -216,12 +219,13 @@ public sealed partial class OrphansViewModel : ObservableObject
 
         // Always real: the application has no simulation mode (D66).
         var plan = new CleanPlan(selected.Select(i => i.Leftover.Id).ToList(), Origin.Orphans, DryRun: false);
+        IProgress<CleanProgress> progress = CleanProgress.Start();
         try
         {
             Session session;
             try
             {
-                session = await _engine.CleanAsync(plan, cancellationToken);
+                session = await _engine.CleanAsync(plan, progress, cancellationToken);
             }
             catch (EngineException ex) when (ex.Code == "CONFIRMATION_REQUIRED")
             {
@@ -231,7 +235,7 @@ public sealed partial class OrphansViewModel : ObservableObject
                     return;
                 }
 
-                session = await _engine.CleanAsync(plan with { Confirmation = again.Word }, cancellationToken);
+                session = await _engine.CleanAsync(plan with { Confirmation = again.Word }, progress, cancellationToken);
             }
 
             DeletedForGood = await ImmediateDeletion.ApplyAsync(_engine, _settings, session, cancellationToken);
@@ -241,6 +245,10 @@ public sealed partial class OrphansViewModel : ObservableObject
         {
             HasError = true;
             ErrorDetails = ex.Message;
+        }
+        finally
+        {
+            CleanProgress.Stop();
         }
     }
 
