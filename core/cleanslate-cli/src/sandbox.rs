@@ -95,9 +95,10 @@ pub fn run(args: &[String]) -> ExitCode {
         (Some("quarantine"), Some(text)) => quarantine(text),
         (Some("restore"), Some(session)) => restore(session),
         (Some("uninstall"), Some(name)) => uninstall(name),
+        (Some("manager"), Some(file)) => manager(file),
         _ => {
             eprintln!(
-                "Usage: cleanslate-cli sandbox quarantine <text> | restore <session-id> | uninstall <name>"
+                "Usage: cleanslate-cli sandbox quarantine <text> | restore <session-id> | uninstall <name> | manager <request.json>"
             );
             ExitCode::from(2)
         }
@@ -128,6 +129,26 @@ fn quarantine(text: &str) -> ExitCode {
     match engine.clean(&plan) {
         Ok(session) => print_json(&session),
         Err(err) => fail(err),
+    }
+}
+
+/// One request of the Gestionnaire (D79) read from a JSON file, on the real engine of the
+/// Sandbox: the scenario « Gestionnaire » writes each request, with `"dry_run": false`.
+fn manager(file: &str) -> ExitCode {
+    let request: cleanslate_core::manager::ManagerRequest = match std::fs::read_to_string(file)
+        .map_err(|e| e.to_string())
+        .and_then(|text| {
+            serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())
+        }) {
+        Ok(request) => request,
+        Err(err) => return fail(err),
+    };
+    match engine().manager(&request, &|_| {}) {
+        Ok(value) => print_json(&value),
+        Err(err) => {
+            // The code (EXPERT_REQUIRED, CONFIRMATION_REQUIRED…) is what the scenario checks.
+            print_json(&serde_json::json!({ "error": err.code(), "message": err.to_string() }))
+        }
     }
 }
 

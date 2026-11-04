@@ -29,7 +29,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Apps', 'Installer', 'Complements')]
+    [ValidateSet('Apps', 'Installer', 'Complements', 'Gestionnaire')]
     [string] $Scenario = 'Apps',
     [switch] $Launch
 )
@@ -69,7 +69,7 @@ Copy-Item $cli $toolsDir -Force
 
 # 2. Test commands, for the Complements and Apps scenarios only (D53, D58).
 $sandboxCli = Join-Path $toolsDir 'cleanslate-cli-sandbox.exe'
-if ($Scenario -in 'Complements', 'Apps') {
+if ($Scenario -in 'Complements', 'Apps', 'Gestionnaire') {
     Step 'cleanslate-cli with the sandbox-tests feature (core\target\sandbox-tests)'
     Push-Location $root   # the static C runtime comes from .cargo\config.toml at the root (D51)
     try {
@@ -129,7 +129,7 @@ $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
 $commit = (git -C $root rev-parse --short HEAD 2>$null)
 $dirty = @(git -C $root status --porcelain 2>$null | ForEach-Object { $_.Substring(3) })
 $shared = [ordered]@{}
-foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if ($Scenario -in 'Complements', 'Apps') { $sandboxCli }) + @(if ($setup) { $setup.FullName })) {
+foreach ($f in @($cli, "$app\CleanSlate.App.exe", "$app\cleanslate.dll") + @(if ($Scenario -in 'Complements', 'Apps', 'Gestionnaire') { $sandboxCli }) + @(if ($setup) { $setup.FullName })) {
     $shared[$f.Substring($root.Length + 1)] = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash
 }
 [ordered]@{
@@ -149,7 +149,7 @@ $folders = @(
     (Mapped $resultsDir 'C:\CleanSlate\results' $false)
 )
 if ($sdk) { $folders += Mapped $sdk 'C:\CleanSlate\sdk' $true }
-$script = @{ Apps = 'inside-apps.ps1'; Installer = 'inside-installer.ps1'; Complements = 'inside-complements.ps1' }[$Scenario]
+$script = @{ Apps = 'inside-apps.ps1'; Installer = 'inside-installer.ps1'; Complements = 'inside-complements.ps1'; Gestionnaire = 'inside-gestionnaire.ps1' }[$Scenario]
 $command = "powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command `"`$env:CLEANSLATE_SANDBOX_RUN='$token'; &amp; 'C:\CleanSlate\repo\scripts\sandbox\$script'`""
 $wsb = Join-Path $out "CleanSlate-$Scenario.wsb"
 @"

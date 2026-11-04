@@ -6,12 +6,13 @@ Les actions réelles de CleanSlate (quarantaine, désinstallation) ne se testent
 
 | Fichier | Où il tourne | Rôle |
 | --- | --- | --- |
-| `prepare.ps1` | hôte (pwsh 7) | Vérifie la compilation Release, télécharge et vérifie les installeurs, compile la CLI de test (Complements seulement), écrit le jeton et le `.wsb`, lance le Sandbox avec `-Launch`. N'installe rien et ne lance rien de CleanSlate sur l'hôte. |
+| `prepare.ps1` | hôte (pwsh 7) | Vérifie la compilation Release, télécharge et vérifie les installeurs, compile la CLI de test (Complements, Apps et Gestionnaire), écrit le jeton et le `.wsb`, lance le Sandbox avec `-Launch`. N'installe rien et ne lance rien de CleanSlate sur l'hôte. |
 | `manifeste.json` | hôte et Sandbox | Tout ce qui est téléchargé ou installé : nom, version, éditeur, URL officielle, SHA-256, commande d'installation silencieuse ; ce qui est construit dans le Sandbox ; ce que l'hôte partage. |
 | `common.ps1` | Sandbox (PowerShell 5.1) | Garde, journal, étapes horodatées, inventaires avant et après chaque étape avec un fichier de différences, vérification des SHA-256, `rapport.md` et `rapport.html`. |
 | `inside-complements.ps1` | Sandbox | Scénario **Complements** (tests-acceptation.md § 6). |
 | `inside-apps.ps1` | Sandbox | Scénario **5 applications** (§ 4, cahier § 6.3). |
 | `inside-installer.ps1` | Sandbox | Scénario **Installer** (§ 5). |
+| `inside-gestionnaire.ps1` | Sandbox | Scénario **Gestionnaire** (D79, gestionnaire-plan.md § 4). |
 
 Produits par `prepare.ps1`, sous `artifacts\sandbox\` (ignoré par Git) :
 
@@ -19,7 +20,7 @@ Produits par `prepare.ps1`, sous `artifacts\sandbox\` (ignoré par Git) :
 | --- | --- |
 | `installers\<id>\<fichier>` | installeurs du manifeste, téléchargés depuis leur URL officielle ; un SHA-256 différent arrête `prepare.ps1` |
 | `tools\cleanslate-cli.exe` | la CLI publiée (contrôlée par `check-release-cli.ps1`), pour l'analyse en lecture seule |
-| `tools\cleanslate-cli-sandbox.exe` | la CLI compilée avec la feature `sandbox-tests` (scénario Complements seulement ; supprimée pour les autres) |
+| `tools\cleanslate-cli-sandbox.exe` | la CLI compilée avec la feature `sandbox-tests` (scénarios Complements, Apps et Gestionnaire ; supprimée pour Installer) |
 | `run\token.txt` | jeton aléatoire de 32 octets, nouveau à chaque préparation |
 | `run\prepare.json` | date, commit, SHA-256 de la CLI, de l'application, de l'installeur et des installeurs partagés |
 | `CleanSlate-<Scénario>.wsb` | configuration du Sandbox |
@@ -85,6 +86,16 @@ pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch
 - **Durée** : 3 à 5 min de compilation de l'installeur, puis 5 à 10 min dans le Sandbox, presque tout à la main.
 - **Déroulé** : vérification du SHA-256 de l'installeur, copié dans Téléchargements comme un fichier téléchargé ; l'assistant s'ouvre, vous installez (assistant annulé : relancez l'installeur depuis Téléchargements, le script attend 20 min) ; contrôles automatiques (dossier, raccourci, entrée de désinstallation) ; le script attend pendant que vous faites le premier lancement (trois écrans d'accueil, D63), les vérifications du § 5, puis la désinstallation depuis Paramètres → Applications ; **tapez « fini »** dans la console (une simple touche Entrée ne suffit pas) ; contrôles de la désinstallation.
 - **À vérifier** : UAC, assistant en français, icône, licence MIT, À propos ; dans `rapport.html` : installé, raccourci, entrée, puis dossier supprimé, réglages de l'utilisateur et dossier de quarantaine choisi conservés (D43).
+
+### 4. Gestionnaire (D79)
+
+```powershell
+pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch
+```
+
+- **Durée** : 1 à 2 min de préparation (compilation de la CLI de test), puis 5 à 15 min dans le Sandbox, sans rien à faire (le nettoyage du magasin des composants par DISM est le plus long).
+- **Déroulé automatique** : chaque cas écrit une requête du Gestionnaire (`requete-NN-<op>.json`, `dry_run` à false), l'envoie au vrai moteur par la commande `sandbox manager <fichier>` de la CLI de test, puis vérifie le disque : caches vidés (dossier gardé) ; Corbeille (« Sûr », taille par lecteur, vidage) ; « Immédiat » ; suppression en masse des `.log` trouvés par l'analyse ; fichier ouvert refusé, supprimé au redémarrage, listé puis annulé ; doublons (la copie la plus ancienne gardée) ; déplacement vers un second lecteur `X:` (créé par `subst`, le Sandbox n'a que C:) avec SHA-256 comparé ; « Sûr » depuis `X:` vers la quarantaine de CleanSlate sur C: ; zone sensible `C:\Windows\Temp` : `EXPERT_REQUIRED`, puis `CONFIRMATION_REQUIRED`, puis Corbeille avec « CONFIRMER » et restauration à l'identique ; nettoyage système (cache de Windows Update, Optimisation de la distribution, hibernation, points de restauration, magasin des composants) par les outils officiels ; une mesure enregistrée puis relue.
+- **À vérifier** : `rapport.html` (il s'ouvre seul) : chaque cas « ok ». Un cas du nettoyage système en « ko » affiche le message de l'outil de Windows (certains services manquent dans le Sandbox) : à relire avant de conclure. Facultatif, à la main : lancer CleanSlate depuis le Bureau, ouvrir le Gestionnaire et parcourir les 11 onglets.
 
 ## Ce qu'il ne faut pas faire pendant un test
 
