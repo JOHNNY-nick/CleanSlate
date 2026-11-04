@@ -409,7 +409,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             return;
         }
 
-        await MeasuredAsync(() => FreeKindAsync(line.Kind, CancellationToken.None));
+        await MeasuredAsync($"Libérer : {line.Name}", () => FreeKindAsync(line.Kind, CancellationToken.None));
     }
 
     /// <summary>« Tout libérer maintenant (sans risque) » : caches, Corbeilles, quarantaine à purger, mises à jour (EF-29).</summary>
@@ -429,7 +429,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             return;
         }
 
-        await MeasuredAsync(async () =>
+        await MeasuredAsync("Tout libérer (sans risque)", async () =>
         {
             foreach (RecoverableLine line in safe)
             {
@@ -453,7 +453,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             return;
         }
 
-        await MeasuredAsync(async () =>
+        await MeasuredAsync($"Nettoyage système : {SystemName(row.Task)}", async () =>
         {
             SystemOutcome outcome = await _manager.RunSystemAsync(row.Task, _settings.ExpertMode, CancellationToken.None);
             if (outcome.RestartNeeded)
@@ -461,6 +461,28 @@ public sealed partial class ManagerViewModel : ObservableObject
                 ResultText = "Windows demande un redémarrage pour terminer.";
             }
         });
+    }
+
+    /// <summary>Cancels a deletion planned for the next restart (EF-28).</summary>
+    [RelayCommand]
+    private async Task CancelAtRestartAsync(string? path)
+    {
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _manager.CancelAtRestartAsync(path, CancellationToken.None);
+            ResultText = $"Suppression au redémarrage annulée : {path}";
+        }
+        catch (EngineException ex)
+        {
+            ResultText = ex.Message;
+        }
+
+        await LoadCommand.ExecuteAsync(null);
     }
 
     /// <summary>Empties every Recycle Bin.</summary>
@@ -471,7 +493,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         var summary = new ManagerSummary("Vider les Corbeilles de tous les lecteurs", _bins.Count, Formats.Size(size), 0, false, ["Rien de ce qu'elles contiennent ne pourra être restauré."]);
         if ((await _dialogs.ConfirmManagerAsync(summary)).Confirmed)
         {
-            await MeasuredAsync(() => _manager.EmptyRecycleBinAsync(null, CancellationToken.None));
+            await MeasuredAsync("Vider les Corbeilles", () => _manager.EmptyRecycleBinAsync(null, CancellationToken.None));
         }
     }
 
@@ -687,7 +709,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         var details = new List<string>();
         if (offerModes)
         {
-            details.Add($"« Sûr » : vers la Corbeille, restaurable ; {Formats.Size(size)} libérés quand elle sera vidée.");
+            details.Add($"« Sûr » : restaurable ; vers la quarantaine de CleanSlate si elle est sur un autre disque ({Formats.Size(size)} libérés maintenant, restauration depuis l'Historique), sinon vers la Corbeille ({Formats.Size(size)} libérés quand elle sera vidée).");
             details.Add($"« Immédiat » : supprimé définitivement ; {Formats.Size(size)} libérés maintenant.");
         }
 
@@ -703,7 +725,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
 
         var manual = new ManualAction(_settings.ExpertMode, decision.Word);
-        await MeasuredAsync(async () =>
+        await MeasuredAsync($"{verb} : {rows.Count} élément(s), {Formats.Size(size)}", async () =>
         {
             ActionResult result = await act(rows.Select(r => r.Path).ToList(), decision, manual);
             int failed = result.Items.Count(i => i.Error is not null);
@@ -723,8 +745,9 @@ public sealed partial class ManagerViewModel : ObservableObject
         });
     }
 
-    // Measures the free space before and after: « 2,1 Go libérés maintenant » (EF-35).
-    private async Task MeasuredAsync(Func<Task> action)
+    // Measures the free space before and after: « 2,1 Go libérés maintenant » (EF-35); the
+    // action is written in the journal, shown in the History.
+    private async Task MeasuredAsync(string what, Func<Task> action)
     {
         ulong Free() => _storage.Drives().Aggregate(0UL, (s, d) => s + d.FreeBytes);
         ulong before = Free();
@@ -732,7 +755,11 @@ public sealed partial class ManagerViewModel : ObservableObject
         ResultText = string.Empty;
         try
         {
-            await action();
+            await _storage.MeasureAsync(StorageOperation.Manager, _ => what, async () =>
+            {
+                await action();
+                return 0UL;
+            }, _ => 0UL);
             ulong after = Free();
             string freed = after > before ? $"{Formats.Size(after - before)} libérés maintenant" : "Aucune place libérée maintenant (Corbeille ou simulation)";
             ResultText = ResultText.Length > 0 ? $"{freed}. {ResultText}" : freed;

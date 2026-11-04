@@ -230,6 +230,9 @@ public sealed record Origin(
 
     /// <summary>Full uninstall of one application.</summary>
     public static Origin ForApp(string appId) => new("app", appId);
+
+    /// <summary>A deletion « Sûr » of the Gestionnaire, to the quarantine on another drive (D79).</summary>
+    public static Origin Manager { get; } = new("manager");
 }
 
 /// <summary>Items the user chose to quarantine (EF-16); simulation by default.</summary>

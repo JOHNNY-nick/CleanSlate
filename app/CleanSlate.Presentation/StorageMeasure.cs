@@ -14,6 +14,9 @@ public enum StorageOperation
 
     /// <summary>An application uninstalled by its own uninstaller.</summary>
     Uninstall,
+
+    /// <summary>An action of the Gestionnaire (D79): deletion, move, caches, Recycle Bins, system.</summary>
+    Manager,
 }
 
 /// <summary>Free space of one disk around one action (D69).</summary>

@@ -369,6 +369,14 @@ pub enum ManagerRequest {
     },
     /// A clean-up of Windows.
     System(crate::sysclean::SystemRequest),
+    /// Cancels a deletion at the next restart.
+    CancelAtRestart {
+        /// Path waiting.
+        path: String,
+        /// Simulation (default).
+        #[serde(default = "default_true")]
+        dry_run: bool,
+    },
     /// Records a measure of a drive (« Évolution », EF-33).
     RecordMeasure(crate::history::DriveMeasure),
     /// Measures of a drive, oldest first.
@@ -397,6 +405,8 @@ pub trait SystemShell: Send + Sync {
     fn delete_at_restart(&self, path: &Path) -> CoreResult<()>;
     /// Paths waiting for the next restart.
     fn pending_at_restart(&self) -> CoreResult<Vec<String>>;
+    /// Cancels the deletion of `path` at the next restart (EF-28).
+    fn cancel_at_restart(&self, path: &str) -> CoreResult<()>;
     /// Drives and partitions.
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>>;
 }
@@ -419,6 +429,9 @@ impl SystemShell for NoSystemShell {
     }
     fn pending_at_restart(&self) -> CoreResult<Vec<String>> {
         Err(not_here("pending deletions".into()))
+    }
+    fn cancel_at_restart(&self, path: &str) -> CoreResult<()> {
+        Err(not_here(path.to_owned()))
     }
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>> {
         Err(not_here("volumes".into()))
@@ -1221,6 +1234,35 @@ fn item_error(err: &CoreError, path: &str) -> ItemError {
     }
 }
 
+/// `PendingFileRenameOperations` without the deletion of `path` (pairs source, target;
+/// an empty target deletes). `None` when `path` was not waiting.
+pub fn without_pending(list: &[String], path: &str) -> Option<Vec<String>> {
+    let wanted = path.trim_start_matches(r"\??\").to_lowercase();
+    let mut kept = Vec::with_capacity(list.len());
+    let mut found = false;
+    for pair in list.chunks(2) {
+        let deletes = pair.get(1).is_none_or(|t| t.is_empty());
+        if deletes && pair[0].trim_start_matches(r"\??\").to_lowercase() == wanted {
+            found = true;
+        } else {
+            kept.extend(pair.iter().cloned());
+        }
+    }
+    found.then_some(kept)
+}
+
+/// True when every path lies on another drive than the quarantine (EF-24): moving them
+/// there frees their drive at once, and they stay restorable.
+pub fn other_drive(quarantine: &str, paths: &[String]) -> bool {
+    let drive = |p: &str| p.get(..2).map(str::to_lowercase);
+    let target = drive(quarantine);
+    target.is_some()
+        && !paths.is_empty()
+        && paths
+            .iter()
+            .all(|p| drive(p).is_some() && drive(p) != target)
+}
+
 /// The shell of Windows (Recycle Bin, deletion at restart, volumes).
 pub struct WinShell;
 
@@ -1257,6 +1299,9 @@ impl SystemShell for WinShell {
     }
     fn pending_at_restart(&self) -> CoreResult<Vec<String>> {
         Ok(win::pending_renames())
+    }
+    fn cancel_at_restart(&self, path: &str) -> CoreResult<()> {
+        win::cancel_rename(path)
     }
     fn volumes(&self) -> CoreResult<Vec<VolumeInfo>> {
         Ok(win::volumes())
@@ -1402,6 +1447,33 @@ mod win {
                 }
             })
             .collect()
+    }
+
+    /// Removes the deletion of `path` from `PendingFileRenameOperations`: the documented
+    /// list read by Windows at the next start (D79).
+    pub fn cancel_rename(path: &str) -> CoreResult<()> {
+        let key = RegKeyPath::new(
+            Hive::LocalMachine,
+            r"SYSTEM\CurrentControlSet\Control\Session Manager",
+        );
+        let registry = WinRegistry::system();
+        let list = registry
+            .values(&key)?
+            .into_iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("PendingFileRenameOperations"))
+            .and_then(|(_, data)| match data {
+                RegData::MultiString(list) => Some(list),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let kept = super::without_pending(&list, path).ok_or_else(|| CoreError::NotFound {
+            location: path.to_owned(),
+        })?;
+        registry.set_value(
+            &key,
+            "PendingFileRenameOperations",
+            &RegData::MultiString(kept),
+        )
     }
 
     // `PendingFileRenameOperations`: pairs (source, target); an empty target deletes.
@@ -1649,6 +1721,47 @@ mod tests {
             .find(|c| c.name.starts_with("Miniatures"))
             .unwrap();
         assert_eq!(thumbnails.size_bytes, 7_000);
+    }
+
+    #[test]
+    fn a_deletion_at_restart_can_be_cancelled_alone() {
+        let list: Vec<String> = [
+            r"\??\C:\a.tmp",
+            "",
+            r"\??\C:\old.txt",
+            r"\??\C:\new.txt",
+            r"\??\C:\b.tmp",
+            "",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let kept = without_pending(&list, r"C:\A.TMP").unwrap();
+        assert_eq!(
+            kept,
+            list[2..].to_vec(),
+            "the rename and the other deletion stay"
+        );
+        assert!(
+            without_pending(&list, r"C:\old.txt").is_none(),
+            "a rename is not a deletion"
+        );
+        assert!(without_pending(&list, r"C:\none").is_none());
+    }
+
+    /// EF-24: the quarantine frees the space now only on another drive.
+    #[test]
+    fn the_quarantine_frees_space_only_on_another_drive() {
+        assert!(other_drive(
+            r"D:\CleanSlate",
+            &[r"C:\Users\Ana\Videos\film.mp4".into()]
+        ));
+        assert!(!other_drive(
+            r"C:\Users\Ana\AppData\Local\CleanSlate",
+            &[r"C:\x".into()]
+        ));
+        assert!(!other_drive(r"D:\Q", &[r"C:\x".into(), r"d:\y".into()]));
+        assert!(!other_drive(r"D:\Q", &[]));
     }
 
     #[test]

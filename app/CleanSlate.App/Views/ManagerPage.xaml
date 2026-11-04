@@ -216,7 +216,20 @@
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="6">
                             <TextBlock x:Uid="ManagerPendingRestart" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <ItemsControl FontFamily="{StaticResource PathFontFamily}" ItemsSource="{x:Bind ViewModel.PendingAtRestart}" />
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.PendingAtRestart}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Grid Padding="0,2" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource PathFontFamily}" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind}" TextTrimming="CharacterEllipsis" />
+                                            <Button x:Uid="ManagerCancelRestart" Grid.Column="1" Click="OnCancelRestart" Tag="{x:Bind}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
                         </StackPanel>
                     </Border>
                 </StackPanel>

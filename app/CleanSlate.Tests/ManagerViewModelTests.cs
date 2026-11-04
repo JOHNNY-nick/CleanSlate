@@ -44,6 +44,9 @@ public sealed class ManagerViewModelTests
         var storage = Substitute.For<IStorageService>();
         storage.Drives().Returns([new DriveSpace("C:", 100 * Gb, 6 * Gb)]);
         storage.Journal().Returns([]);
+        // The journal measures around the action: the action itself must run.
+        storage.MeasureAsync(Arg.Any<StorageOperation>(), Arg.Any<Func<ulong, string>>(), Arg.Any<Func<Task<ulong>>>(), Arg.Any<Func<ulong, ulong>>(), Arg.Any<Func<ulong, Guid?>?>())
+            .Returns(call => call.ArgAt<Func<Task<ulong>>>(2)());
         var dialogs = Substitute.For<IDialogService>();
         dialogs.ConfirmManagerAsync(Arg.Any<ManagerSummary>()).Returns(decision ?? new ManagerDecision(true));
         var settings = OrphansViewModelTests.Settings();
@@ -142,5 +145,27 @@ public sealed class ManagerViewModelTests
         string html = ManagerViewModel.ReportHtml(Analysis(), ["C: est plein à 94 %."]);
         Assert.Contains("<h2>Catégories</h2>", html);
         Assert.Contains(System.Net.WebUtility.HtmlEncode("Vidéos"), html);
+    }
+
+    /// <summary>D79: the actions of the Gestionnaire appear in the History, with the space freed.</summary>
+    [Fact]
+    public async Task TheHistory_ListsTheActionsOfTheGestionnaire()
+    {
+        var storage = Substitute.For<IStorageService>();
+        storage.Journal().Returns(
+        [
+            new StorageEntry(DateTimeOffset.Now, StorageOperation.Manager, "C:", 10 * Gb, 12 * Gb, 0, "Supprimer : 3 élément(s), 2 Go"),
+            new StorageEntry(DateTimeOffset.Now, StorageOperation.Purge, "C:", 10 * Gb, 11 * Gb, Gb, "30 jours"),
+        ]);
+        var engine = Substitute.For<IEngineService>();
+        engine.ListSessionsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        var history = new HistoryViewModel(engine, Substitute.For<IDialogService>(), Substitute.For<ISettingsService>(), Substitute.For<INavigationService>(), storage);
+
+        await history.LoadCommand.ExecuteAsync(null);
+
+        string line = Assert.Single(history.ManagerActions);
+        Assert.Contains("Supprimer : 3 élément(s), 2 Go", line);
+        Assert.EndsWith("C: +2 Go", line);
+        Assert.True(history.HasManagerActions);
     }
 }

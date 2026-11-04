@@ -81,6 +81,10 @@ public sealed partial class EngineClient
             null,
             cancellationToken);
 
+    /// <summary>Cancels a deletion at the next restart.</summary>
+    public async Task CancelAtRestartAsync(string path, bool dryRun = true, CancellationToken cancellationToken = default) =>
+        await Manager(new JsonObject { ["op"] = "cancel_at_restart", ["path"] = path, ["dry_run"] = dryRun }, EngineJsonContext.Default.EngineResponseObject, null, cancellationToken, allowNull: true);
+
     /// <summary>Records a measure of a drive (« Évolution »).</summary>
     public async Task RecordMeasureAsync(DriveMeasure measure, CancellationToken cancellationToken = default)
     {

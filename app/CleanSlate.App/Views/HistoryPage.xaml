@@ -34,6 +34,10 @@
         </Grid>
 
         <StackPanel Grid.Row="1" Spacing="8">
+            <!-- D79: what the Gestionnaire did, with the free space before and after. -->
+            <Expander x:Uid="HistoryManagerActions" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{x:Bind ViewModel.HasManagerActions, Mode=OneWay}">
+                <ItemsControl ItemsSource="{x:Bind ViewModel.ManagerActions}" />
+            </Expander>
             <InfoBar x:Uid="HistoryError" IsClosable="False" IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}" Message="{x:Bind ViewModel.ErrorDetails, Mode=OneWay}" Severity="Error" />
             <InfoBar IsClosable="True" IsOpen="{x:Bind ViewModel.ShowMessage, Mode=TwoWay}" Severity="Success">
                 <InfoBar.Content>

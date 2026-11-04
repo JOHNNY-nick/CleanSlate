@@ -177,6 +177,10 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
         Client.RunSystemAsync(task, expertMode, dryRun: false, cancellationToken);
 
     /// <inheritdoc/>
+    public Task CancelAtRestartAsync(string path, CancellationToken cancellationToken) =>
+        Client.CancelAtRestartAsync(path, dryRun: false, cancellationToken);
+
+    /// <inheritdoc/>
     public Task RecordMeasureAsync(DriveMeasure measure, CancellationToken cancellationToken) => Client.RecordMeasureAsync(measure, cancellationToken);
 
     /// <inheritdoc/>

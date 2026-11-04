@@ -51,6 +51,9 @@ public interface IManagerService
     /// <summary>A clean-up of Windows.</summary>
     Task<SystemOutcome> RunSystemAsync(SystemTask task, bool expertMode, CancellationToken cancellationToken);
 
+    /// <summary>Cancels a deletion at the next restart.</summary>
+    Task CancelAtRestartAsync(string path, CancellationToken cancellationToken);
+
     /// <summary>Records a measure of a drive.</summary>
     Task RecordMeasureAsync(DriveMeasure measure, CancellationToken cancellationToken);
 

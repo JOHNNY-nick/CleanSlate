@@ -50,6 +50,9 @@ public sealed partial class ManagerPage : Page
     private async void OnFree(object sender, RoutedEventArgs e) =>
         await ViewModel.FreeCommand.ExecuteAsync((sender as FrameworkElement)?.Tag as RecoverableLine);
 
+    private async void OnCancelRestart(object sender, RoutedEventArgs e) =>
+        await ViewModel.CancelAtRestartCommand.ExecuteAsync((sender as FrameworkElement)?.Tag as string);
+
     private async void OnRunSystem(object sender, RoutedEventArgs e) =>
         await ViewModel.RunSystemCommand.ExecuteAsync((sender as FrameworkElement)?.Tag as SystemRow);
 

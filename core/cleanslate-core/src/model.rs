@@ -304,6 +304,8 @@ pub struct CleanProgress {
 pub enum Origin {
     /// Scan of orphan leftovers, without an application name.
     Orphans,
+    /// A deletion « Sûr » of the Gestionnaire, to the quarantine on another drive (D79).
+    Manager,
     /// Full uninstallation of one application.
     App {
         /// [`InstalledApp::id`] of the application.

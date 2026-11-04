@@ -136,6 +136,12 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// <summary>Sessions, most recent first.</summary>
     public ObservableCollection<SessionViewModel> Sessions { get; } = [];
 
+    /// <summary>Actions of the Gestionnaire (D79), most recent first: « 4 nov. 2026 14:05 · Supprimer : 3 élément(s) · C: +2 Go ».</summary>
+    public ObservableCollection<string> ManagerActions { get; } = [];
+
+    /// <summary>At least one action of the Gestionnaire.</summary>
+    public bool HasManagerActions => ManagerActions.Count > 0;
+
     /// <summary>No session yet (design § 5: « Aucune session pour l'instant. »).</summary>
     public bool IsEmpty => !IsLoading && Sessions.Count == 0;
 
@@ -193,6 +199,13 @@ public sealed partial class HistoryViewModel : ObservableObject
         {
             IReadOnlyList<Session> sessions = await _engine.ListSessionsAsync(cancellationToken);
             IReadOnlyList<StorageEntry> journal = _storage?.Journal() ?? [];
+            ManagerActions.Clear();
+            foreach (StorageEntry e in journal.Where(e => e.Operation == StorageOperation.Manager).OrderByDescending(e => e.When).Take(100))
+            {
+                ManagerActions.Add($"{Formats.Date(DateOnly.FromDateTime(e.When.LocalDateTime))} {e.When.LocalDateTime:HH:mm} · {e.Detail} · {e.Drive} {StorageMeasure.Difference(e.FreeBefore, e.FreeAfter)}");
+            }
+
+            OnPropertyChanged(nameof(HasManagerActions));
             Sessions.Clear();
             foreach (Session session in sessions)
             {

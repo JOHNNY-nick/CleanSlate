@@ -1113,4 +1113,16 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="HomeSpaceAlertFree.Content" xml:space="preserve">
     <value>Libérer maintenant</value>
   </data>
+  <data name="Origin_manager" xml:space="preserve">
+    <value>Gestionnaire</value>
+  </data>
+  <data name="ManagerCancelRestart.Content" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="HistoryManagerActions.Header" xml:space="preserve">
+    <value>Actions du Gestionnaire</value>
+  </data>
+  <data name="StorageOperation_Manager" xml:space="preserve">
+    <value>Gestionnaire</value>
+  </data>
 </root>

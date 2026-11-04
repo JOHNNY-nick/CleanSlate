@@ -192,6 +192,81 @@ impl Engine {
         engine
     }
 
+    /// « Sûr » to the quarantine when it lies on another drive than every path and has room
+    /// for them (EF-24); `None` when the Recycle Bin must be used instead.
+    fn quarantine_elsewhere(
+        &self,
+        zones: &Zones,
+        request: &manager::DeleteRequest,
+    ) -> CoreResult<Option<ActionResult>> {
+        let Some(data) = self.data_dir() else {
+            return Ok(None);
+        };
+        if !manager::other_drive(&data.to_string_lossy(), &request.paths) {
+            return Ok(None);
+        }
+        let fs = self.fs.as_ref();
+        let mut items = Vec::new();
+        for path in &request.paths {
+            let p = std::path::Path::new(path);
+            // Sensitive paths never go to the quarantine: the Recycle Bin handles them.
+            if zones.authorize_path(fs, p, &request.manual)? != crate::zones::Zone::Normal {
+                return Ok(None);
+            }
+            let meta = fs.metadata(p)?;
+            items.push(Leftover {
+                id: format!("manager-{}", items.len()),
+                kind: if meta.is_dir {
+                    crate::model::LeftoverKind::Folder
+                } else {
+                    crate::model::LeftoverKind::File
+                },
+                location: path.clone(),
+                size_bytes: manager::size_of(fs, p),
+                last_modified: meta.modified,
+                confidence: Confidence::High,
+                reasons: vec!["Choisi dans le Gestionnaire".into()],
+                guessed_app: None,
+            });
+        }
+        let needed: u64 = items.iter().map(|i| i.size_bytes).sum();
+        if crate::native::volume_space(&data).is_none_or(|v| v.free <= needed) {
+            return Ok(None);
+        }
+        let session = match self
+            .with_quarantine(|q| q.clean(crate::model::Origin::Manager, &items, None, Utc::now()))
+        {
+            Ok(session) => session,
+            Err(CoreError::ConfirmationRequired { .. }) => return Ok(None), // too big: the Recycle Bin
+            Err(other) => return Err(other),
+        };
+        if let Some(history) = self.history()?.as_mut() {
+            history.save_session(&session)?;
+        }
+        let mut result = ActionResult::default();
+        for item in &session.items {
+            let moved = matches!(
+                item.status,
+                QuarantineStatus::Quarantined | QuarantineStatus::PendingReboot
+            );
+            if moved {
+                result.freed_now_bytes += item.size_bytes;
+            }
+            result.items.push(manager::ActionOutcome {
+                path: item.original_location.clone(),
+                size_bytes: item.size_bytes,
+                zone: Some(crate::zones::Zone::Normal),
+                done: if moved {
+                    "quarantine".into()
+                } else {
+                    "failed".into()
+                },
+                error: item.error.clone(),
+            });
+        }
+        Ok(Some(result))
+    }
+
     /// One request of the Gestionnaire (D79): analyses are read-only; actions are
     /// simulated unless both the engine and the request say otherwise (rule 5), and
     /// every path is authorized by the sensitive zones right before acting (EF-22).
@@ -239,6 +314,13 @@ impl Engine {
             ManagerRequest::Delete(delete) => {
                 let _guard = self.begin()?;
                 let simulate = self.simulating(delete.dry_run);
+                // EF-24: « Sûr » with the quarantine on another drive frees the space now
+                // and stays restorable from the History.
+                if !simulate && delete.mode == manager::DeleteMode::Safe {
+                    if let Some(result) = self.quarantine_elsewhere(&zones, delete)? {
+                        return Ok(serde_json::to_value(result)?);
+                    }
+                }
                 serde_json::to_value(manager::delete(
                     fs,
                     &zones,
@@ -294,6 +376,12 @@ impl Engine {
                     simulated: self.simulating(*dry_run),
                     ..ActionResult::default()
                 })?
+            }
+            ManagerRequest::CancelAtRestart { path, dry_run } => {
+                if !self.simulating(*dry_run) {
+                    self.shell.cancel_at_restart(path)?;
+                }
+                serde_json::Value::Null
             }
             ManagerRequest::RecordMeasure(measure) => {
                 if let Some(history) = self.history()?.as_ref() {
