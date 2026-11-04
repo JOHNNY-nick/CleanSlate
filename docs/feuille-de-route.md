@@ -3,9 +3,9 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures\2026-11-04\multicolore-v2\` et `artifacts\captures\2026-11-04\gestionnaire\`.
-- **Prochaine action** : le porteur relance le scénario Sandbox du Gestionnaire après les corrections D80 (quatrième run : 14 sur 15 avec un vrai second volume ; espace libre de la quarantaine corrigé, cinquième run) (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`, depuis la racine du dépôt, 10 à 20 min), puis réinstalle avec l'installeur du 4 nov. 2026 (SHA-256 `500C9D13…EF5ABB`), essaie le Gestionnaire en mode « Sûr » et fait ses remarques.
+- **Prochaine action** : le porteur réinstalle avec l'installeur du 4 nov. 2026 (`artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `500C9D13…EF5ABB`), essaie le Gestionnaire en mode « Sûr » et fait ses remarques. Scénario Sandbox « Gestionnaire » **atteint 15 / 15** le 4 nov. 2026 (run `gestionnaire-20261104-114641`, commit `7ff9695`, après les corrections D80).
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « fait » après le Sandbox (Claude lit le rapport), puis les remarques ou « tout OK » ; « Nunito oui / non ».
+- **Réponse attendue** : les remarques ou « tout OK » ; « Nunito oui / non » ; garder ou non « Supprimer définitivement » activé dans Réglages.
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 (annulation au redémarrage, actions dans l'Historique, quarantaine sur un autre disque, espace non alloué, scénario Sandbox) ; limites dans `docs/securite/audit.md` § 4.
 - **File des tâches** : vide (tâches 2 et 3 faites : D77, D78).
 
