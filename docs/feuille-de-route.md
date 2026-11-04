@@ -3,9 +3,9 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures\2026-11-04\multicolore-v2\` et `artifacts\captures\2026-11-04\gestionnaire\`.
-- **Prochaine action** : le porteur réinstalle avec l'installeur du 4 nov. 2026 (`artifacts\installer\CleanSlate-0.1.0-setup.exe`, SHA-256 `0A1C99FA…9140BB`), essaie la carte du stockage (creuser au-delà de Downloads, clic sur un dossier terminal vers le Gestionnaire, D81) et le Gestionnaire en mode « Sûr », et fait ses remarques. Scénario Sandbox « Gestionnaire » **atteint 15 / 15** le 4 nov. 2026 (run `gestionnaire-20261104-114641`, commit `7ff9695`, après les corrections D80).
+- **Prochaine action** : le porteur relit les captures des corrections D82 (`artifacts\captures\2026-11-04\corrections\`), choisit le marquage du menu (autocollant, pinceau ou éclaboussure), réinstalle avec l'installeur du 4 nov. 2026 (SHA-256 `4B4A2B6A…D45F01`) et vérifie les 8 points dans l'application ; facultatif, relancer le scénario Sandbox « Gestionnaire » (nouveau cas : disques par `DeviceIoControl`).
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : les remarques ou « tout OK » ; « Nunito oui / non » ; garder ou non « Supprimer définitivement » activé dans Réglages.
+- **Réponse attendue** : « autocollant », « pinceau » ou « éclaboussure » ; puis les remarques ou « tout OK » ; « Nunito oui / non » ; garder ou non « Supprimer définitivement » activé.
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 (annulation au redémarrage, actions dans l'Historique, quarantaine sur un autre disque, espace non alloué, scénario Sandbox) ; limites dans `docs/securite/audit.md` § 4.
 - **File des tâches** : vide (tâches 2 et 3 faites : D77, D78).
 

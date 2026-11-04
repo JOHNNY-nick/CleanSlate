@@ -20,6 +20,9 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 - Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.
 
 ### Modifié
+- Gestionnaire (D82) : onglet « Carte » retiré (la carte est la page Stockage) ; « Analyse en cours… (Annuler) » ; infobulle de chaque action et bouton « ? ».
+- Carte (D82) : double-clic sur un dossier qui ne contient que des fichiers, ou clic droit « Voir les fichiers » sur tout dossier : la liste de ses fichiers dans l'Explorateur du Gestionnaire, et « Revenir à la carte » au même endroit.
+- Menu (D82) : la section active marquée dans le style street (trois variantes à choisir), le bouton du menu dans une bulle.
 - Carte du stockage (D81) : on peut creuser sans limite (un dossier pas encore détaillé est calculé au clic) ; un clic sur un dossier qui ne contient que des fichiers, ou sur un fichier, ouvre le Gestionnaire avec ces fichiers pour choisir quoi supprimer ; le nom des petits rectangles s'affiche.
 - Thème **Multicolore** au style « street » de la maquette de la carte du stockage (D76) :
   - un mur couvert de peinture vive (grandes éclaboussures, aquarelle, traînées, coulures, gouttes, ville) ;
@@ -31,6 +34,9 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
   Trois styles (Éclaboussures, Aquarelle, Explosion) et un fond sombre au choix dans Réglages.
 
 ### Corrigé
+- Plus aucune fenêtre de console : les disques sont lus par une fonction de Windows, et les outils de Windows se lancent sans fenêtre (D82).
+- Gestionnaire : une analyse continue quand on change de page, et on la retrouve au retour, avec sa progression ; une demande faite pendant une analyse attend son tour au lieu d'afficher « Busy ». Un indicateur en bas du menu montre l'opération en cours sur toutes les pages. Tous les messages d'erreur sont en français (D82).
+- Carte du stockage : plus de « Busy » au clic sur un dossier ; un niveau encore à calculer affiche un rond de chargement (D82).
 - Gestionnaire : annuler une suppression au redémarrage ne retirait rien quand Windows avait d'autres opérations en attente, et aurait pu décaler la liste (D80) ; le nettoyage du cache de Windows Update n'échoue plus quand ce cache n'existe pas. En mode « Sûr », un fichier d'un autre disque va bien dans la quarantaine (l'espace libre du disque de la quarantaine était mal lu).
 - Historique : une session purgée n'affiche plus une date de purge à venir ; elle dit « supprimée définitivement, plus restaurable » (D76).
 

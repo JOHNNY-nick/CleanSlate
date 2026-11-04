@@ -20,7 +20,8 @@ demande-moi au lieu d'inventer. Cite l'ID d'exigence dans les commits et les tes
 ## Architecture
 - core/cleanslate-core : bibliothèque Rust, toute la logique métier
   (engine, error, model, fs, registry, native, system, inventory, scan, matcher,
-  safety, quarantine, history, uninstall, logging, shortcut, tasks, services, store, msi) ;
+  safety, quarantine, history, uninstall, logging, shortcut, tasks, services, store, msi,
+  process : seul lanceur de programmes, sans fenêtre de console, D82) ;
   les accès réels au système (Planificateur, services, paquets du Store, Windows Installer)
   passent par des traits injectables qui refusent tout sur un moteur de test
 - core/cleanslate-ffi : cdylib, [lib] name = "cleanslate" -> cleanslate.dll,
