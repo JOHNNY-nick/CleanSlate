@@ -23,6 +23,10 @@ internal static class PdfPrinter
             CoreWebView2Environment environment = await CoreWebView2Environment.CreateWithOptionsAsync(string.Empty, userData, new CoreWebView2EnvironmentOptions());
             controller = await environment.CreateCoreWebView2ControllerAsync(CoreWebView2ControllerWindowReference.CreateFromWindowHandle((ulong)window));
             controller.IsVisible = false;
+            // The report is static HTML: no script, no context menu, no developer tools.
+            controller.CoreWebView2.Settings.IsScriptEnabled = false;
+            controller.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            controller.CoreWebView2.Settings.AreDevToolsEnabled = false;
             var loaded = new TaskCompletionSource<bool>();
             controller.CoreWebView2.NavigationCompleted += (_, e) => loaded.TrySetResult(e.IsSuccess);
             controller.CoreWebView2.NavigateToString(html);

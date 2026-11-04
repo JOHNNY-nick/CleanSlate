@@ -22,6 +22,8 @@ public static class EngineErrors
         ["UNSAFE_UNINSTALLER"] = "Le désinstalleur de cette application a été refusé : sa commande n'est pas sûre.",
         ["BUSY"] = "Une analyse est déjà en cours. Attendez sa fin ou annulez-la.",
         ["CANCELLED"] = "Opération annulée.",
+        ["TAMPERED"] = "Cette session de la quarantaine n'a pas été écrite par CleanSlate sur ce PC : elle reste affichée, mais n'est pas restaurée.",
+        ["INTEGRITY_UNAVAILABLE"] = "CleanSlate ne peut pas vérifier la quarantaine sans les droits d'administrateur : rien n'a été restauré.",
         ["INTERNAL_PANIC"] = "Erreur interne du moteur de CleanSlate : l'opération s'est arrêtée. Le journal contient le détail.",
         ["SERIALIZATION_ERROR"] = "Réponse illisible du moteur de CleanSlate. Le journal contient le détail.",
         ["INVALID_RESPONSE"] = "Réponse illisible du moteur de CleanSlate. Le journal contient le détail.",

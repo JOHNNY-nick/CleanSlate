@@ -107,6 +107,17 @@ pub enum CoreError {
     /// The operation was cancelled by the user.
     #[error("operation cancelled")]
     Cancelled,
+
+    /// A session of the quarantine whose manifest is not signed by this machine (D88).
+    #[error("session not signed by this machine: {location}")]
+    Tampered {
+        /// Folder of the session.
+        location: String,
+    },
+
+    /// The key of the manifests cannot be read (no administrator rights, D88).
+    #[error("the integrity of the quarantine cannot be checked without the administrator rights")]
+    IntegrityUnavailable,
 }
 
 impl CoreError {
@@ -127,6 +138,8 @@ impl CoreError {
             CoreError::UnsafeUninstaller { .. } => "UNSAFE_UNINSTALLER",
             CoreError::Busy => "BUSY",
             CoreError::Cancelled => "CANCELLED",
+            CoreError::Tampered { .. } => "TAMPERED",
+            CoreError::IntegrityUnavailable => "INTEGRITY_UNAVAILABLE",
         }
     }
 
@@ -139,13 +152,15 @@ impl CoreError {
             | CoreError::ExpertRequired { location }
             | CoreError::WordRequired { location, .. }
             | CoreError::NoUninstaller { location }
-            | CoreError::UnsafeUninstaller { location } => Some(location.clone()),
+            | CoreError::UnsafeUninstaller { location }
+            | CoreError::Tampered { location } => Some(location.clone()),
             CoreError::Io { path, .. } => Some(path.display().to_string()),
             CoreError::Registry { key, .. } => Some(key.clone()),
             CoreError::InvalidInput(_)
             | CoreError::ConfirmationRequired { .. }
             | CoreError::Busy
-            | CoreError::Cancelled => None,
+            | CoreError::Cancelled
+            | CoreError::IntegrityUnavailable => None,
         }
     }
 

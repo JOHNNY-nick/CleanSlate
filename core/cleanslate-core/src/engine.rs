@@ -111,6 +111,8 @@ pub struct Engine {
     busy: AtomicBool,
     /// Items of the last scan, by id: `cs_clean` only accepts these.
     last_report: Mutex<HashMap<String, Leftover>>,
+    /// Key that signs the manifests of the quarantine (D88).
+    manifest_key: Option<Vec<u8>>,
     /// Last inventory of the applications and when it was read (see [`APPS_FRESH_FOR`]).
     apps_cache: Mutex<Option<(Instant, Vec<InstalledApp>)>>,
     /// Applications captured before their uninstall (fingerprints, § 6.4).
@@ -162,6 +164,8 @@ impl Engine {
             busy: AtomicBool::new(false),
             last_report: Mutex::new(HashMap::new()),
             apps_cache: Mutex::new(None),
+            // A key of its own for a test engine; the real one is read by `with_system`.
+            manifest_key: crate::native::random_bytes(32).ok(),
             history: Mutex::new(None),
             removed_apps: Mutex::new(HashMap::new()),
             runner: Box::new(NoProcessRunner),
@@ -188,6 +192,22 @@ impl Engine {
         if let Some(dir) = engine.data_dir() {
             crate::logging::init(&crate::logging::log_dir(&dir.join("logs")));
         }
+        engine.manifest_key = match crate::native::manifest_key() {
+            Ok((key, created)) => {
+                engine.manifest_key = Some(key.clone());
+                if created {
+                    let signed = engine
+                        .with_quarantine(|q| Ok(q.sign_unsigned()))
+                        .unwrap_or(0);
+                    tracing::info!(signed, "key of the manifests created");
+                }
+                Some(key)
+            }
+            Err(err) => {
+                tracing::warn!(%err, "key of the manifests unavailable: sessions listed, not restored");
+                None
+            }
+        };
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
         engine.set_package_store(Box::new(WinRtPackageStore));
@@ -700,6 +720,7 @@ impl Engine {
             tasks: self.tasks.as_ref(),
             services: self.services.as_ref(),
             packages: self.packages.as_ref(),
+            key: self.manifest_key.as_deref(),
         })
     }
 
@@ -864,10 +885,12 @@ impl Engine {
             None
         };
         emit(UninstallStep::Launching, None, None, Vec::new());
+        // The Windows Installer API runs in this process: for an application of the
+        // administrator; one of this account goes through msiexec with the rights of the user.
         let product_code = app
             .product_code
             .as_deref()
-            .filter(|c| app.is_msi && is_guid(c));
+            .filter(|c| app.is_msi && is_guid(c) && !command.as_user);
         let through_api = product_code.and_then(|code| {
             tracing::info!(app = %app.display_name, code, "uninstalling through Windows Installer");
             emit(UninstallStep::Waiting, None, None, Vec::new());

@@ -349,9 +349,146 @@ fn physical_disk(number: u32) -> Option<PhysicalDisk> {
     })
 }
 
+/// HMAC-SHA256 of `data` with `key` (CNG), the signature of the manifests of the quarantine (D88).
+pub fn hmac_sha256(key: &[u8], data: &[u8]) -> CoreResult<[u8; 32]> {
+    use windows::Win32::Security::Cryptography::{BCryptHash, BCRYPT_HMAC_SHA256_ALG_HANDLE};
+    let mut out = [0u8; 32];
+    // SAFETY: the pseudo-handle of HMAC-SHA256 needs no opening; the key, the input and the
+    // 32-byte output buffer live for the call.
+    let status = unsafe { BCryptHash(BCRYPT_HMAC_SHA256_ALG_HANDLE, Some(key), data, &mut out) };
+    if status.is_err() {
+        return Err(CoreError::InvalidInput(format!(
+            "HMAC-SHA256 failed: {:#x}",
+            status.0
+        )));
+    }
+    Ok(out)
+}
+
+/// `count` bytes from the random generator of Windows (CNG).
+pub fn random_bytes(count: usize) -> CoreResult<Vec<u8>> {
+    use windows::Win32::Security::Cryptography::{
+        BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+    };
+    let mut out = vec![0u8; count];
+    // SAFETY: the buffer is owned and as large as said; the system generator needs no handle.
+    let status = unsafe { BCryptGenRandom(None, &mut out, BCRYPT_USE_SYSTEM_PREFERRED_RNG) };
+    if status.is_err() {
+        return Err(CoreError::InvalidInput(format!(
+            "random generator failed: {:#x}",
+            status.0
+        )));
+    }
+    Ok(out)
+}
+
+/// Key of the registry that holds the key of the manifests (D88).
+pub const INTEGRITY_KEY: &str = r"SOFTWARE\CleanSlate\Integrity";
+
+/// The secret that signs the manifests of the quarantine (D88), and whether it was created now.
+///
+/// It lives in `HKLM\SOFTWARE\CleanSlate\Integrity`, whose rights are set here: SYSTEM and
+/// Administrators only, nothing inherited.
+pub fn manifest_key() -> CoreResult<(Vec<u8>, bool)> {
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SetNamedSecurityInfoW,
+        SE_REGISTRY_KEY,
+    };
+    use windows::Win32::Security::{
+        GetSecurityDescriptorDacl, ACL, DACL_SECURITY_INFORMATION,
+        PROTECTED_DACL_SECURITY_INFORMATION,
+    };
+    use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS};
+    use winreg::{RegKey, RegValue};
+
+    let denied = |e: std::io::Error| CoreError::from_registry(format!(r"HKLM\{INTEGRITY_KEY}"), e);
+    let (key, _) = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .create_subkey_with_flags(INTEGRITY_KEY, KEY_ALL_ACCESS)
+        .map_err(denied)?;
+
+    // Rights set before the secret is written: SYSTEM and Administrators, full control.
+    let sddl: Vec<u16> = "D:P(A;;KA;;;SY)(A;;KA;;;BA)\0".encode_utf16().collect();
+    let name: Vec<u16> = format!(r"MACHINE\{INTEGRITY_KEY}\0")
+        .encode_utf16()
+        .collect();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // SAFETY: NUL-terminated SDDL text; the descriptor allocated by the call is freed below
+    // with LocalFree, once, after its DACL was used.
+    unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            PCWSTR(sddl.as_ptr()),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            None,
+        )
+    }
+    .map_err(|e| CoreError::InvalidInput(format!("security descriptor: {e}")))?;
+    let mut present = windows::core::BOOL(0);
+    let mut defaulted = windows::core::BOOL(0);
+    let mut dacl: *mut ACL = std::ptr::null_mut();
+    // SAFETY: the descriptor was just built; the out-pointers are locals.
+    let read =
+        unsafe { GetSecurityDescriptorDacl(descriptor, &mut present, &mut dacl, &mut defaulted) };
+    // SAFETY: the name is NUL-terminated; the DACL points into the descriptor, alive here.
+    let set = read.map(|()| unsafe {
+        SetNamedSecurityInfoW(
+            PCWSTR(name.as_ptr()),
+            SE_REGISTRY_KEY,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            Some(dacl),
+            None,
+        )
+    });
+    // SAFETY: allocated by ConvertStringSecurityDescriptorToSecurityDescriptorW, freed once.
+    unsafe {
+        let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+    }
+    match set {
+        Ok(code) if code.is_ok() => {}
+        Ok(code) => {
+            return Err(CoreError::from_registry(
+                format!(r"HKLM\{INTEGRITY_KEY}"),
+                std::io::Error::from_raw_os_error(code.0 as i32),
+            ))
+        }
+        Err(e) => return Err(CoreError::InvalidInput(format!("security descriptor: {e}"))),
+    }
+
+    match key.get_raw_value("ManifestKey") {
+        Ok(value) if value.bytes.len() == 32 => Ok((value.bytes.to_vec(), false)),
+        _ => {
+            let secret = random_bytes(32)?;
+            key.set_raw_value(
+                "ManifestKey",
+                &RegValue {
+                    bytes: secret.clone().into(),
+                    vtype: winreg::enums::RegType::REG_BINARY,
+                },
+            )
+            .map_err(denied)?;
+            Ok((secret, true))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// RFC 4231, test case 2.
+    #[test]
+    fn hmac_sha256_matches_the_rfc() {
+        let mac = hmac_sha256(b"Jefe", b"what do ya want for nothing?").unwrap();
+        let hex: String = mac.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+        );
+        assert_ne!(random_bytes(32).unwrap(), random_bytes(32).unwrap());
+    }
 
     #[test]
     fn descriptor_texts_are_read_up_to_their_nul() {

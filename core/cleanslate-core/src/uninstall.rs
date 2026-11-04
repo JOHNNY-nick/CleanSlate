@@ -34,6 +34,9 @@ pub struct Command {
     pub program: PathBuf,
     /// Arguments, unquoted.
     pub args: Vec<String>,
+    /// Run with the rights of the user, not the administrator ones (D88): the uninstaller of
+    /// an application installed for this account only, like Windows runs it.
+    pub as_user: bool,
 }
 
 impl Command {
@@ -176,7 +179,11 @@ pub fn split_command(raw: &str) -> CoreResult<Command> {
     if file_name == "msiexec.exe" {
         args = to_msi_uninstall(args);
     }
-    Ok(Command { program, args })
+    Ok(Command {
+        program,
+        args,
+        as_user: false,
+    })
 }
 
 /// `MsiExec /I{GUID}` (repair/modify) becomes `/X{GUID}` (uninstall).
@@ -223,6 +230,8 @@ fn to_inno_silent(args: Vec<String>) -> Vec<String> {
 /// `QuietUninstallString` in silent mode, EF-14; for Inno Setup, with
 /// `/VERYSILENT /NORESTART` instead of the declared switches, D60).
 pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
+    // An application of this account only is uninstalled with the rights of the user (D88).
+    let as_user = app.registry_view == crate::model::RegistryView::Hkcu;
     if let Some(code) = app
         .product_code
         .as_deref()
@@ -235,6 +244,7 @@ pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
         return Ok(Command {
             program: system32().join("msiexec.exe"),
             args,
+            as_user,
         });
     }
     let source = match (&app.quiet_uninstall_string, &app.uninstall_string) {
@@ -250,6 +260,7 @@ pub fn build_command(app: &InstalledApp, quiet: bool) -> CoreResult<Command> {
     if quiet && app.installer == InstallerKind::InnoSetup {
         command.args = to_inno_silent(command.args);
     }
+    command.as_user = as_user;
     Ok(command)
 }
 
@@ -370,7 +381,11 @@ mod win {
     use std::time::{Duration, Instant};
 
     use windows::core::{PCWSTR, PWSTR};
-    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::{
+        DuplicateTokenEx, SecurityImpersonation, TokenPrimary, TOKEN_ADJUST_DEFAULT,
+        TOKEN_ADJUST_SESSIONID, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE, TOKEN_QUERY,
+    };
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation,
         JobObjectBasicProcessIdList, QueryInformationJobObject,
@@ -381,9 +396,11 @@ mod win {
         END_SYSTEM_CHANGE, RESTOREPOINTINFOW, STATEMGRSTATUS,
     };
     use windows::Win32::System::Threading::{
-        CreateProcessW, GetExitCodeProcess, ResumeThread, WaitForSingleObject, CREATE_SUSPENDED,
-        PROCESS_INFORMATION, STARTUPINFOW,
+        CreateProcessW, CreateProcessWithTokenW, GetExitCodeProcess, OpenProcess, OpenProcessToken,
+        ResumeThread, WaitForSingleObject, CREATE_PROCESS_LOGON_FLAGS, CREATE_SUSPENDED,
+        PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
     };
+    use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
 
     use super::{Command, RunOutcome};
     use crate::error::{CoreError, CoreResult};
@@ -432,6 +449,41 @@ mod win {
 
     const POLL: Duration = Duration::from_millis(250);
 
+    // A primary token of the shell of this session (the Explorer of Windows): the rights of
+    // the user, as Windows starts the programs of the user.
+    fn shell_token() -> windows::core::Result<HANDLE> {
+        // SAFETY: every handle opened here is closed here, except the token returned, which
+        // the caller closes; the out-pointers are locals.
+        unsafe {
+            let shell = GetShellWindow();
+            if shell.is_invalid() {
+                return Err(windows::core::Error::from_thread());
+            }
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(shell, Some(&mut pid));
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?;
+            let mut token = HANDLE::default();
+            let opened = OpenProcessToken(process, TOKEN_DUPLICATE, &mut token);
+            let _ = CloseHandle(process);
+            opened?;
+            let mut primary = HANDLE::default();
+            let duplicated = DuplicateTokenEx(
+                token,
+                TOKEN_QUERY
+                    | TOKEN_DUPLICATE
+                    | TOKEN_ASSIGN_PRIMARY
+                    | TOKEN_ADJUST_DEFAULT
+                    | TOKEN_ADJUST_SESSIONID,
+                None,
+                SecurityImpersonation,
+                TokenPrimary,
+                &mut primary,
+            );
+            let _ = CloseHandle(token);
+            duplicated.map(|()| primary)
+        }
+    }
+
     fn wide(text: &std::ffi::OsStr) -> Vec<u16> {
         text.encode_wide().chain([0]).collect()
     }
@@ -458,18 +510,37 @@ mod win {
                 ..Default::default()
             };
             let mut info = PROCESS_INFORMATION::default();
-            let created = CreateProcessW(
-                PCWSTR(program.as_ptr()),
-                Some(PWSTR(line.as_mut_ptr())),
-                None,
-                None,
-                false,
-                CREATE_SUSPENDED,
-                None,
-                PCWSTR::null(),
-                &startup,
-                &mut info,
-            );
+            let created = if command.as_user {
+                // With the rights of the user; never with the administrator ones instead.
+                shell_token().and_then(|token| {
+                    let started = CreateProcessWithTokenW(
+                        token,
+                        CREATE_PROCESS_LOGON_FLAGS(0),
+                        PCWSTR(program.as_ptr()),
+                        Some(PWSTR(line.as_mut_ptr())),
+                        CREATE_SUSPENDED,
+                        None,
+                        PCWSTR::null(),
+                        &startup,
+                        &mut info,
+                    );
+                    let _ = CloseHandle(token);
+                    started
+                })
+            } else {
+                CreateProcessW(
+                    PCWSTR(program.as_ptr()),
+                    Some(PWSTR(line.as_mut_ptr())),
+                    None,
+                    None,
+                    false,
+                    CREATE_SUSPENDED,
+                    None,
+                    PCWSTR::null(),
+                    &startup,
+                    &mut info,
+                )
+            };
             if let Err(err) = created {
                 let _ = CloseHandle(job);
                 return Err(failed(err));
@@ -587,6 +658,7 @@ mod tests {
         Command {
             program: program.into(),
             args: args.iter().map(|a| (*a).to_owned()).collect(),
+            as_user: false,
         }
     }
 
@@ -774,6 +846,21 @@ mod tests {
                 .code(),
             "NO_UNINSTALLER"
         );
+    }
+
+    /// D88: the uninstaller of an application of this account runs with the rights of the
+    /// user, the one of the machine with the administrator ones.
+    #[test]
+    fn an_application_of_this_account_is_uninstalled_as_the_user() {
+        let guid = "{23170F69-40C1-2702-2408-000001000000}";
+        let mut exe = app(Some(r#""C:\A\u.exe""#), None, None);
+        let mut msi = app(Some("MsiExec.exe /I{x}"), None, Some(guid));
+        assert!(!build_command(&exe, false).unwrap().as_user);
+        assert!(!build_command(&msi, false).unwrap().as_user);
+        exe.registry_view = RegistryView::Hkcu;
+        msi.registry_view = RegistryView::Hkcu;
+        assert!(build_command(&exe, true).unwrap().as_user);
+        assert!(build_command(&msi, true).unwrap().as_user);
     }
 
     /// D65: a Windows component (`SystemComponent = 1`) or an update is never uninstalled

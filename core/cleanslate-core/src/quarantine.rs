@@ -36,6 +36,8 @@ pub const CONFIRMATION_WORD: &str = "QUARANTAINE";
 
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
 const MANIFEST: &str = "manifest.json";
+/// First line of a signed manifest, followed by the HMAC-SHA256 of the JSON that comes next (D88).
+const SIGNATURE: &str = "CLEANSLATE-HMAC-SHA256 ";
 
 /// SHA-256 of one file of a quarantined folder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +59,9 @@ pub struct Manifest {
     pub pending: Option<String>,
     /// Detailed hashes of every file, by item id.
     pub files: BTreeMap<String, Vec<FileHash>>,
+    /// Signed with the key of this machine (D88): only such a manifest is acted upon.
+    #[serde(skip)]
+    pub trusted: bool,
 }
 
 /// A session that only lists what would be done (ENF-04): nothing moved,
@@ -208,6 +213,33 @@ fn relocate(from: &Path, to: &Path, hashes: &[FileHash]) -> Result<(), (String, 
     }
 }
 
+fn changed() -> (String, String) {
+    (
+        "VERIFY_FAILED".to_owned(),
+        "le contenu en quarantaine ne correspond pas à ce qui a été mis en quarantaine".to_owned(),
+    )
+}
+
+// The signature line of a manifest, if any, and the JSON after it.
+fn split_signature(bytes: &[u8]) -> (Option<&[u8]>, &[u8]) {
+    match bytes.strip_prefix(SIGNATURE.as_bytes()) {
+        Some(rest) => match rest.iter().position(|b| *b == b'\n') {
+            Some(end) => (Some(&rest[..end]), &rest[end + 1..]),
+            None => (None, bytes),
+        },
+        None => (None, bytes),
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+// Equal bytes, compared in a time that does not depend on where they differ.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
 fn item_error(code: &str, message: impl Into<String>, location: &str) -> ItemError {
     ItemError {
         code: code.to_owned(),
@@ -243,6 +275,9 @@ pub struct Quarantine<'a> {
     pub tasks: &'a dyn TaskStore,
     /// Services (query, delete, recreate).
     pub services: &'a dyn ServiceControl,
+    /// Key that signs the manifests (D88); `None` when it cannot be read (no administrator
+    /// rights): the sessions are then listed but never restored.
+    pub key: Option<&'a [u8]>,
     /// Store packages of the current user (D48: their data is quarantined
     /// only once the package is gone).
     pub packages: &'a dyn PackageStore,
@@ -268,22 +303,82 @@ impl Quarantine<'_> {
         self.root.join(id.to_string())
     }
 
-    /// Writes the manifest atomically (temporary file, then rename).
+    /// Writes the manifest atomically (temporary file, then rename), signed with the key of
+    /// the machine (D88): a first line with the HMAC-SHA256 of the exact JSON bytes below it.
     fn save(&self, manifest: &Manifest) -> CoreResult<()> {
         let dir = self.session_dir(manifest.session.id);
         fs::create_dir_all(&dir).map_err(|e| CoreError::from_io(&dir, e))?;
         let path = dir.join(MANIFEST);
         let temp = dir.join("manifest.json.tmp");
         let json = serde_json::to_vec_pretty(manifest)?;
-        fs::write(&temp, json).map_err(|e| CoreError::from_io(&temp, e))?;
+        let mut content = Vec::with_capacity(json.len() + 90);
+        if let Some(key) = self.key {
+            content.extend_from_slice(SIGNATURE.as_bytes());
+            content.extend_from_slice(hex(&native::hmac_sha256(key, &json)?).as_bytes());
+            content.push(b'\n');
+        }
+        content.extend_from_slice(&json);
+        fs::write(&temp, content).map_err(|e| CoreError::from_io(&temp, e))?;
         fs::rename(&temp, &path).map_err(|e| CoreError::from_io(&path, e))
     }
 
-    /// Reads the manifest of a session.
+    /// Reads the manifest of a session; [`Manifest::trusted`] says whether its signature is
+    /// the one of this machine.
     pub fn load(&self, id: Uuid) -> CoreResult<Manifest> {
         let path = self.session_dir(id).join(MANIFEST);
         let bytes = fs::read(&path).map_err(|e| CoreError::from_io(&path, e))?;
-        Ok(serde_json::from_slice(&bytes)?)
+        let (signature, json) = split_signature(&bytes);
+        let mut manifest: Manifest = serde_json::from_slice(json)?;
+        manifest.trusted = match (signature, self.key) {
+            (Some(signature), Some(key)) => native::hmac_sha256(key, json)
+                .is_ok_and(|mac| constant_time_eq(hex(&mac).as_bytes(), signature)),
+            _ => false,
+        };
+        Ok(manifest)
+    }
+
+    /// Where an item of session `id` really is in the quarantine: the part of its path below
+    /// the folder of the session, joined to that folder (the quarantine may have been moved as
+    /// a whole). `None` for a path that is not below the folder of its session.
+    pub fn inside(&self, id: Uuid, path: &Path) -> Option<PathBuf> {
+        use std::path::Component;
+        let name = id.to_string();
+        let parts: Vec<Component> = path.components().collect();
+        let at = parts
+            .iter()
+            .rposition(|c| matches!(c, Component::Normal(n) if n.to_string_lossy().eq_ignore_ascii_case(&name)))?;
+        let tail = &parts[at + 1..];
+        if tail.is_empty() || !tail.iter().all(|c| matches!(c, Component::Normal(_))) {
+            return None;
+        }
+        Some(
+            tail.iter()
+                .fold(self.session_dir(id), |dir, c| dir.join(c.as_os_str())),
+        )
+    }
+
+    /// Signs the manifests written before D88, once, when the key of the machine is created:
+    /// only those whose every item lies below the folder of its session. Returns how many.
+    pub fn sign_unsigned(&self) -> usize {
+        let Ok(entries) = fs::read_dir(self.root) else {
+            return 0;
+        };
+        entries
+            .flatten()
+            .filter_map(|e| Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
+            .filter(|id| {
+                fs::read(self.session_dir(*id).join(MANIFEST))
+                    .is_ok_and(|b| split_signature(&b).0.is_none())
+            })
+            .filter_map(|id| self.load(id).ok())
+            .filter(|m| {
+                m.session.items.iter().all(|i| {
+                    i.quarantine_path.as_os_str().is_empty()
+                        || self.inside(m.session.id, &i.quarantine_path).is_some()
+                })
+            })
+            .filter(|m| self.save(m).is_ok())
+            .count()
     }
 
     /// Every session found in the quarantine folder, recovered if needed.
@@ -295,7 +390,13 @@ impl Quarantine<'_> {
             .flatten()
             .filter_map(|e| Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
             .filter_map(|id| self.load(id).ok())
-            .filter_map(|m| self.recover(m).ok())
+            .map(|m| {
+                if m.trusted {
+                    self.recover(m.clone()).unwrap_or(m)
+                } else {
+                    m
+                }
+            })
             .map(|m| m.session)
             .collect();
         sessions.sort_by_key(|s| std::cmp::Reverse(s.created_at));
@@ -362,6 +463,7 @@ impl Quarantine<'_> {
             },
             pending: None,
             files: BTreeMap::new(),
+            trusted: true,
         };
         self.save(&manifest)?;
         // Start menu folders last: they are quarantined only once their dead
@@ -648,9 +750,13 @@ impl Quarantine<'_> {
 
     /// Resumes a session interrupted in the middle of a move (crash).
     pub fn recover(&self, mut manifest: Manifest) -> CoreResult<Manifest> {
+        if !manifest.trusted {
+            return Ok(manifest);
+        }
         let Some(pending) = manifest.pending.take() else {
             return Ok(manifest);
         };
+        let session = manifest.session.id;
         if let Some(item) = manifest.session.items.iter_mut().find(|i| i.id == pending) {
             let moved = match item.kind {
                 LeftoverKind::RegistryKey => RegKeyPath::parse(&item.original_location)
@@ -663,11 +769,14 @@ impl Quarantine<'_> {
                         && !self.services.exists(service_name(&item.original_location))
                 }
                 _ => {
+                    let copy = self.inside(session, &item.quarantine_path);
                     let original_there = fs::symlink_metadata(&item.original_location).is_ok();
-                    let copy_there = fs::symlink_metadata(&item.quarantine_path).is_ok();
-                    if original_there && copy_there {
+                    let copy_there = copy
+                        .as_ref()
+                        .is_some_and(|c| fs::symlink_metadata(c).is_ok());
+                    if let (true, Some(copy)) = (original_there && copy_there, copy.as_ref()) {
                         // Interrupted copy: the original is intact, drop the copy.
-                        let _ = remove_tree(&item.quarantine_path);
+                        let _ = remove_tree(copy);
                     }
                     !original_there && copy_there
                 }
@@ -700,7 +809,16 @@ impl Quarantine<'_> {
         item_ids: Option<&[String]>,
         now: DateTime<Utc>,
     ) -> CoreResult<Session> {
-        let mut manifest = self.recover(self.load(id)?)?;
+        if self.key.is_none() {
+            return Err(CoreError::IntegrityUnavailable);
+        }
+        let loaded = self.load(id)?;
+        if !loaded.trusted {
+            return Err(CoreError::Tampered {
+                location: self.session_dir(id).display().to_string(),
+            });
+        }
+        let mut manifest = self.recover(loaded)?;
         let selected = |item: &QuarantinedItem| item_ids.is_none_or(|ids| ids.contains(&item.id));
         let mut errors = Vec::new();
         // Reverse order of the quarantine: Start menu folders first, then
@@ -723,7 +841,14 @@ impl Quarantine<'_> {
                 continue;
             }
             let hashes = manifest.files.get(&item.id).cloned().unwrap_or_default();
-            match self.restore_one(&item, &hashes) {
+            let restored = match self.inside(id, &item.quarantine_path) {
+                Some(source) => self.restore_one(&item, &source, &hashes),
+                None => Err((
+                    "TAMPERED".to_owned(),
+                    "emplacement hors de la quarantaine de CleanSlate".to_owned(),
+                )),
+            };
+            match restored {
                 Ok(()) => {
                     let restored = &mut manifest.session.items[index];
                     restored.status = QuarantineStatus::Restored;
@@ -747,9 +872,20 @@ impl Quarantine<'_> {
     fn restore_one(
         &self,
         item: &QuarantinedItem,
+        source: &Path,
         hashes: &[FileHash],
     ) -> Result<(), (String, String)> {
         let to_pair = |e: CoreError| (e.code().to_owned(), e.to_string());
+        // A saved key, task or service is read back only if it is the one quarantined.
+        let backup = || -> Result<Vec<u8>, (String, String)> {
+            let bytes = fs::read(source).map_err(|e| to_pair(CoreError::from_io(source, e)))?;
+            match &item.sha256 {
+                Some(expected) if Sha256::of_bytes(&bytes).map_err(to_pair)? != *expected => {
+                    Err(changed())
+                }
+                _ => Ok(bytes),
+            }
+        };
         let exists = || {
             (
                 "DESTINATION_EXISTS".to_owned(),
@@ -762,8 +898,7 @@ impl Quarantine<'_> {
             if self.tasks.exists(path) {
                 return Err(exists());
             }
-            let xml = fs::read_to_string(&item.quarantine_path)
-                .map_err(|e| to_pair(CoreError::from_io(&item.quarantine_path, e)))?;
+            let xml = String::from_utf8(backup()?).map_err(|_| changed())?;
             // Same folder, same name, same definition.
             return self.tasks.register(path, &xml).map_err(to_pair);
         }
@@ -775,8 +910,7 @@ impl Quarantine<'_> {
             if self.services.exists(name) {
                 return Err(exists());
             }
-            let bytes = fs::read(&item.quarantine_path)
-                .map_err(|e| to_pair(CoreError::from_io(&item.quarantine_path, e)))?;
+            let bytes = backup()?;
             let backup: ServiceBackup =
                 serde_json::from_slice(&bytes).map_err(|e| to_pair(e.into()))?;
             self.services.create(&backup.config).map_err(to_pair)?;
@@ -789,8 +923,7 @@ impl Quarantine<'_> {
             if self.registry.key_exists(&key) {
                 return Err(exists());
             }
-            let bytes = fs::read(&item.quarantine_path)
-                .map_err(|e| to_pair(CoreError::from_io(&item.quarantine_path, e)))?;
+            let bytes = backup()?;
             let snapshot: KeySnapshot =
                 serde_json::from_slice(&bytes).map_err(|e| to_pair(e.into()))?;
             return snapshot.write(self.registry, &key).map_err(to_pair);
@@ -805,7 +938,11 @@ impl Quarantine<'_> {
         if let Some(parent) = original.parent() {
             fs::create_dir_all(parent).map_err(|e| to_pair(CoreError::from_io(parent, e)))?;
         }
-        relocate(&item.quarantine_path, &original, hashes)
+        // Every file goes back as it was quarantined, or nothing moves.
+        if !hashes.is_empty() && !verify(source, hashes) {
+            return Err(changed());
+        }
+        relocate(source, &original, hashes)
     }
 
     /// Deletes for good the sessions older than `days` (EF-19), only inside
@@ -912,6 +1049,10 @@ mod tests {
         }
 
         fn run<T>(&self, f: impl FnOnce(&Quarantine) -> T) -> T {
+            self.run_with(Some(b"key of the tests"), f)
+        }
+
+        fn run_with<T>(&self, key: Option<&[u8]>, f: impl FnOnce(&Quarantine) -> T) -> T {
             let registry = self.area.registry();
             let q = Quarantine {
                 root: &self.quarantine,
@@ -921,6 +1062,7 @@ mod tests {
                 tasks: &self.tasks,
                 services: &self.services,
                 packages: &self.packages,
+                key,
             };
             f(&q)
         }
@@ -1158,6 +1300,162 @@ mod tests {
         let session = lab.run(|q| q.clean(Origin::Orphans, &[root], None, Utc::now()).unwrap());
         assert_eq!(session.items[0].status, QuarantineStatus::Failed);
         assert!(menu.exists());
+    }
+
+    // D88: a folder of one file quarantined, its session and the path of its copy.
+    fn one_folder(lab: &Lab) -> (Session, PathBuf, PathBuf) {
+        let folder = lab.roaming("OldTool");
+        lab.write(&folder.join("cache.bin"), &[7u8; 2000]);
+        let items = [leftover(LeftoverKind::Folder, &folder.to_string_lossy(), 0)];
+        let session = lab
+            .run(|q| q.clean(Origin::Orphans, &items, None, Utc::now()))
+            .unwrap();
+        let copy = session.items[0].quarantine_path.clone();
+        (session, folder, copy)
+    }
+
+    fn manifest_path(lab: &Lab, id: Uuid) -> PathBuf {
+        lab.quarantine.join(id.to_string()).join(MANIFEST)
+    }
+
+    /// D88: a manifest is signed; one changed outside CleanSlate is listed, never restored.
+    #[test]
+    fn a_manifest_changed_outside_cleanslate_is_listed_but_never_restored() {
+        let lab = Lab::new();
+        let (session, folder, copy) = one_folder(&lab);
+        let path = manifest_path(&lab, session.id);
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with(SIGNATURE));
+        fs::write(&path, text.replace("OldTool", "OtherTool")).unwrap();
+
+        assert!(lab.run(|q| q.sessions()).iter().any(|s| s.id == session.id));
+        let err = lab
+            .run(|q| q.restore(session.id, None, Utc::now()))
+            .unwrap_err();
+        assert_eq!(err.code(), "TAMPERED");
+        assert!(copy.exists() && !folder.exists(), "nothing moved");
+    }
+
+    /// D88: only what lies below the folder of its session is taken back or removed.
+    #[test]
+    fn only_what_lies_below_its_session_is_restored_or_removed() {
+        let lab = Lab::new();
+        let (session, folder, _) = one_folder(&lab);
+        let elsewhere = lab.base.join(r"Users\Ana\Documents\keep.txt");
+        lab.write(&elsewhere, b"mine");
+        let mut manifest = lab.run(|q| q.load(session.id)).unwrap();
+        assert!(manifest.trusted);
+        manifest.session.items[0].quarantine_path = elsewhere.clone();
+        lab.run(|q| q.save(&manifest)).unwrap();
+
+        let restored = lab
+            .run(|q| q.restore(session.id, None, Utc::now()))
+            .unwrap();
+        assert_eq!(restored.errors[0].code, "TAMPERED");
+        assert!(elsewhere.exists() && !folder.exists());
+
+        // An interrupted move whose copy would lie elsewhere: the recovery removes nothing.
+        lab.write(&folder.join("cache.bin"), b"back");
+        manifest.pending = Some(manifest.session.items[0].id.clone());
+        lab.run(|q| q.save(&manifest)).unwrap();
+        let _ = lab.run(|q| q.sessions());
+        assert!(elsewhere.exists());
+    }
+
+    /// D88: what is restored is what was quarantined, files and saved keys alike.
+    #[test]
+    fn content_changed_in_the_quarantine_is_not_restored() {
+        let lab = Lab::new();
+        let (session, folder, copy) = one_folder(&lab);
+        fs::write(copy.join("cache.bin"), [8u8; 2000]).unwrap();
+        let restored = lab
+            .run(|q| q.restore(session.id, None, Utc::now()))
+            .unwrap();
+        assert_eq!(restored.errors[0].code, "VERIFY_FAILED");
+        assert!(!folder.exists());
+
+        let key = RegKeyPath::new(Hive::CurrentUser, r"Software\OldTool");
+        lab.area.create(&key).set_value("Lang", &"fr").unwrap();
+        let items = [leftover(LeftoverKind::RegistryKey, &key.to_string(), 0)];
+        let saved = lab
+            .run(|q| q.clean(Origin::Orphans, &items, None, Utc::now()))
+            .unwrap();
+        let json = saved.items[0].quarantine_path.clone();
+        fs::write(
+            &json,
+            fs::read_to_string(&json).unwrap().replace("fr", "en"),
+        )
+        .unwrap();
+        let restored = lab.run(|q| q.restore(saved.id, None, Utc::now())).unwrap();
+        assert_eq!(restored.errors[0].code, "VERIFY_FAILED");
+        assert!(!lab.area.registry().key_exists(&key));
+    }
+
+    /// D88: without the key, the sessions are listed and nothing is restored.
+    #[test]
+    fn without_the_key_sessions_are_listed_and_not_restored() {
+        let lab = Lab::new();
+        let (session, folder, _) = one_folder(&lab);
+        assert_eq!(lab.run_with(None, |q| q.sessions()).len(), 1);
+        let err = lab
+            .run_with(None, |q| q.restore(session.id, None, Utc::now()))
+            .unwrap_err();
+        assert_eq!(err.code(), "INTEGRITY_UNAVAILABLE");
+        assert!(!folder.exists());
+    }
+
+    /// D88: the manifests written before the signature are signed once, if they stay inside.
+    #[test]
+    fn manifests_without_signature_are_signed_once_when_they_stay_inside() {
+        let lab = Lab::new();
+        let (session, folder, _) = one_folder(&lab);
+        let manifest = lab.run(|q| q.load(session.id)).unwrap();
+        lab.run_with(None, |q| q.save(&manifest)).unwrap(); // as written before D88
+        assert!(!lab.run(|q| q.load(session.id)).unwrap().trusted);
+
+        assert_eq!(lab.run(|q| q.sign_unsigned()), 1);
+        assert!(lab.run(|q| q.load(session.id)).unwrap().trusted);
+        assert_eq!(lab.run(|q| q.sign_unsigned()), 0, "once");
+        let restored = lab
+            .run(|q| q.restore(session.id, None, Utc::now()))
+            .unwrap();
+        assert_eq!(restored.status, SessionStatus::Restored);
+        assert!(folder.join("cache.bin").exists());
+
+        // One that points elsewhere stays unsigned.
+        let (other, _, _) = one_folder(&lab);
+        let mut outside = lab.run(|q| q.load(other.id)).unwrap();
+        outside.session.items[0].quarantine_path = lab.base.join("elsewhere");
+        lab.run_with(None, |q| q.save(&outside)).unwrap();
+        assert_eq!(lab.run(|q| q.sign_unsigned()), 0);
+    }
+
+    /// D88: the path of an item, below the folder of its session (also after the quarantine
+    /// was moved as a whole).
+    #[test]
+    fn the_place_of_an_item_is_below_the_folder_of_its_session() {
+        let lab = Lab::new();
+        let id = Uuid::new_v4();
+        let here = lab
+            .quarantine
+            .join(id.to_string())
+            .join(r"files\a\cache.bin");
+        lab.run(|q| {
+            assert_eq!(q.inside(id, &here), Some(here.clone()));
+            let moved = PathBuf::from(format!(r"E:\Old\quarantine\{id}\files\a\cache.bin"));
+            assert_eq!(q.inside(id, &moved), Some(here.clone()));
+            assert_eq!(q.inside(id, Path::new(r"C:\Windows\System32")), None);
+            assert_eq!(
+                q.inside(id, &lab.quarantine.join(id.to_string())),
+                None,
+                "the session folder itself"
+            );
+            assert_eq!(
+                q.inside(id, Path::new(&format!(r"C:\q\{id}\..\..\Windows"))),
+                None
+            );
+            assert_eq!(q.inside(Uuid::new_v4(), &here), None, "another session");
+        });
     }
 
     #[test]
