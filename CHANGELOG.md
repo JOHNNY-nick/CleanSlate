@@ -5,6 +5,17 @@ Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 
 ## [Non publié] — 4 nov. 2026
 
+### Ajouté
+- **Gestionnaire** (D79) : comprendre et libérer l'espace de toute la machine, fichiers personnels compris.
+  - Onglets : Diagnostic, Carte, Explorateur, Catégories, Gros fichiers, Fichiers anciens, Doublons, Système, Suppressions en attente, Évolution, Volumes.
+  - Le Diagnostic donne une phrase par disque, les 5 plus gros consommateurs, et ce qui peut être libéré, « sans risque » ou « à vérifier », avec « Tout libérer maintenant (sans risque) ».
+  - Chaque suppression se confirme, en mode « Sûr » (Corbeille) ou « Immédiat » (définitif).
+  - Autres actions : suppression au redémarrage, suppression sécurisée, déplacement vérifié vers un autre disque, nettoyage des caches et des Corbeilles, nettoyage système par les outils officiels de Windows.
+  - Rapport HTML et CSV, alerte d'espace faible à l'ouverture.
+- Zones sensibles et mode expert (D79) : les zones de Windows et des programmes ne sont jamais proposées automatiquement ; y agir à la main demande le mode expert et « CONFIRMER ».
+- Barre de progression pendant la mise en quarantaine des restes (D77).
+- Critères de confiance plus pointus (D78) : raccourcis qui fonctionnent, Windows Installer, App Paths et associations, gestionnaires de paquets, lancements récents. Leur calcul est expliqué dans Restes orphelins.
+
 ### Modifié
 - Thème **Multicolore** au style « street » de la maquette de la carte du stockage (D76) :
   - un mur couvert de peinture vive (grandes éclaboussures, aquarelle, traînées, coulures, gouttes, ville) ;

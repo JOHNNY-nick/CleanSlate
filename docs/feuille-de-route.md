@@ -2,10 +2,11 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, en attente de validation** : Multicolore au style « street » de la maquette (D76), captures `artifacts\captures\2026-11-04\multicolore-v2\` (6 pages en clair et en sombre, contrôle de contraste : 0 échec sur 480 textes) ; Historique : sessions purgées expliquées (option « Supprimer définitivement » activée), affichage corrigé.
-- **Prochaine action** : le porteur regarde les captures, puis répond sur le rendu et sur la police Nunito ; sur sa réponse, Claude régénère Release et installeur.
+- **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures6-11-04\multicolore-v2\` et `artifacts\captures6-11-04\gestionnaire\`.
+- **Prochaine action** : le porteur relit les captures, réinstalle avec l'installeur du 4 nov. 2026, essaie le Gestionnaire en mode « Sûr », puis fait ses remarques.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « style OK » (ou les pages à reprendre), « Nunito oui / non », et s'il veut garder « Supprimer définitivement » activé.
+- **Réponse attendue** : les remarques, ou « tout OK » ; « Nunito oui / non ».
+- **Reste du Gestionnaire** (voir `docs/securite/audit.md` § 4) : annuler une suppression au redémarrage, actions dans l'Historique, espace non alloué, scénarios Sandbox (liste dans `docs/journal/gestionnaire-plan.md` § 4).
 - **File des tâches**, dans cet ordre sauf avis contraire du porteur :
   2. barre de progression pendant la mise en quarantaine des restes ;
   3. critères de confiance plus pointus :
