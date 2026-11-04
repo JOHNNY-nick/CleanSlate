@@ -38,5 +38,5 @@ Portée : les changements de D79 (fin de la liste noire bloquante, zones sensibl
 ## 4. Limites connues
 
 - Restaurer depuis la Corbeille se fait par l'Explorateur de Windows (CleanSlate ne restaure que sa quarantaine).
-- Le Sandbox n'a qu'un disque : le déplacement et la quarantaine vers un autre lecteur y sont testés avec un lecteur `subst` (même volume physique) ; à confirmer sur une machine à deux disques.
+- Le Sandbox n'a qu'un disque : le scénario y attache un disque virtuel (VHDX) comme second volume. Un lecteur `subst` est refusé comme source (alias : le chemin ne se résout pas en lui-même, règle 6), mais accepté comme destination d'un déplacement.
 - Scénario Sandbox « Gestionnaire » écrit (`scripts/sandbox/inside-gestionnaire.ps1`), à lancer par le porteur.

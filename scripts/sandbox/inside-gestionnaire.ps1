@@ -13,8 +13,9 @@
      4. mass deletion by filter (extension) after an analysis;
      5. deletion at restart of a file in use, then its cancellation;
      6. duplicates: one group, the oldest copy kept;
-     7. move to another drive (a subst letter), SHA-256 compared;
-     8. « Sûr » with the quarantine on another drive: freed now, restorable;
+     7. move to another drive (a virtual disk X:, else a subst letter), SHA-256 compared;
+     8. « Sûr » with the quarantine on another drive: freed now, restorable (on a subst
+        letter, an alias of C:, the engine must refuse the path: rule 6);
      9. a sensitive zone: refused outside expert mode, then « CONFIRMER », then restored
         from the Recycle Bin;
     10. system clean-up: Windows Update cache, Delivery Optimization, hibernation, restore points,
@@ -157,12 +158,30 @@ $step = Invoke-Step 'Doublons : deux copies identiques et un fichier de même ta
 }
 Check 'Doublons par taille puis SHA-256, la plus ancienne gardée (EF-30)' $dupOk $dupMeasure $step
 
-# A second drive letter: the Sandbox has only C:.
-New-Item -ItemType Directory -Force "$work\autre-lecteur" | Out-Null
-subst X: "$work\autre-lecteur"
+# A second drive: the Sandbox has only C:. A real volume (a VHDX attached by diskpart)
+# when the Sandbox allows it; else a subst letter, which is only an alias of C:.
+$vhd = "$work\second-lecteur.vhdx"
+@"
+create vdisk file="$vhd" maximum=256 type=expandable
+select vdisk file="$vhd"
+attach vdisk
+create partition primary
+format fs=ntfs quick label=CSTEST
+assign letter=X
+exit
+"@ | Set-Content "$out\diskpart-creer.txt" -Encoding ascii
+diskpart /s "$out\diskpart-creer.txt" *>> "$out\diskpart.txt"
+Start-Sleep -Seconds 3
+$realDrive = Test-Path 'X:\'
+if (-not $realDrive) {
+    New-Item -ItemType Directory -Force "$work\autre-lecteur" | Out-Null
+    subst X: "$work\autre-lecteur"
+}
+$driveKind = if ($realDrive) { 'disque virtuel' } else { 'subst' }
+Write-Log "Second lecteur X: : $driveKind"
 
 # 7. Move to another drive.
-$step = Invoke-Step 'Déplacement vers un autre lecteur (X:, subst)' -NoInventory {
+$step = Invoke-Step "Déplacement vers un autre lecteur (X:, $driveKind)" -NoInventory {
     NewFile "$work\a-deplacer\video.bin" 4096 3
     $hash = (Get-FileHash "$work\a-deplacer\video.bin").Hash
     $r = Send @{ op = 'move'; paths = @("$work\a-deplacer\video.bin"); destination = 'X:\'; manual = $manual; dry_run = $false }
@@ -173,16 +192,31 @@ $step = Invoke-Step 'Déplacement vers un autre lecteur (X:, subst)' -NoInventor
 Check 'Déplacement vers un autre lecteur, espace vérifié, SHA-256 comparé (EF-27)' $moveOk $moveMeasure $step
 
 # 8. « Sûr » with the quarantine on another drive.
-$step = Invoke-Step '« Sûr » depuis X: : quarantaine de CleanSlate sur C:' -NoInventory {
+$step = Invoke-Step "« Sûr » depuis X: ($driveKind) : quarantaine de CleanSlate sur C:" -NoInventory {
     NewFile 'X:\a-mettre-en-quarantaine.bin' 1024 4
     $r = Send @{ op = 'delete'; paths = @('X:\a-mettre-en-quarantaine.bin'); mode = 'safe'; manual = $manual; dry_run = $false }
     $q = Join-Path $env:LOCALAPPDATA 'CleanSlate\quarantine'
     $inside = [bool](Get-ChildItem $q -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -eq 1MB })
-    $script:qOk = ($r.items[0].done -eq 'quarantine') -and -not (Test-Path 'X:\a-mettre-en-quarantaine.bin') -and $inside -and ($r.freed_now_bytes -ge 1MB)
-    $script:qMeasure = "fait : $($r.items[0].done) ; libéré maintenant $($r.freed_now_bytes) octets ; présent dans la quarantaine : $inside"
+    if ($realDrive) {
+        $script:qOk = ($r.items[0].done -eq 'quarantine') -and -not (Test-Path 'X:\a-mettre-en-quarantaine.bin') -and $inside -and ($r.freed_now_bytes -ge 1MB)
+    } else {
+        # X: is an alias of C: (subst): the path does not resolve to itself, refused (rule 6).
+        $script:qOk = ($r.items[0].error.code -eq 'PROTECTED') -and (Test-Path 'X:\a-mettre-en-quarantaine.bin')
+    }
+    $script:qMeasure = "X: = $driveKind ; fait : $($r.items[0].done) $($r.items[0].error.code) ; libéré maintenant $($r.freed_now_bytes) octets ; présent dans la quarantaine : $inside"
 }
-Check 'Quarantaine sur un autre lecteur : libéré maintenant, restaurable (EF-24)' $qOk $qMeasure $step
-subst X: /D
+$qName = if ($realDrive) { 'Quarantaine sur un autre lecteur : libéré maintenant, restaurable (EF-24)' } else { 'Lecteur subst (alias de C:) refusé, règle 6 ; EF-24 à confirmer sur deux disques' }
+Check $qName $qOk $qMeasure $step
+if ($realDrive) {
+    @"
+select vdisk file="$vhd"
+detach vdisk
+exit
+"@ | Set-Content "$out\diskpart-detacher.txt" -Encoding ascii
+    diskpart /s "$out\diskpart-detacher.txt" *>> "$out\diskpart.txt"
+} else {
+    subst X: /D
+}
 
 # 9. Sensitive zone, expert mode, restored from the Recycle Bin.
 $step = Invoke-Step 'Zone sensible : C:\Windows\Temp, mode expert, « CONFIRMER », restauration' -NoInventory {

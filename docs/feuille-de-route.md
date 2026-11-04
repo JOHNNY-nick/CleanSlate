@@ -3,7 +3,7 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures\2026-11-04\multicolore-v2\` et `artifacts\captures\2026-11-04\gestionnaire\`.
-- **Prochaine action** : le porteur relance le scénario Sandbox du Gestionnaire après les corrections D80 (deux runs à 12 cas sur 15, corrigés dans 844e879) (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`, depuis la racine du dépôt, 10 à 20 min), puis réinstalle avec l'installeur du 4 nov. 2026 (SHA-256 `96A7DCAE…25A34E`), essaie le Gestionnaire en mode « Sûr » et fait ses remarques.
+- **Prochaine action** : le porteur relance le scénario Sandbox du Gestionnaire après les corrections D80 (troisième run : 14 sur 15 ; quatrième avec un vrai second volume) (`pwsh scripts/sandbox/prepare.ps1 -Scenario Gestionnaire -Launch`, depuis la racine du dépôt, 10 à 20 min), puis réinstalle avec l'installeur du 4 nov. 2026 (SHA-256 `96A7DCAE…25A34E`), essaie le Gestionnaire en mode « Sûr » et fait ses remarques.
 - **Qui la fait** : le porteur.
 - **Réponse attendue** : « fait » après le Sandbox (Claude lit le rapport), puis les remarques ou « tout OK » ; « Nunito oui / non ».
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 (annulation au redémarrage, actions dans l'Historique, quarantaine sur un autre disque, espace non alloué, scénario Sandbox) ; limites dans `docs/securite/audit.md` § 4.
