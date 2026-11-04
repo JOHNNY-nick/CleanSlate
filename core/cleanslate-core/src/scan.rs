@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use rayon::prelude::*;
 
 use crate::error::CoreError;
+use crate::evidence::Evidence;
 use crate::fs::FileSystem;
 use crate::inventory::fnv1a_hex;
 use crate::matcher::{group, normalize, score, Facts, KnownSet};
@@ -151,6 +152,8 @@ impl Errors {
 /// Scans the whole machine for orphan leftovers (specs § 6.1).
 pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) -> ScanReport {
     let started = Instant::now();
+    // D78: what Windows still knows of the programs, read once.
+    let evidence = Evidence::gather(env.fs, env.registry, env.folders, env.cancel);
     let mut known = KnownSet::new(env.apps, env.extra_executables);
     let errors = Errors::default();
     let listing = Reporter::new(progress, 0);
@@ -201,7 +204,7 @@ pub fn scan_orphans(env: &ScanEnv, options: &ScanOptions, progress: ProgressFn) 
             if env.cancel.load(Ordering::Relaxed) {
                 return None;
             }
-            let result = analyze(env, &known, candidate, &reporter, &errors);
+            let result = analyze(env, &known, &evidence, candidate, &reporter, &errors);
             reporter.tick(ScanPhase::Analyzing, &candidate.location, true);
             result.map(|leftover| (candidate.publisher.clone(), leftover))
         })
@@ -958,6 +961,7 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
 fn analyze(
     env: &ScanEnv,
     known: &KnownSet,
+    evidence: &Evidence,
     candidate: &Candidate,
     reporter: &Reporter,
     errors: &Errors,
@@ -982,6 +986,8 @@ fn analyze(
         under_installed_publisher: candidate.publisher.is_some(),
         in_program_files: candidate.in_program_files,
         dead_shortcut: candidate.kind == LeftoverKind::Shortcut,
+        still_referenced: path_text.as_deref().and_then(|p| evidence.referenced_in(p)),
+        package_manager: evidence.package_of(&candidate.name),
         ..Facts::default()
     };
     let size_bytes = match (&candidate.path, &candidate.key) {
@@ -1001,6 +1007,7 @@ fn analyze(
             }
             facts.last_modified = stats.last_modified;
             facts.has_executable = !stats.executables.is_empty();
+            facts.last_launch = evidence.last_launch(&stats.executables);
             facts.contains_data = stats.has_data;
             stats.size
         }

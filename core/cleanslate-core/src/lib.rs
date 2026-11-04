@@ -7,6 +7,7 @@
 pub mod disk_map;
 pub mod engine;
 pub mod error;
+pub mod evidence;
 pub mod fs;
 pub mod history;
 pub mod inventory;

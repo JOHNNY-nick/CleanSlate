@@ -925,4 +925,30 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="CleanProgressBar.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Mise en quarantaine en cours</value>
   </data>
+  <data name="OrphansConfidenceHelp.Header" xml:space="preserve">
+    <value>Comment le niveau de confiance est calculé</value>
+  </data>
+  <data name="OrphansConfidenceHelpText.Text" xml:space="preserve">
+    <value>Chaque reste reçoit des points ; le total donne son niveau : Élevée à partir de 60 points (précoché), Moyenne de 35 à 59, Faible en dessous de 35. Les raisons de chaque élément s'affichent sous son chemin.
+
+Ajoutent des points :
+• aucune application installée ne porte un nom ou un éditeur proche : +40
+• raccourci dont la cible n'existe plus : +60
+• non modifié depuis plus de 30 jours : +20
+• dernier lancement connu d'un de ses programmes il y a plus de 6 mois : +10
+• ne contient aucun exécutable : +10
+
+Retirent des points :
+• modifié il y a moins de 7 jours : −30
+• nom générique, souvent partagé entre logiciels : −25
+• contient des programmes sans entrée de désinstallation (logiciel portable probable) : −25
+• clé de registre presque vide : −10
+• un raccourci qui fonctionne mène encore dans ce dossier : −50
+• Windows Installer y déclare encore des fichiers installés : −50
+• enregistré auprès de Windows (App Paths ou association de fichiers) : −40
+• un de ses programmes a été lancé il y a moins de 30 jours (Prefetch, liste des programmes lancés) : −40
+• installé par un gestionnaire de paquets (Scoop, Chocolatey, winget) : −60, et toujours Faible
+
+Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccourci, Windows Installer, enregistrement, lancement récent), les dossiers d'un éditeur dont une application est encore installée, les dossiers qui contiennent des données (base de données, coffre de mots de passe, messagerie, disque virtuel) et les dossiers personnels. Les éléments de Windows ne sont jamais proposés.</value>
+  </data>
 </root>

@@ -254,6 +254,22 @@ pub fn verdict(info: &ShortcutInfo, fs: &dyn FileSystem, folders: &KnownFolders)
     }
 }
 
+/// Target of a shortcut that works (D78): `None` when it is dead or cannot be judged.
+pub fn live_target(
+    info: &ShortcutInfo,
+    fs: &dyn FileSystem,
+    folders: &KnownFolders,
+) -> Option<String> {
+    if verdict(info, fs, folders) != Verdict::Alive {
+        return None;
+    }
+    match (&info.env_target, &info.local_target) {
+        (Some(raw), _) => Some(expand_known(raw, folders)),
+        (None, Some(local)) => Some(local.clone()),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

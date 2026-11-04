@@ -1,6 +1,7 @@
 //! Matching of candidates with installed applications, confidence score and
 //! grouping (specs § 6.2 and § 6.3, EF-08 to EF-10).
 
+use crate::evidence::{is_recent, Source};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -265,6 +266,13 @@ pub struct Facts {
     /// The folder holds a database, a vault, a mailbox or a virtual disk:
     /// at most Medium, never pre-checked (D68).
     pub contains_data: bool,
+    /// Something of Windows still points into the folder (D78): a working
+    /// shortcut, an installed component, an App Paths entry or an association.
+    pub still_referenced: Option<Source>,
+    /// A package manager installed a program of this name (D78).
+    pub package_manager: Option<&'static str>,
+    /// Last known launch of one of its programs (Prefetch, UserAssist; D78).
+    pub last_launch: Option<DateTime<Utc>>,
 }
 
 /// Computes the confidence score of an orphan (specs § 6.3) with its
@@ -318,6 +326,35 @@ pub fn score(
             add(-10, "Clé de registre presque vide");
         }
     }
+    // D78: what Windows still knows of the program.
+    match facts.still_referenced {
+        Some(Source::Shortcut) => add(
+            -50,
+            "Un raccourci qui fonctionne mène encore dans ce dossier",
+        ),
+        Some(Source::Installer) => add(
+            -50,
+            "Windows Installer y déclare encore des fichiers installés",
+        ),
+        Some(Source::Registration) => add(
+            -40,
+            "Enregistré auprès de Windows (App Paths ou association de fichiers)",
+        ),
+        None => {}
+    }
+    if let Some(manager) = facts.package_manager {
+        add(-60, &format!("Installé par {manager}, qui le gère encore"));
+    }
+    if let Some(launch) = facts.last_launch {
+        if is_recent(launch, now) {
+            add(
+                -40,
+                "Un de ses programmes a été lancé il y a moins de 30 jours",
+            );
+        } else if now - launch > Duration::days(180) {
+            add(10, "Dernier lancement connu il y a plus de 6 mois");
+        }
+    }
 
     let mut confidence = match points {
         p if p >= HIGH_THRESHOLD => Confidence::High,
@@ -333,6 +370,15 @@ pub fn score(
     }
     if facts.contains_data && confidence == Confidence::High {
         confidence = Confidence::Medium;
+    }
+    // D78: still in use somewhere: never pre-checked; managed by a package manager: Low.
+    let in_use =
+        facts.still_referenced.is_some() || facts.last_launch.is_some_and(|l| is_recent(l, now));
+    if in_use && confidence == Confidence::High {
+        confidence = Confidence::Medium;
+    }
+    if facts.package_manager.is_some() {
+        confidence = Confidence::Low;
     }
     if facts.contains_data {
         reasons.push(
@@ -507,6 +553,52 @@ mod tests {
         );
         assert_eq!(command_executable("MsiExec.exe /X{1}"), None);
         assert_eq!(command_executable("rundll32 foo"), None);
+    }
+
+    /// D78 (task 3 of the owner): a folder Windows still uses is never pre-checked; a
+    /// program a package manager still manages is Low; an old launch adds confidence.
+    #[test]
+    fn signs_of_use_lower_the_confidence() {
+        let old = Facts {
+            last_modified: Some(now() - Duration::days(200)),
+            ..Facts::default()
+        };
+        let high = |facts: &Facts| score(LeftoverKind::Folder, "audacity", 0.4, facts, now());
+        assert_eq!(high(&old).1, Confidence::High);
+
+        for (source, reason) in [
+            (Source::Shortcut, "raccourci qui fonctionne"),
+            (Source::Installer, "Windows Installer"),
+            (Source::Registration, "App Paths"),
+        ] {
+            let (_, confidence, reasons) = high(&Facts {
+                still_referenced: Some(source),
+                ..old.clone()
+            });
+            assert_ne!(confidence, Confidence::High, "{source:?}");
+            assert!(reasons.iter().any(|r| r.contains(reason)), "{reasons:?}");
+        }
+
+        let (_, confidence, reasons) = high(&Facts {
+            package_manager: Some("Scoop"),
+            ..old.clone()
+        });
+        assert_eq!(confidence, Confidence::Low);
+        assert!(reasons.iter().any(|r| r.contains("Installé par Scoop")));
+
+        let (_, confidence, _) = high(&Facts {
+            last_launch: Some(now() - Duration::days(3)),
+            ..old.clone()
+        });
+        assert_ne!(confidence, Confidence::High);
+
+        let (points, confidence, reasons) = high(&Facts {
+            last_launch: Some(now() - Duration::days(400)),
+            ..old.clone()
+        });
+        assert_eq!(points, high(&old).0 + 10);
+        assert_eq!(confidence, Confidence::High);
+        assert!(reasons.iter().any(|r| r.contains("plus de 6 mois")));
     }
 
     #[test]

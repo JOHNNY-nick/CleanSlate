@@ -120,6 +120,10 @@
                 <RadioButton x:Uid="OrphansFilterMedium" />
                 <RadioButton x:Uid="OrphansFilterLow" />
             </RadioButtons>
+            <!-- Task 3 (D78): how the confidence of a leftover is computed, folded. -->
+            <Expander x:Uid="OrphansConfidenceHelp" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <TextBlock x:Uid="OrphansConfidenceHelpText" Foreground="{ThemeResource TextPrimaryBrush}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+            </Expander>
         </StackPanel>
 
         <!-- Groups -->
