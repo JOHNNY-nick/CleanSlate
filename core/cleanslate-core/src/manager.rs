@@ -1278,15 +1278,24 @@ fn item_error(err: &CoreError, path: &str) -> ItemError {
     }
 }
 
+/// Path of an entry of `PendingFileRenameOperations`: Windows 10 and 11 write
+/// `*1\??\C:\file` (flags `*<n>`, then the NT prefix `\??\`), older ones `\??\C:\file`.
+pub fn pending_path(entry: &str) -> &str {
+    let rest = entry.strip_prefix('*').map_or(entry, |r| {
+        r.trim_start_matches(|c: char| c.is_ascii_digit())
+    });
+    rest.trim_start_matches(r"\??\")
+}
+
 /// `PendingFileRenameOperations` without the deletion of `path` (pairs source, target;
 /// an empty target deletes). `None` when `path` was not waiting.
 pub fn without_pending(list: &[String], path: &str) -> Option<Vec<String>> {
-    let wanted = path.trim_start_matches(r"\??\").to_lowercase();
+    let wanted = pending_path(path).to_lowercase();
     let mut kept = Vec::with_capacity(list.len());
     let mut found = false;
     for pair in list.chunks(2) {
         let deletes = pair.get(1).is_none_or(|t| t.is_empty());
-        if deletes && pair[0].trim_start_matches(r"\??\").to_lowercase() == wanted {
+        if deletes && pending_path(&pair[0]).to_lowercase() == wanted {
             found = true;
         } else {
             // Always whole pairs: a missing last target stays an explicit delete.
@@ -1551,7 +1560,7 @@ mod win {
                 RegData::MultiString(list) => list
                     .chunks(2)
                     .filter(|pair| pair.get(1).is_none_or(|t| t.is_empty()))
-                    .map(|pair| pair[0].trim_start_matches(r"\??\").to_owned())
+                    .map(|pair| super::pending_path(&pair[0]).to_owned())
                     .collect(),
                 _ => Vec::new(),
             })
@@ -1808,6 +1817,32 @@ mod tests {
             "a rename is not a deletion"
         );
         assert!(without_pending(&list, r"C:\none").is_none());
+    }
+
+    /// Second Sandbox run of 4 nov. 2026: Windows 11 writes `*1\??\C:\…`.
+    #[test]
+    fn pending_entries_of_windows_11_carry_flags_before_the_path() {
+        assert_eq!(
+            pending_path(r"*1\??\C:\CleanSlateTest\ouvert.bin"),
+            r"C:\CleanSlateTest\ouvert.bin"
+        );
+        assert_eq!(pending_path(r"\??\C:\a.tmp"), r"C:\a.tmp");
+        assert_eq!(pending_path(r"*12\??\C:\a.tmp"), r"C:\a.tmp");
+        assert_eq!(pending_path(r"C:\a.tmp"), r"C:\a.tmp");
+        let list: Vec<String> = [
+            r"*1\??\C:\Windows\System32\gamingservicesproxy_16.dll.0",
+            "",
+            r"*1\??\C:\CleanSlateTest\ouvert.bin",
+            "",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(
+            without_pending(&list, r"C:\CleanSlateTest\ouvert.bin").unwrap(),
+            list[..2].to_vec(),
+            "only our deletion is cancelled"
+        );
     }
 
     /// Sandbox run of 4 nov. 2026: other operations were waiting before ours, and the

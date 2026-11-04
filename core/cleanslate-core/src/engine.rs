@@ -209,11 +209,17 @@ impl Engine {
         let mut items = Vec::new();
         for path in &request.paths {
             let p = std::path::Path::new(path);
-            // Sensitive paths never go to the quarantine: the Recycle Bin handles them.
-            if zones.authorize_path(fs, p, &request.manual)? != crate::zones::Zone::Normal {
+            // Sensitive paths never go to the quarantine: the Recycle Bin handles them. A
+            // refused or unreadable path too: the normal deletion reports it on its line.
+            if !matches!(
+                zones.authorize_path(fs, p, &request.manual),
+                Ok(crate::zones::Zone::Normal)
+            ) {
                 return Ok(None);
             }
-            let meta = fs.metadata(p)?;
+            let Ok(meta) = fs.metadata(p) else {
+                return Ok(None);
+            };
             items.push(Leftover {
                 id: format!("manager-{}", items.len()),
                 kind: if meta.is_dir {

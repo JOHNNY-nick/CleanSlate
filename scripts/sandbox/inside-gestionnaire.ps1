@@ -48,7 +48,11 @@ function Send($request) {
     $script:requestNumber++
     $file = "$out\requete-$('{0:00}' -f $script:requestNumber)-$($request.op).json"
     $request | ConvertTo-Json -Depth 6 | Set-Content $file -Encoding utf8
-    Invoke-CleanSlateCli $sandboxCli @('sandbox', 'manager', $file)
+    $answer = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'manager', $file)
+    # Every answer is kept next to its request (cli-out.json is overwritten each time).
+    Copy-Item "$out\cli-out.json" ($file -replace '\\requete-', '\reponse-') -ErrorAction SilentlyContinue
+    if ($answer -and $answer.error) { Write-Host "réponse : $($answer.error) : $($answer.message)" }
+    $answer
 }
 
 function NewFile([string] $path, [int] $kb, [byte] $fill = 7) {
