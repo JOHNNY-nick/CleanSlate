@@ -163,7 +163,7 @@ public sealed partial class StoragePage : Page
             Background = new SolidColorBrush(paint.ColorOf("LabelStickerColor")),
             CornerRadius = new CornerRadius(8),
             Padding = compact ? new Thickness(4, 1, 4, 1) : new Thickness(8, 3, 8, 4),
-            RenderTransform = new RotateTransform { Angle = -2 },
+            // Upright: WinUI draws a rotated text blurred (owner, 4 Nov. 2026: « mets-la en 4K »).
             Child = label,
             Visibility = label.Visibility,
         };

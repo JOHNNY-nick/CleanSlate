@@ -42,12 +42,27 @@
                     <Run Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" />
                 </TextBlock>
             </StackPanel>
-            <Button
-                x:Uid="OrphansScan"
-                Grid.Column="1"
-                VerticalAlignment="Top"
-                Command="{x:Bind ViewModel.ScanCommand}"
-                Style="{StaticResource MainButtonStyle}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button
+                    x:Uid="OrphansScan"
+                    VerticalAlignment="Center"
+                    Command="{x:Bind ViewModel.ScanCommand}"
+                    Style="{StaticResource MainButtonStyle}" />
+                <!-- Task 3 (D78): how the confidence of a leftover is computed, in a « ? » (owner, 4 Nov. 2026). -->
+                <Button x:Uid="OrphansHelp" Width="40" Height="40" Padding="0" VerticalAlignment="Center" CornerRadius="20">
+                    <TextBlock FontSize="18" FontWeight="Bold" Text="?" />
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <ScrollViewer MaxHeight="520">
+                                <StackPanel Width="420" Spacing="10">
+                                    <TextBlock x:Uid="OrphansConfidenceHelpTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                    <TextBlock x:Uid="OrphansConfidenceHelpText" Foreground="{ThemeResource TextPrimaryBrush}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- Progress (EF-11) -->
@@ -120,10 +135,6 @@
                 <RadioButton x:Uid="OrphansFilterMedium" />
                 <RadioButton x:Uid="OrphansFilterLow" />
             </RadioButtons>
-            <!-- Task 3 (D78): how the confidence of a leftover is computed, folded. -->
-            <Expander x:Uid="OrphansConfidenceHelp" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                <TextBlock x:Uid="OrphansConfidenceHelpText" Foreground="{ThemeResource TextPrimaryBrush}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
-            </Expander>
         </StackPanel>
 
         <!-- Groups -->

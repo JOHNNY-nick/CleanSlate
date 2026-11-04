@@ -59,6 +59,18 @@
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <Button x:Uid="StorageMapRefresh" Command="{x:Bind ViewModel.RefreshCommand}" Style="{StaticResource MainButtonStyle}" />
+                            <!-- The explanation of the map and of the list, in a « ? » (owner, 4 Nov. 2026). -->
+                            <Button x:Uid="StorageHelp" Width="40" Height="40" Padding="0" CornerRadius="20">
+                                <TextBlock FontSize="18" FontWeight="Bold" Text="?" />
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedRight">
+                                        <StackPanel Width="400" Spacing="10">
+                                            <TextBlock x:Uid="StorageHelpTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                            <TextBlock x:Uid="StorageMapHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
                             <Button x:Uid="StorageMapCancel" Command="{x:Bind ViewModel.RefreshCancelCommand}" Visibility="{x:Bind ViewModel.IsComputing, Mode=OneWay}" />
                         </StackPanel>
                     </Grid>
@@ -113,7 +125,6 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
-                    <TextBlock x:Uid="StorageMapHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.HasMap, Mode=OneWay}" />
                 </StackPanel>
             </Border>
 

@@ -925,9 +925,6 @@ Joignez ce fichier si vous signalez le problème.</value>
   <data name="CleanProgressBar.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Mise en quarantaine en cours</value>
   </data>
-  <data name="OrphansConfidenceHelp.Header" xml:space="preserve">
-    <value>Comment le niveau de confiance est calculé</value>
-  </data>
   <data name="OrphansConfidenceHelpText.Text" xml:space="preserve">
     <value>Chaque reste reçoit des points ; le total donne son niveau : Élevée à partir de 60 points (précoché), Moyenne de 35 à 59, Faible en dessous de 35. Les raisons de chaque élément s'affichent sous son chemin.
 
@@ -966,9 +963,6 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerTabDiagnostic.Text" xml:space="preserve">
     <value>Diagnostic</value>
   </data>
-  <data name="ManagerTabExplorer.Text" xml:space="preserve">
-    <value>Recherche</value>
-  </data>
   <data name="ManagerTabCategories.Text" xml:space="preserve">
     <value>Catégories</value>
   </data>
@@ -987,9 +981,6 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerTabPending.Text" xml:space="preserve">
     <value>Suppressions en attente</value>
   </data>
-  <data name="ManagerTabEvolution.Text" xml:space="preserve">
-    <value>Évolution</value>
-  </data>
   <data name="ManagerTabVolumes.Text" xml:space="preserve">
     <value>Volumes</value>
   </data>
@@ -1005,23 +996,14 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerFree.Content" xml:space="preserve">
     <value>Libérer</value>
   </data>
-  <data name="ManagerSearch.Header" xml:space="preserve">
-    <value>Rechercher parmi les fichiers analysés</value>
-  </data>
-  <data name="ManagerSearch.PlaceholderText" xml:space="preserve">
-    <value>Nom ou partie du chemin</value>
-  </data>
   <data name="ManagerCategoryList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Catégories de fichiers</value>
   </data>
   <data name="ManagerFindDuplicates.Content" xml:space="preserve">
     <value>Chercher les doublons</value>
   </data>
-  <data name="ManagerDuplicatesHelp.Text" xml:space="preserve">
-    <value>Comparés par taille puis par SHA-256 ; une copie de chaque fichier est toujours gardée (la plus ancienne, ou celle hors des Téléchargements).</value>
-  </data>
   <data name="ManagerRun.Content" xml:space="preserve">
-    <value>Exécuter</value>
+    <value>Nettoyer…</value>
   </data>
   <data name="ManagerRecycleBins.Text" xml:space="preserve">
     <value>Corbeilles</value>
@@ -1032,29 +1014,11 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerPendingRestart.Text" xml:space="preserve">
     <value>Supprimé au prochain redémarrage</value>
   </data>
-  <data name="ManagerGrowth.Text" xml:space="preserve">
-    <value>Ce qui a le plus grossi depuis la dernière fois</value>
-  </data>
   <data name="ManagerDelete.Text" xml:space="preserve">
     <value>Supprimer…</value>
   </data>
-  <data name="ManagerAtRestart.Content" xml:space="preserve">
-    <value>Au redémarrage</value>
-  </data>
-  <data name="ManagerSecure.Content" xml:space="preserve">
-    <value>Suppression sécurisée</value>
-  </data>
-  <data name="ManagerMove.Content" xml:space="preserve">
-    <value>Déplacer vers…</value>
-  </data>
   <data name="ManagerReveal.Content" xml:space="preserve">
     <value>Ouvrir dans l'Explorateur</value>
-  </data>
-  <data name="ManagerCopyPath.Content" xml:space="preserve">
-    <value>Copier le chemin</value>
-  </data>
-  <data name="ManagerProperties.Content" xml:space="preserve">
-    <value>Propriétés</value>
   </data>
   <data name="ManagerReport.Content" xml:space="preserve">
     <value>Exporter le rapport</value>
@@ -1134,23 +1098,8 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   <data name="ManagerDeleteButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Supprime les fichiers cochés après une confirmation. « Sûr » les met dans la Corbeille, ou dans la quarantaine de CleanSlate s'ils sont sur un autre disque : ils restent restaurables. « Immédiat » les efface définitivement et libère la place tout de suite. Limite : un fichier ouvert dans un programme ne peut pas être supprimé maintenant ; utilisez alors « Supprimer au démarrage ».</value>
   </data>
-  <data name="ManagerAtRestart.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Programme la suppression des fichiers cochés au prochain redémarrage de Windows, avant qu'un programme ne les ouvre. À utiliser pour un fichier verrouillé (« utilisé par un autre programme »). Limite : la place n'est libérée qu'après le redémarrage, et la suppression est définitive ; d'ici là, vous pouvez l'annuler dans l'onglet « Suppressions en attente ».</value>
-  </data>
-  <data name="ManagerSecure.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Écrase le contenu des fichiers cochés avec des zéros, puis les supprime, pour qu'un logiciel de récupération ne puisse pas les relire. À utiliser pour des documents confidentiels. Limite : sur un SSD, une clé USB ou un disque compressé, l'effacement n'est pas garanti (le disque peut garder d'anciennes copies), et il n'y a aucun retour en arrière.</value>
-  </data>
-  <data name="ManagerMove.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Copie les fichiers cochés vers le disque ou le dossier que vous choisissez, vérifie que chaque copie est identique (SHA-256), puis supprime l'original. À utiliser pour libérer un disque plein sans perdre vos fichiers. Limite : la destination doit avoir assez de place ; un fichier ouvert dans un programme n'est pas déplacé.</value>
-  </data>
   <data name="ManagerReveal.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Ouvre l'Explorateur de Windows sur le premier fichier coché, déjà sélectionné. Utile pour regarder un fichier de près avant de décider. Ne modifie rien.</value>
-  </data>
-  <data name="ManagerCopyPath.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Copie le chemin complet du premier fichier coché dans le Presse-papiers, pour le coller dans une recherche ou un message. Ne modifie rien.</value>
-  </data>
-  <data name="ManagerProperties.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Ouvre la fenêtre Propriétés de Windows du premier fichier coché : taille exacte, dates, emplacement, sécurité. Ne modifie rien.</value>
   </data>
   <data name="ManagerReport.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Enregistre le résultat de l'analyse en PDF (couverture, diagnostic, ce qui peut être libéré, catégories, plus gros fichiers) et en CSV (pour un tableur), dans le dossier d'export choisi dans Réglages, sinon sur le Bureau, puis ouvre ce dossier. Ne modifie rien. Limite : il faut d'abord lancer une analyse.</value>
@@ -1169,9 +1118,6 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   </data>
   <data name="OperationCancel.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Annuler l'opération en cours</value>
-  </data>
-  <data name="ManagerSearchHelp.Text" xml:space="preserve">
-    <value>Retrouvez un fichier par son nom parmi les fichiers trouvés par l'analyse du disque (lancez d'abord « Analyser le disque »). Pour parcourir un dossier et voir tous ses fichiers, utilisez la carte de la page Stockage.</value>
   </data>
   <data name="StorageExplorerTitle.Text" xml:space="preserve">
     <value>Contenu du dossier</value>
@@ -1202,5 +1148,26 @@ Jamais précochés, quel que soit le total : ce qui est encore utilisé (raccour
   </data>
   <data name="StorageOpenApps.Content" xml:space="preserve">
     <value>Ouvrir Applications</value>
+  </data>
+  <data name="ManagerRun.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Lance ce nettoyage avec l'outil officiel de Windows, après une confirmation.</value>
+  </data>
+  <data name="StorageHelp.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Aide : la carte et la liste des fichiers</value>
+  </data>
+  <data name="StorageHelp.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Aide sur la carte du stockage</value>
+  </data>
+  <data name="StorageHelpTitle.Text" xml:space="preserve">
+    <value>La carte du stockage</value>
+  </data>
+  <data name="OrphansHelp.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Aide : comment le niveau de confiance est calculé</value>
+  </data>
+  <data name="OrphansHelp.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Aide sur le niveau de confiance</value>
+  </data>
+  <data name="OrphansConfidenceHelpTitle.Text" xml:space="preserve">
+    <value>Comment le niveau de confiance est calculé</value>
   </data>
 </root>

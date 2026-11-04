@@ -237,4 +237,30 @@ public sealed class ManagerViewModelTests
         await manager.Received(2).CachesAsync(Arg.Any<CancellationToken>());
         Assert.NotEqual(string.Empty, vm.ResultText);
     }
+
+    /// <summary>
+    /// Owner, 4 Nov. 2026: a copy of the « Doublons » tab shows its path only (no « copie de …
+    /// · date » line), and the Diagnostic leads to the tabs left (Recherche and Évolution gone).
+    /// </summary>
+    [Fact]
+    public async Task ACopyShowsItsPathOnly_AndTheDiagnosticLeadsToTheTabsLeft()
+    {
+        var (vm, manager, _, _) = Create();
+        var keep = new FileEntry(@"C:\Users\Ana\Videos\film.mp4", 4 * Gb, null, FileCategory.Videos, Zone.Normal);
+        var copy = keep with { Path = @"C:\Users\Ana\Downloads\film.mp4" };
+        manager.DuplicatesAsync(Arg.Any<IReadOnlyList<IReadOnlyList<string>>>(), Arg.Any<CancellationToken>())
+            .Returns([new DuplicateGroup(4 * Gb, "ab", keep.Path, [keep, copy])]);
+        await vm.AnalyzeCommand.ExecuteAsync(null);
+        await vm.FindDuplicatesCommand.ExecuteAsync(null);
+
+        ManagerRow row = Assert.Single(vm.DuplicateCopies);
+        Assert.Equal(copy.Path, row.Path);
+        Assert.False(row.ShowDetail);
+        Assert.True(vm.Largest[0].ShowDetail);
+
+        await vm.FreeCommand.ExecuteAsync(new RecoverableLine(RecoverableKind.Duplicates, "Copies", "4 Go", 4 * Gb, false, string.Empty));
+        Assert.Equal(4, vm.TabIndex); // « Doublons »
+        await vm.FreeCommand.ExecuteAsync(new RecoverableLine(RecoverableKind.OldDownloads, "Anciens", "1 Go", Gb, false, string.Empty));
+        Assert.Equal(3, vm.TabIndex); // « Fichiers anciens »
+    }
 }

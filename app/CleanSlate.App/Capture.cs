@@ -47,6 +47,12 @@ internal static class Capture
             App.GetService<IStorageService>().SaveMap("C:", map);
             log.Add($"carte: {(DateTimeOffset.Now - started).TotalSeconds:0} s, {map.Denied} dossiers refusés");
             InstalledApp? app = (await engine.ListAppsAsync(CancellationToken.None)).FirstOrDefault(a => a.HiddenReason is null);
+            if (DevMode.Options.CaptureSet == "allege")
+            {
+                await Lighter(window, Path.Combine(folder, "allege"), settings, log);
+                return;
+            }
+
             if (DevMode.Options.CaptureSet == "rapport")
             {
                 await PdfReport(window, Path.Combine(folder, "rapport"), settings, log);
@@ -155,16 +161,11 @@ internal static class Capture
     // Every tab of the Gestionnaire (D82: the « Carte » tab is gone, the map is the Stockage page).
     private static async Task Tabs(MainWindow window, ManagerViewModel vm, string folder, string prefix, List<string> log)
     {
-        string[] names = ["diagnostic", "recherche", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "evolution", "volumes"];
+        string[] names = ["diagnostic", "categories", "gros-fichiers", "anciens", "doublons", "systeme", "en-attente", "volumes"];
         for (int i = 0; i < names.Length; i++)
         {
             vm.TabIndex = i;
             if (i == 1)
-            {
-                vm.Search = "Downloads";
-            }
-
-            if (i == 2)
             {
                 vm.CategoryIndex = 0;
             }
@@ -307,6 +308,46 @@ internal static class Capture
         await Show(window, "Storage");
         await Task.Delay(1500);
         await Save(window, Path.Combine(folder, "carte-retour-meme-endroit.png"), log);
+    }
+
+    // The pages made lighter (owner, 4 Nov. 2026): the map with upright labels and its « ? »,
+    // the « ? » of Restes orphelins, the tabs of the Gestionnaire left after an analysis.
+    private static async Task Lighter(MainWindow window, string folder, ISettingsService settings, List<string> log)
+    {
+        Directory.CreateDirectory(folder);
+        settings.PaintStyle = Presentation.PaintStyle.Splashes;
+        settings.PaintDark = false;
+        settings.Theme = AppTheme.Colorful;
+        await Task.Delay(1000);
+
+        async Task WithHelp(string tag, string helpName, string name)
+        {
+            await Show(window, tag);
+            await Task.Delay(2000);
+            await Save(window, Path.Combine(folder, $"{name}.png"), log);
+            if (window.CurrentPage is Page page
+                && PaintDecorator.Descendants(page).OfType<Button>().FirstOrDefault(b => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(b) == helpName) is { Flyout: { } help } button)
+            {
+                help.ShowAt(button);
+                await Save(window, Path.Combine(folder, $"{name}-aide.png"), log);
+                help.Hide();
+            }
+            else
+            {
+                log.Add($"{name} : bouton « ? » introuvable");
+            }
+        }
+
+        await WithHelp("Storage", "Aide sur la carte du stockage", "stockage");
+        await WithHelp("Orphans", "Aide sur le niveau de confiance", "restes-orphelins");
+
+        await Show(window, "Manager");
+        ManagerViewModel manager = App.GetService<ManagerViewModel>();
+        manager.AnalysisRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        await manager.AnalyzeCommand.ExecuteAsync(null);
+        await manager.FindDuplicatesCommand.ExecuteAsync(null);
+        await Show(window, "Manager");
+        await Tabs(window, manager, folder, "gestionnaire-", log);
     }
 
     // The PDF report of the Gestionnaire (D85), made by the application itself after a

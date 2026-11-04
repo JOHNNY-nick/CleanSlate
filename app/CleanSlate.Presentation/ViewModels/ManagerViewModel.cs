@@ -34,6 +34,9 @@ public sealed partial class ManagerRow : ObservableObject
     /// <summary>Last modification.</summary>
     public string DateText { get; }
 
+    /// <summary>The line under the path (type and date); hidden for a copy of the « Doublons » tab.</summary>
+    public bool ShowDetail { get; init; } = true;
+
     /// <summary>Zone: sensitive items carry a badge and need the expert mode.</summary>
     public Zone Zone { get; }
 
@@ -140,7 +143,7 @@ public sealed partial class ManagerViewModel : ObservableObject
         _navigation = navigation;
     }
 
-    /// <summary>Tab shown: 0 Diagnostic, 1 Recherche, 2 Catégories, 3 Gros fichiers, 4 Fichiers anciens, 5 Doublons, 6 Système, 7 En attente, 8 Évolution, 9 Volumes.</summary>
+    /// <summary>Tab shown: 0 Diagnostic, 1 Catégories, 2 Gros fichiers, 3 Fichiers anciens, 4 Doublons, 5 Système, 6 En attente, 7 Volumes.</summary>
     [ObservableProperty]
     private int _tabIndex;
 
@@ -175,13 +178,6 @@ public sealed partial class ManagerViewModel : ObservableObject
 
     /// <summary>Copies of duplicates (never the copy to keep).</summary>
     public ObservableCollection<ManagerRow> DuplicateCopies { get; } = [];
-
-    /// <summary>Search of the « Explorateur ».</summary>
-    [ObservableProperty]
-    private string _search = string.Empty;
-
-    /// <summary>Files found by the search, largest first.</summary>
-    public ObservableCollection<ManagerRow> Found { get; } = [];
 
     /// <summary>The analysis of the drive runs: « Analyser » becomes « Analyse en cours… (Annuler) ».</summary>
     [ObservableProperty]
@@ -341,7 +337,7 @@ public sealed partial class ManagerViewModel : ObservableObject
             _duplicates = await _manager.DuplicatesAsync(_analysis.DuplicateCandidates, cancellationToken);
             Fill(DuplicateCopies, _duplicates.SelectMany(g => g.Files
                 .Where(f => f.Path != g.Keep)
-                .Select(f => new ManagerRow(f.Path, f.SizeBytes, f.Modified, f.Zone, $"copie de {g.Keep}"))));
+                .Select(f => new ManagerRow(f.Path, f.SizeBytes, f.Modified, f.Zone, $"copie de {g.Keep}") { ShowDetail = false })));
             Diagnose();
         }
         catch (EngineException ex)
@@ -366,65 +362,14 @@ public sealed partial class ManagerViewModel : ObservableObject
         }
     }
 
-    partial void OnSearchChanged(string value)
-    {
-        Found.Clear();
-        if (_analysis is null || value.Trim().Length < 2)
-        {
-            return;
-        }
-
-        foreach (FileEntry f in _analysis.Largest.Concat(_analysis.Categories.SelectMany(c => c.Largest)).Concat(_analysis.OldFiles)
-                     .Where(f => f.Path.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase))
-                     .DistinctBy(f => f.Path)
-                     .OrderByDescending(f => f.SizeBytes)
-                     .Take(200))
-        {
-            Found.Add(Row(f));
-        }
-    }
-
     /// <summary>Deletes the checked items of every list, in the mode chosen in the confirmation.</summary>
     [RelayCommand]
     private Task DeleteCheckedAsync(CancellationToken cancellationToken) =>
         ActOnCheckedAsync("Supprimer", offerModes: true, cancellationToken, (paths, decision, manual) => _manager.DeleteAsync(paths, decision.Mode, manual, cancellationToken));
 
-    /// <summary>Deletes the checked items at the next restart (files in use).</summary>
-    [RelayCommand]
-    private Task DeleteAtRestartAsync(CancellationToken cancellationToken) =>
-        ActOnCheckedAsync("Supprimer au prochain redémarrage", offerModes: false, cancellationToken, (paths, _, manual) => _manager.DeleteAtRestartAsync(paths, manual, cancellationToken));
-
-    /// <summary>Overwrites then deletes the checked items.</summary>
-    [RelayCommand]
-    private Task SecureDeleteAsync(CancellationToken cancellationToken) =>
-        ActOnCheckedAsync("Suppression sécurisée", offerModes: false, cancellationToken, (paths, _, manual) => _manager.SecureDeleteAsync(paths, manual, cancellationToken),
-            "Chaque fichier est réécrit puis supprimé. Sur un SSD, cela ne garantit pas l'effacement physique (usure répartie, TRIM) : pour des données confidentielles, le chiffrement BitLocker est plus sûr.");
-
-    /// <summary>Moves the checked items to another drive (space checked, SHA-256 compared).</summary>
-    [RelayCommand]
-    private async Task MoveCheckedAsync(CancellationToken cancellationToken)
-    {
-        string? destination = await _dialogs.PickFolderAsync();
-        if (destination is null)
-        {
-            return;
-        }
-
-        await ActOnCheckedAsync($"Déplacer vers {destination}", offerModes: false, cancellationToken, (paths, _, manual) => _manager.MoveAsync(paths, destination, manual, cancellationToken),
-            "Chaque fichier est copié, comparé par SHA-256, puis l'original supprimé : la place se libère sur ce disque.");
-    }
-
     /// <summary>Opens the first checked item in the Explorer.</summary>
     [RelayCommand]
     private void Reveal() => Each(_manager.Reveal);
-
-    /// <summary>Copies the path of the first checked item.</summary>
-    [RelayCommand]
-    private void CopyPath() => Each(_manager.CopyPath);
-
-    /// <summary>Properties of the first checked item.</summary>
-    [RelayCommand]
-    private void Properties() => Each(_manager.ShowProperties);
 
     /// <summary>An application: its full uninstall through the wizard.</summary>
     [RelayCommand]
@@ -446,10 +391,10 @@ public sealed partial class ManagerViewModel : ObservableObject
         switch (line.Kind)
         {
             case RecoverableKind.OldDownloads:
-                TabIndex = 4;
+                TabIndex = 3;
                 return;
             case RecoverableKind.Duplicates:
-                TabIndex = 5;
+                TabIndex = 4;
                 return;
         }
 
@@ -779,7 +724,6 @@ public sealed partial class ManagerViewModel : ObservableObject
                 OldFiles.Remove(row);
                 CategoryFiles.Remove(row);
                 DuplicateCopies.Remove(row);
-                Found.Remove(row);
             }
         });
     }
@@ -843,7 +787,7 @@ public sealed partial class ManagerViewModel : ObservableObject
     }
 
     private IEnumerable<ManagerRow> Checked() =>
-        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Concat(Found).Where(r => r.IsChecked).DistinctBy(r => r.Path);
+        Largest.Concat(OldFiles).Concat(CategoryFiles).Concat(DuplicateCopies).Where(r => r.IsChecked).DistinctBy(r => r.Path);
 
     private void Each(Action<string> action)
     {

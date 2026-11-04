@@ -21,7 +21,7 @@
                 <CheckBox MinWidth="0" AutomationProperties.Name="{x:Bind Path}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" />
                 <StackPanel Grid.Column="1" Spacing="2">
                     <TextBlock FontFamily="{StaticResource PathFontFamily}" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind Path}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Path}" />
-                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}">
+                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextSecondaryBrush}" Visibility="{x:Bind ShowDetail}">
                         <Run Text="{x:Bind Detail}" />
                         <Run Text="·" />
                         <Run Text="{x:Bind DateText}" />
@@ -67,14 +67,12 @@
 
         <SelectorBar x:Name="Tabs" Grid.Row="2" SelectionChanged="OnTabChanged">
             <SelectorBarItem x:Uid="ManagerTabDiagnostic" IsSelected="True" />
-            <SelectorBarItem x:Uid="ManagerTabExplorer" />
             <SelectorBarItem x:Uid="ManagerTabCategories" />
             <SelectorBarItem x:Uid="ManagerTabLarge" />
             <SelectorBarItem x:Uid="ManagerTabOld" />
             <SelectorBarItem x:Uid="ManagerTabDuplicates" />
             <SelectorBarItem x:Uid="ManagerTabSystem" />
             <SelectorBarItem x:Uid="ManagerTabPending" />
-            <SelectorBarItem x:Uid="ManagerTabEvolution" />
             <SelectorBarItem x:Uid="ManagerTabVolumes" />
         </SelectorBar>
 
@@ -135,20 +133,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 1 Recherche: a file by its name among the files analyzed (D83: the files of a folder are on the Stockage page) -->
-            <Grid x:Name="Tab1" RowSpacing="8" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TextBlock x:Uid="ManagerSearchHelp" Style="{StaticResource SecondaryTextBlockStyle}" TextWrapping="Wrap" />
-                <TextBox x:Uid="ManagerSearch" Grid.Row="1" Text="{x:Bind ViewModel.Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <ListView Grid.Row="2" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Found}" SelectionMode="None" />
-            </Grid>
-
-            <!-- 2 Catégories -->
-            <Grid x:Name="Tab2" ColumnSpacing="12" Visibility="Collapsed">
+            <!-- 1 Catégories -->
+            <Grid x:Name="Tab1" ColumnSpacing="12" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="320" />
                     <ColumnDefinition Width="*" />
@@ -157,27 +143,26 @@
                 <ListView Grid.Column="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.CategoryFiles}" SelectionMode="None" />
             </Grid>
 
-            <!-- 3 Gros fichiers -->
-            <ListView x:Name="Tab3" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Largest}" SelectionMode="None" Visibility="Collapsed" />
+            <!-- 2 Gros fichiers -->
+            <ListView x:Name="Tab2" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.Largest}" SelectionMode="None" Visibility="Collapsed" />
 
-            <!-- 4 Fichiers anciens -->
-            <ListView x:Name="Tab4" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.OldFiles}" SelectionMode="None" Visibility="Collapsed" />
+            <!-- 3 Fichiers anciens -->
+            <ListView x:Name="Tab3" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.OldFiles}" SelectionMode="None" Visibility="Collapsed" />
 
-            <!-- 5 Doublons -->
-            <Grid x:Name="Tab5" RowSpacing="8" Visibility="Collapsed">
+            <!-- 4 Doublons -->
+            <Grid x:Name="Tab4" RowSpacing="8" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button x:Uid="ManagerFindDuplicates" Command="{x:Bind ViewModel.FindDuplicatesCommand}" />
-                    <TextBlock x:Uid="ManagerDuplicatesHelp" Style="{StaticResource SecondaryTextBlockStyle}" VerticalAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
                 <ListView Grid.Row="1" ItemTemplate="{StaticResource RowTemplate}" ItemsSource="{x:Bind ViewModel.DuplicateCopies}" SelectionMode="None" />
             </Grid>
 
-            <!-- 6 Système -->
-            <ScrollViewer x:Name="Tab6" Visibility="Collapsed">
+            <!-- 5 Système -->
+            <ScrollViewer x:Name="Tab5" Visibility="Collapsed">
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.SystemRows}">
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:SystemRow">
@@ -201,8 +186,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
 
-            <!-- 7 Suppressions en attente -->
-            <ScrollViewer x:Name="Tab7" Visibility="Collapsed">
+            <!-- 6 Suppressions en attente -->
+            <ScrollViewer x:Name="Tab6" Visibility="Collapsed">
                 <StackPanel Spacing="12">
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="6">
@@ -233,38 +218,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 8 Évolution -->
-            <ScrollViewer x:Name="Tab8" Visibility="Collapsed">
-                <StackPanel Spacing="12">
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Measures}">
-                            <ItemsRepeater.ItemTemplate>
-                                <DataTemplate x:DataType="vm:MeasureRow">
-                                    <Grid Padding="0,3" ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="160" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind DateText}" />
-                                        <ProgressBar Grid.Column="1" VerticalAlignment="Center" Maximum="100" Value="{x:Bind FreePercent}" AutomationProperties.Name="{x:Bind FreeText}" />
-                                        <TextBlock Grid.Column="2" Foreground="{ThemeResource TextPrimaryBrush}" Text="{x:Bind FreeText}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsRepeater.ItemTemplate>
-                        </ItemsRepeater>
-                    </Border>
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="4">
-                            <TextBlock x:Uid="ManagerGrowth" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.Growth}" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
-
-            <!-- 9 Volumes (display only) -->
-            <ScrollViewer x:Name="Tab9" Visibility="Collapsed">
+            <!-- 7 Volumes (display only) -->
+            <ScrollViewer x:Name="Tab7" Visibility="Collapsed">
                 <StackPanel Spacing="12">
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel Spacing="4">
@@ -307,12 +262,7 @@
                         <TextBlock x:Uid="ManagerDelete" />
                     </StackPanel>
                 </Button>
-                <Button x:Uid="ManagerAtRestart" Command="{x:Bind ViewModel.DeleteAtRestartCommand}" />
-                <Button x:Uid="ManagerSecure" Command="{x:Bind ViewModel.SecureDeleteCommand}" />
-                <Button x:Uid="ManagerMove" Command="{x:Bind ViewModel.MoveCheckedCommand}" />
                 <Button x:Uid="ManagerReveal" Command="{x:Bind ViewModel.RevealCommand}" />
-                <Button x:Uid="ManagerCopyPath" Command="{x:Bind ViewModel.CopyPathCommand}" />
-                <Button x:Uid="ManagerProperties" Command="{x:Bind ViewModel.PropertiesCommand}" />
                 <Button x:Uid="ManagerReport" Command="{x:Bind ViewModel.ExportReportCommand}" />
             </StackPanel>
             </ScrollViewer>
