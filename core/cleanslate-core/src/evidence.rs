@@ -521,7 +521,7 @@ mod tests {
         data[60..68].copy_from_slice(&filetime.to_le_bytes());
         area.create(&count)
             .set_raw_value(
-                &rot13(r"C:\Games\Old\old.exe"),
+                rot13(r"C:\Games\Old\old.exe"),
                 &winreg::RegValue {
                     bytes: data.into(),
                     vtype: winreg::enums::RegType::REG_BINARY,
