@@ -85,10 +85,15 @@ Invoke-Step 'Vérifications § 5 puis désinstallation de CleanSlate (à la main
   2. fermer CleanSlate, puis Paramètres > Applications > CleanSlate > Désinstaller.
 '@ -ForegroundColor Yellow
 } -NoInventory
-# The question is asked outside Invoke-Step, whose streams all go to the log (*>&1): the
-# console reads the answer directly. The next step records the uninstallation in its diff.
-$reads = Wait-Answer 'Désinstallation terminée ?' 'fini'
-Write-Log "  « fini » reçu ($reads lecture(s))"
+# Asked outside Invoke-Step, whose streams all go to the log (*>&1), in a dialog box always
+# in front. The next step records the uninstallation in its diff.
+Wait-Confirmation 'CleanSlate — test de l''installeur' @'
+1. Lancez CleanSlate (menu Démarrer), passez les trois écrans d'accueil, puis ouvrez Réglages > À propos.
+2. Fermez CleanSlate, puis désinstallez-le : Paramètres > Applications > CleanSlate > Désinstaller.
+
+Quand CleanSlate est désinstallé, cliquez sur OK : le rapport s'ouvrira.
+'@
+Write-Log '  désinstallation confirmée (OK)'
 Invoke-Step 'Désinstallation constatée' { Write-Host 'contrôles de la désinstallation' }
 $checks += [pscustomobject]@{ Name = 'C:\Program Files\CleanSlate supprimé'; Measure = $(if (Test-Path $installDir) { 'dossier encore présent' } else { 'absent' }); Status = $(if (Test-Path $installDir) { 'ko' } else { 'ok' }) }
 $checks += [pscustomobject]@{ Name = 'Entrée de désinstallation retirée'; Measure = "$(@(Uninstall-Entry).Count) entrée(s)"; Status = $(if (@(Uninstall-Entry).Count) { 'ko' } else { 'ok' }) }

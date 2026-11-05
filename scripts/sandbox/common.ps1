@@ -295,6 +295,15 @@ function Wait-Program([System.Diagnostics.Process] $process, [int] $seconds) {
 
 # Pause for a manual step that a stray Enter cannot skip (Installer run of 31 Oct. 2026: the
 # pause ended after 1 s): keys typed earlier are discarded, then $word must be typed.
+# A dialog box kept in front of every window: the tester clicks OK once the manual part is
+# done (the console of the script is usually hidden behind the setup and CleanSlate).
+function Wait-Confirmation([string] $title, [string] $message) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
+    try { [void][System.Windows.Forms.MessageBox]::Show($owner, $message, $title, 'OK', 'Information') }
+    finally { $owner.Dispose() }
+}
+
 # $reader replaces Read-Host in the tests.
 function Wait-Answer([string] $prompt, [string] $word, [scriptblock] $reader = { param($text) [Console]::Write("$text : "); [Console]::ReadLine() }) {
     try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
