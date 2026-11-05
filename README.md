@@ -7,7 +7,7 @@
 
 Dernière mise à jour : 5 nov. 2026
 
-**[⬇ Télécharger la dernière version (installeur Windows)](https://github.com/JOHNNY-nick/CleanSlate/releases)**
+**[⬇ Télécharger la dernière version (installeur Windows)](https://github.com/JOHNNY-nick/CleanSlate/releases)** · [Code signing policy](#code-signing-policy) · [Confidentialité](#confidentialité--privacy-policy)
 
 Utilitaire Windows de gestion du stockage : une carte visuelle de ce qui occupe
 chaque disque, un gestionnaire pour comprendre et libérer l'espace de toute la
@@ -87,6 +87,41 @@ rien d'autre à installer. Windows 10 2004 ou plus récent, x64.
 L'installeur n'est pas encore signé : Windows SmartScreen affichera un avertissement.
 Désinstaller CleanSlate garde `%LOCALAPPDATA%\CleanSlate` (quarantaine et historique),
 pour que vous puissiez encore restaurer vos fichiers.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/) (demande en cours : les versions publiées après
+son acceptation seront signées ainsi).
+
+- **Ce qui est signé** : uniquement les programmes construits à partir de ce dépôt par le
+  workflow GitHub Actions [`release.yml`](.github/workflows/release.yml), sur les machines
+  de GitHub. Les bibliothèques de Microsoft incluses (.NET, Windows App SDK) gardent leur
+  propre signature.
+- **Rôles** :
+  - Committers and reviewers : [JOHNNY-nick](https://github.com/JOHNNY-nick)
+  - Approvers : [JOHNNY-nick](https://github.com/JOHNNY-nick)
+- Chaque signature est approuvée à la main, une fois par version. Les comptes de l'équipe
+  (GitHub, SignPath) sont protégés par la double authentification.
+
+### Confidentialité / Privacy policy
+
+This program will not transfer any information to other networked systems unless
+specifically requested by the user or the person installing or operating it.
+
+CleanSlate ne transmet aucune information à un autre système en réseau, sauf demande
+explicite de l'utilisateur ou de la personne qui l'installe ou l'utilise. Les journaux
+restent sur le PC (`%LOCALAPPDATA%\CleanSlate\logs`) ; « Exporter les journaux » crée un
+fichier sur le Bureau, que l'utilisateur choisit ou non de partager.
+
+### Modifications du système
+
+CleanSlate supprime des fichiers, des clés de registre et des applications, uniquement à la
+demande de l'utilisateur : rien n'est coché d'avance dans les zones sensibles de Windows,
+chaque suppression montre la liste et se confirme, le mode « Sûr » (Corbeille ou
+quarantaine restaurable 30 jours) est proposé par défaut, et agir dans une zone sensible
+demande le mode expert et la saisie de « CONFIRMER ». L'installeur s'accompagne d'une
+désinstallation complète (Paramètres de Windows → Applications).
 
 ## Prérequis
 

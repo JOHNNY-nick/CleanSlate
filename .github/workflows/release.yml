@@ -1,0 +1,65 @@
+name: Release
+
+# Builds the installer on a GitHub-hosted runner (D89): the file to sign must come from
+# this workflow, never from a PC. Started by hand (Actions > Release > Run workflow).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          exit $LASTEXITCODE
+
+      # Scripts run with -File: the step fails on their real exit code.
+      - name: Installer (build.ps1 Release, dotnet publish, ISCC)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/package.ps1
+          exit $LASTEXITCODE
+
+      - name: The Release CLI has no test command (D53)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/check-release-cli.ps1 -Binary core/target/release/cleanslate-cli.exe
+          exit $LASTEXITCODE
+
+      - name: Content of the installer and SHA-256
+        shell: pwsh
+        run: |
+          $publish = (Resolve-Path artifacts/publish).Path
+          Get-ChildItem $publish -Recurse -File | Sort-Object FullName |
+            ForEach-Object { "$($_.FullName.Substring($publish.Length + 1)) $($_.Length)" } |
+            Set-Content artifacts/installer/contenu.txt -Encoding utf8
+          Get-FileHash artifacts/installer/*.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } |
+            Tee-Object -FilePath artifacts/installer/SHA256.txt
+
+      - name: Upload installer
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: CleanSlate-installer
+          path: artifacts/installer/
+          if-no-files-found: error
