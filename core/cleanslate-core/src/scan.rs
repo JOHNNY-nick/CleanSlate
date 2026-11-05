@@ -795,6 +795,20 @@ fn guess_app(program: &Path, folders: &KnownFolders) -> Option<String> {
 /// application (specs § 6.4).
 pub const APP_NAME_SIMILARITY: f64 = 0.85;
 
+/// D94: `path` lies among the user's own files: in Documents, the Desktop, Downloads,
+/// Pictures, Music, Videos or Public, or anywhere in the profile outside `AppData`. Such a
+/// folder is never proposed above Low confidence, so never prechecked.
+fn is_personal(folders: &KnownFolders, path: &Path) -> bool {
+    let lower = |p: &Path| p.to_string_lossy().trim_end_matches('\\').to_lowercase();
+    let text = lower(path);
+    let below = |root: &Path| {
+        let root = lower(root);
+        !root.is_empty() && (text == root || text.starts_with(&format!(r"{root}\")))
+    };
+    folders.user_folders.iter().any(|f| below(f))
+        || (below(&folders.user_profile) && !below(&folders.user_profile.join("AppData")))
+}
+
 /// Leftovers of one application just uninstalled (EF-13, specs § 6.4).
 ///
 /// `app` is the record captured before uninstalling. Items attached to
@@ -877,7 +891,8 @@ pub fn scan_app_leftovers(env: &ScanEnv, app: &InstalledApp, progress: ProgressF
     }
     if let Some(location) = &app.install_location {
         if env.fs.exists(location) && env.rules.check_path(location).is_ok() {
-            candidates.push(folder_candidate(location, None, false, false));
+            let personal = is_personal(env.folders, location);
+            candidates.push(folder_candidate(location, None, personal, false));
         }
     }
     candidates.sort_by_key(|c| c.location.to_lowercase());
@@ -1764,6 +1779,52 @@ pub(crate) mod tests {
             ..env
         };
         assert!(scan_app_leftovers(&env, &gimp, &|_| {}).groups.is_empty());
+    }
+
+    /// D94: a former install folder among the user's own files (Desktop, Pictures, the
+    /// profile outside AppData) is proposed at Low confidence, never prechecked; one in
+    /// AppData stays High.
+    #[test]
+    fn an_install_folder_among_personal_files_is_never_high() {
+        let old = Some(now() - chrono::Duration::days(400));
+        let cases = [
+            (r"C:\Users\Ana\Desktop\Jeu", Confidence::Low),
+            (r"C:\Users\Ana\Pictures\Albums\Visionneuse", Confidence::Low),
+            (r"C:\Users\Ana\Projets\Outil", Confidence::Low),
+            (
+                r"C:\Users\Ana\AppData\Local\Programs\Outil",
+                Confidence::High,
+            ),
+        ];
+        for (location, expected) in cases {
+            let mut fs = FakeFileSystem::new();
+            fs.add_file(format!(r"{location}\data.bin"), 5_000, old);
+            let area = TestRegistryKey::new();
+            let registry = area.registry();
+            let folders = KnownFolders::under(r"C:\");
+            let rules = SafetyRules::new(&folders, &[]);
+            let cancel = AtomicBool::new(false);
+            let env = ScanEnv {
+                fs: &fs,
+                registry: &registry,
+                folders: &folders,
+                rules: &rules,
+                apps: &[],
+                extra_executables: &[],
+                cancel: &cancel,
+                now: now(),
+                installed_packages: None,
+            };
+            let gone = app("Zzyzx Studio", "Qwop Labs", Some(location));
+            let report = scan_app_leftovers(&env, &gone, &|_| {});
+            let item = report
+                .groups
+                .iter()
+                .flat_map(|g| &g.items)
+                .find(|i| i.location == location)
+                .unwrap_or_else(|| panic!("missing {location}: {report:#?}"));
+            assert_eq!(item.confidence, expected, "{location}");
+        }
     }
 
     #[test]
