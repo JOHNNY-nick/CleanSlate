@@ -5,11 +5,12 @@
 - **Étape actuelle** : A5, usage réel. **Fait le 5 nov. 2026** : dépôt public sur GitHub (D87, sans le livre), une seule version publiée, **0.1.0 bêta** (`v0.1.0-beta`, elle remplace la première) ; renforcement de la sécurité (D88 : quarantaine signée et vérifiée, désinstalleurs par compte avec les droits de l'utilisateur, rapport sans script), détail dans `docs/securite/audit.md` § 5.
 - **Scénario Sandbox « Compléments »** : 26 / 26 vérifications automatiques le 5 nov. 2026 (run `complements-20261105-002432`, commit 36b7d99), dont les cas D88 6 à 9 ; installeur publié sur `v0.1.0-beta` : `CleanSlate-0.1.0-beta-setup.exe`, SHA-256 `115FE7DF…148147F`.
 - **Soumission à Microsoft** : installeur de la bêta soumis le 5 nov. 2026, en attente de réponse.
-- **Prochaine action** : le porteur installe la bêta sur son PC, met en quarantaine un reste sans importance (Restes orphelins, mode « Sûr ») puis le restaure depuis l'Historique ; il note le statut de la soumission quand il change.
+- **Signature (D89)** : 2FA du compte GitHub activée ; section « Code signing policy » dans le README ; installeur construit sur GitHub par `release.yml` (run 42014426074, SHA-256 `6A9B9A77…EB4574`, mêmes 552 fichiers que l'installeur du PC). Constats du livre L-01 à L-07 corrigés (`ea92177`, `0214ff0`).
+- **Prochaine action** : le porteur passe le scénario Sandbox « Installer » avec l'installeur construit sur GitHub (`pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`), puis dépose la demande sur https://signpath.org/apply.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « restauré » (ou le message affiché), et le statut de Microsoft quand il change.
+- **Réponse attendue** : « fait » quand le rapport du Sandbox s'affiche (désinstallation à la main comprise), puis « demande envoyée ».
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
-- **File des tâches** : vide.
+- **File des tâches** : après acceptation de SignPath, étape de signature dans `release.yml`, puis bêta signée sur `v0.1.0-beta`.
 
 Dernière mise à jour : 5 nov. 2026.
 ## Règles de pilotage
