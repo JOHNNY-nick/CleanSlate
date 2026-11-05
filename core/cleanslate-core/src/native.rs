@@ -409,9 +409,7 @@ pub fn manifest_key() -> CoreResult<(Vec<u8>, bool)> {
 
     // Rights set before the secret is written: SYSTEM and Administrators, full control.
     let sddl: Vec<u16> = "D:P(A;;KA;;;SY)(A;;KA;;;BA)\0".encode_utf16().collect();
-    let name: Vec<u16> = format!(r"MACHINE\{INTEGRITY_KEY}\0")
-        .encode_utf16()
-        .collect();
+    let name = integrity_key_name();
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
     // SAFETY: NUL-terminated SDDL text; the descriptor allocated by the call is freed below
     // with LocalFree, once, after its DACL was used.
@@ -474,9 +472,25 @@ pub fn manifest_key() -> CoreResult<(Vec<u8>, bool)> {
     }
 }
 
+/// Name of the key of the manifests for `SetNamedSecurityInfoW`, NUL-terminated.
+fn integrity_key_name() -> Vec<u16> {
+    wide(Path::new(&format!(r"MACHINE\{INTEGRITY_KEY}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// D88: the object name ends with one NUL, right after the name of the key.
+    #[test]
+    fn the_name_of_the_integrity_key_ends_with_its_terminator() {
+        let name = integrity_key_name();
+        assert_eq!(name.last(), Some(&0));
+        assert_eq!(
+            String::from_utf16(&name[..name.len() - 1]).unwrap(),
+            r"MACHINE\SOFTWARE\CleanSlate\Integrity"
+        );
+    }
 
     /// RFC 4231, test case 2.
     #[test]
