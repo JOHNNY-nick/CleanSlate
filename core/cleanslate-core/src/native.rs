@@ -4,7 +4,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{LocalFree, HLOCAL};
@@ -382,6 +382,47 @@ pub fn random_bytes(count: usize) -> CoreResult<Vec<u8>> {
     Ok(out)
 }
 
+/// The Windows folder as the kernel reports it (`GetSystemWindowsDirectoryW`), never read
+/// from an environment variable: the variables of the user also reach an elevated process,
+/// so every path of Windows that CleanSlate starts or protects comes from here. Falls back
+/// to `C:\Windows` only if the call itself fails.
+pub fn windows_dir() -> PathBuf {
+    use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
+    let mut buffer = [0u16; 261];
+    // SAFETY: the buffer is owned and its length is passed with it; Windows writes at most
+    // that many units and returns how many (without the NUL), or 0 on failure.
+    let len = unsafe { GetSystemWindowsDirectoryW(Some(&mut buffer)) } as usize;
+    if len == 0 || len >= buffer.len() {
+        return PathBuf::from(r"C:\Windows");
+    }
+    PathBuf::from(String::from_utf16_lossy(&buffer[..len]))
+}
+
+/// Expands, in a path read from the registry without expansion, only the variables that
+/// name the Windows folder or its drive, with the value of [`windows_dir`]. `None` if any
+/// other variable is left: the environment of the process is never consulted.
+pub fn expand_system_path(raw: &str, windir: &Path) -> Option<PathBuf> {
+    let windir = windir.to_string_lossy();
+    let drive = windir.get(..2).filter(|d| d.ends_with(':'))?;
+    let mut out = String::new();
+    let mut rest = raw;
+    while let Some(start) = rest.find('%') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        let end = after.find('%')?;
+        let value = match after[..end].to_ascii_lowercase().as_str() {
+            "systemdrive" => drive,
+            "systemroot" | "windir" => windir.as_ref(),
+            _ => return None,
+        };
+        out.push_str(value);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    let path = PathBuf::from(out);
+    path.is_absolute().then_some(path)
+}
+
 /// Key of the registry that holds the key of the manifests (D88).
 pub const INTEGRITY_KEY: &str = r"SOFTWARE\CleanSlate\Integrity";
 
@@ -480,6 +521,39 @@ fn integrity_key_name() -> Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only the Windows folder and its drive are expanded, from the given folder; any
+    /// other variable (profile, Program Files, a made-up one) refuses the path.
+    #[test]
+    fn only_the_windows_variables_are_expanded() {
+        let windir = Path::new(r"C:\Windows");
+        let cases = [
+            (r"%SystemDrive%\ProgramData", Some(r"C:\ProgramData")),
+            (r"%SYSTEMROOT%\System32", Some(r"C:\Windows\System32")),
+            (r"%windir%\Temp", Some(r"C:\Windows\Temp")),
+            (r"C:\Program Files", Some(r"C:\Program Files")),
+            (r"%ProgramFiles%\App", None),
+            (r"%USERPROFILE%\AppData", None),
+            (r"%SystemDrive\ProgramData", None),
+            (r"ProgramData", None),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(
+                expand_system_path(raw, windir),
+                expected.map(PathBuf::from),
+                "{raw}"
+            );
+        }
+    }
+
+    /// Read-only: the Windows folder of the kernel is an absolute path of a drive.
+    #[test]
+    fn the_windows_folder_comes_from_the_kernel() {
+        let windir = windows_dir();
+        assert!(windir.is_absolute(), "{}", windir.display());
+        assert!(windir.join("System32").is_dir());
+        assert!(!windir.to_string_lossy().contains('%'));
+    }
 
     /// D88: the object name ends with one NUL, right after the name of the key.
     #[test]

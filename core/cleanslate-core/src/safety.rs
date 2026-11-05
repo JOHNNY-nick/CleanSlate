@@ -245,26 +245,16 @@ impl KnownFolders {
         }
     }
 
-    /// Folders of this machine (environment variables and known folders).
+    /// Folders of this machine. Windows comes from the kernel, the folders of the machine
+    /// from its known folders with only the Windows variables expanded, the folders of the
+    /// user from the user's known folders: never from the environment of the process, which the
+    /// user's variables reach even when CleanSlate runs as administrator.
     pub fn from_system() -> Self {
-        let env = |name: &str| std::env::var_os(name).map(PathBuf::from);
-        let drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_owned());
+        let windir = crate::native::windows_dir();
+        let drive = windir.to_string_lossy().get(..2).unwrap_or("C:").to_owned();
         let mut f = Self::under(format!(r"{drive}\"));
-        let set = |slot: &mut PathBuf, value: Option<PathBuf>| {
-            if let Some(v) = value {
-                *slot = v;
-            }
-        };
-        set(&mut f.windir, env("SystemRoot").or_else(|| env("windir")));
-        set(
-            &mut f.program_files,
-            env("ProgramW6432").or_else(|| env("ProgramFiles")),
-        );
-        set(&mut f.program_files_x86, env("ProgramFiles(x86)"));
-        set(&mut f.program_data, env("ProgramData"));
-        set(&mut f.user_profile, env("USERPROFILE"));
-        set(&mut f.roaming, env("APPDATA"));
-        set(&mut f.local, env("LOCALAPPDATA"));
+        f.windir = windir;
+        known::fill_machine(&mut f);
         if let Some(parent) = f.user_profile.parent() {
             f.users = parent.to_path_buf();
         }
@@ -308,20 +298,58 @@ mod known {
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::UI::Shell::{
         FOLDERID_CommonPrograms, FOLDERID_Desktop, FOLDERID_Documents, FOLDERID_Downloads,
-        FOLDERID_Music, FOLDERID_Pictures, FOLDERID_Programs, FOLDERID_Public,
-        FOLDERID_PublicDesktop, FOLDERID_Videos, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+        FOLDERID_LocalAppData, FOLDERID_Music, FOLDERID_Pictures, FOLDERID_Profile,
+        FOLDERID_ProgramData, FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX86, FOLDERID_Programs,
+        FOLDERID_Public, FOLDERID_PublicDesktop, FOLDERID_RoamingAppData, FOLDERID_Videos,
+        SHGetKnownFolderPath, KF_FLAG_DEFAULT, KF_FLAG_DONT_UNEXPAND, KNOWN_FOLDER_FLAG,
     };
 
     use super::KnownFolders;
 
-    fn get(id: &GUID) -> Option<PathBuf> {
+    fn raw(id: &GUID, flags: KNOWN_FOLDER_FLAG) -> Option<String> {
         // SAFETY: `id` is a valid GUID; on success the returned buffer is a
         // NUL-terminated string owned by us, freed with CoTaskMemFree below.
         unsafe {
-            let raw = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
+            let raw = SHGetKnownFolderPath(id, flags, None).ok()?;
             let text = raw.to_string().ok();
             CoTaskMemFree(Some(raw.0 as *const _));
-            text.map(PathBuf::from)
+            text
+        }
+    }
+
+    fn get(id: &GUID) -> Option<PathBuf> {
+        raw(id, KF_FLAG_DEFAULT).map(PathBuf::from)
+    }
+
+    /// A folder of the machine, its variables expanded only with the Windows folder.
+    fn machine(id: &GUID, windir: &std::path::Path) -> Option<PathBuf> {
+        crate::native::expand_system_path(&raw(id, KF_FLAG_DONT_UNEXPAND)?, windir)
+    }
+
+    /// Program Files, Program Files (x86) and ProgramData (machine), then the profile,
+    /// Roaming and Local folders of the user. A folder that cannot be read keeps its
+    /// default below the Windows drive.
+    pub(super) fn fill_machine(f: &mut KnownFolders) {
+        let windir = f.windir.clone();
+        let slots: [(&mut PathBuf, &GUID); 3] = [
+            (&mut f.program_files, &FOLDERID_ProgramFiles),
+            (&mut f.program_files_x86, &FOLDERID_ProgramFilesX86),
+            (&mut f.program_data, &FOLDERID_ProgramData),
+        ];
+        for (slot, id) in slots {
+            if let Some(path) = machine(id, &windir) {
+                *slot = path;
+            }
+        }
+        let slots: [(&mut PathBuf, &GUID); 3] = [
+            (&mut f.user_profile, &FOLDERID_Profile),
+            (&mut f.roaming, &FOLDERID_RoamingAppData),
+            (&mut f.local, &FOLDERID_LocalAppData),
+        ];
+        for (slot, id) in slots {
+            if let Some(path) = get(id) {
+                *slot = path;
+            }
         }
     }
 
@@ -1066,9 +1094,56 @@ mod tests {
         relative_path => r"Program Files\App",
     }
 
+    /// The engine reads no environment variable to find a folder or a program: only `PATH`
+    /// (its folders can only add protections) and the log folder of the Sandbox tests.
+    #[test]
+    fn windows_paths_never_come_from_the_environment() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut offenders = Vec::new();
+        for entry in std::fs::read_dir(&src).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n");
+            let code = match text.find("#[cfg(test)]\nmod tests") {
+                Some(end) => &text[..end],
+                None => &text,
+            };
+            for line in code.lines().filter(|l| l.contains("env::var")) {
+                let allowed = (path.ends_with("safety.rs") && line.contains(r#"var_os("PATH")"#))
+                    || (path.ends_with("logging.rs") && line.contains("DIRECTORY_VARIABLE"));
+                if !allowed {
+                    offenders.push(format!("{}: {}", path.display(), line.trim()));
+                }
+            }
+        }
+        assert!(offenders.is_empty(), "environment read: {offenders:?}");
+    }
+
+    /// Read-only: the folders of the machine agree with the kernel and hold no variable.
+    #[test]
+    fn machine_folders_come_from_the_kernel_and_the_known_folders() {
+        let folders = KnownFolders::from_system();
+        assert_eq!(folders.windir, crate::native::windows_dir());
+        let drive = folders.windir.to_string_lossy()[..2].to_lowercase();
+        for path in [
+            &folders.program_files,
+            &folders.program_files_x86,
+            &folders.program_data,
+        ] {
+            let text = path.to_string_lossy();
+            assert!(!text.contains('%'), "{text}");
+            assert!(text.to_lowercase().starts_with(&drive), "{text}");
+        }
+        assert!(folders.program_files.join("Common Files").is_dir());
+    }
+
     #[test]
     fn system_folders_are_absolute_and_protected() {
-        // Read-only: environment variables and SHGetKnownFolderPath.
+        // Read-only: the kernel and SHGetKnownFolderPath.
         let folders = KnownFolders::from_system();
         let rules = SafetyRules::new(&folders, &[]);
         for root in folders.scan_roots() {
@@ -1717,7 +1792,7 @@ mod tests {
             .map(|p| crate::fs::strip_verbatim(&p))
             .unwrap();
         let link = base.join("trap");
-        let windir = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        let windir = crate::native::windows_dir();
         let status = std::process::Command::new("cmd")
             .args(["/C", "mklink", "/J"])
             .arg(&link)

@@ -111,12 +111,10 @@ fn split_args(text: &str) -> Vec<String> {
     args
 }
 
-/// Folder of `%SystemRoot%\System32`, where bare names like `MsiExec.exe`
-/// are resolved (never through `PATH`).
+/// `System32` of the Windows folder reported by the kernel, where bare names like
+/// `MsiExec.exe` are resolved (never through `PATH` nor an environment variable).
 fn system32() -> PathBuf {
-    let root =
-        std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
-    root.join("System32")
+    crate::native::windows_dir().join("System32")
 }
 
 /// Splits an `UninstallString` into program and arguments (safety rule 8).

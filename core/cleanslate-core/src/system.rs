@@ -240,7 +240,7 @@ pub fn service_executables(registry: &dyn Registry) -> Vec<String> {
     let Ok(names) = registry.subkeys(&root) else {
         return Vec::new();
     };
-    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    let system_root = crate::native::windows_dir().to_string_lossy().into_owned();
     names
         .iter()
         .filter_map(|name| registry.values(&root.join(name)).ok())
