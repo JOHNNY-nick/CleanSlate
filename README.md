@@ -19,7 +19,7 @@ d'applications déjà désinstallées.
 En désinstallant des applications depuis les Paramètres de Windows, j'ai remarqué
 que des fichiers restaient sur mon PC : dossiers dans AppData, clés de registre,
 raccourcis… Je voulais pouvoir tout supprimer. J'ai donc imaginé une application
-qui répond à deux besoins :
+qui répond à trois besoins :
 
 1. **Tout supprimer en une seule désinstallation** : l'application et tous les
    fichiers qu'elle laisse derrière elle.
@@ -198,7 +198,8 @@ pas la casse des noms de fichiers.
 
 L'application demande les droits administrateur (manifeste `requireAdministrator`) ;
 pour la déboguer, lancez Visual Studio en administrateur et ouvrez `app/CleanSlate.sln`.
-Le mode simulation est actif par défaut.
+L'application agit pour de vrai, même en Debug ; pour tout simuler, définissez
+`CLEANSLATE_DEV_SIMULATION=1` (Debug seulement, D74).
 
 Pour un essai rapide sans invite UAC, la variable d'environnement
 `__COMPAT_LAYER=RunAsInvoker` lance l'application sans élévation :

@@ -43,7 +43,7 @@ La version 1.0 cible un poste Windows personnel, un utilisateur averti mais non 
 
 ## 3. Exigences fonctionnelles
 
-Vingt exigences réparties en cinq modules ; la priorité suit la méthode MoSCoW (M = indispensable, S = souhaitable, C = optionnel).
+Trente-cinq exigences : vingt et une en cinq modules (EF-01 à EF-21), puis quatorze pour le Gestionnaire (EF-22 à EF-35) ; la priorité suit la méthode MoSCoW (M = indispensable, S = souhaitable, C = optionnel).
 
 ### 3.1 Inventaire des applications installées
 

@@ -21,7 +21,7 @@ CleanSlate se compose de trois couches : une interface C# / WinUI 3, une DLL nat
 │  cleanslate-ffi : catch_unwind, JSON vers types Rust, ByteBuffer           │
 │  ┌──────────────────────── cleanslate-core ──────────────────────────────┐ │
 │  │ inventory  │ scan       │ matcher        │ safety                      │ │
-│  │ (apps)     │ (disque +  │ (orphelins +   │ (liste noire)               │ │
+│  │ (apps)     │ (disque +  │ (orphelins +   │ + zones (zones sensibles)   │ │
 │  │            │  registre) │  score)        │                             │ │
 │  │ uninstall  │ quarantine │ history        │ model                       │ │
 │  │ (lance et  │ (restau-   │ (sessions      │ (types partagés)            │ │
@@ -419,7 +419,9 @@ Pages dans `CleanSlate.App/Views/`, ViewModels dans `CleanSlate.Presentation/Vie
 
 Le module `safety` est le dernier rempart : toute action destructive appelle `safety::validate(target)` juste avant d'agir, même si le scan l'avait déjà filtrée.
 
-### 9.1 Liste noire (codée en dur, non désactivable)
+### 9.1 Zones sensibles (liste de `safety.rs`, D79)
+
+Depuis D79, cette liste définit les **zones sensibles** : les propositions automatiques n'en proposent ni n'en précochent jamais un élément ; une action manuelle y passe par `zones::authorize` (voir `zones.rs`), qui exige le mode expert puis la saisie de « CONFIRMER ». Chemins malformés, liens, jonctions et racines de lecteur restent toujours refusés.
 
 - **Chemins** : `%WINDIR%` et tout son contenu ; racine de chaque lecteur ; `Program Files`, `Program Files (x86)`, `ProgramData`, `AppData\Roaming`, `AppData\Local`, `AppData\LocalLow` eux-mêmes (seuls leurs sous-dossiers sont candidats) ; `Users\<nom>` et ses dossiers connus (Documents, Bureau, Téléchargements…) eux-mêmes ; `System Volume Information`, `$Recycle.Bin`, `Recovery`.
 - **Racines de scan elles-mêmes** : chaque racine de EF-05 (`Program Files`, `Program Files (x86)`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\Programs`, `%PROGRAMDATA%`, `Documents`) et de EF-06 (`HKCU\Software`, `HKLM\SOFTWARE`, `HKLM\SOFTWARE\WOW6432Node`) est protégée en tant que telle ; seuls ses enfants sont candidats. Cela évite par exemple que `%LOCALAPPDATA%\Programs`, enfant direct de `%LOCALAPPDATA%`, soit proposé en bloc comme reste.
@@ -494,7 +496,7 @@ Sortie : `artifacts/installer/CleanSlate-<version>-setup.exe` (environ 59 Mo).
 ## Gestionnaire du stockage (D79)
 
 - `zones` : `Zone::{Normal, Sensitive}` d'un chemin ou d'une clé (la liste de `safety.rs`) ; `authorize(cible, expert, confirmation)` pour une action manuelle : zone sensible → `EXPERT_REQUIRED` hors mode expert, `CONFIRMATION_REQUIRED` sans « CONFIRMER » ; chemins malformés, liens, jonctions et racines de lecteur → `PROTECTED` toujours.
-- `manager` : analyses en lecture seule (diagnostic, catégories, gros fichiers, fichiers anciens, doublons, caches, Corbeilles, suppressions en attente, volumes) et actions (`DeleteMode::{Safe, Immediate}`, déplacement vérifié par SHA-256, suppression au redémarrage, sécurisée) ; chaque accès réel au système passe par un trait injectable (`RecycleBin`, `RebootDeleter`, `SystemCleaner`, `VolumeReader`) qui refuse tout sur un moteur de test.
-- FFI : une fonction `cs_manager_*` par analyse et par action, JSON UTF-8, `dry_run` par défaut, progression et annulation comme `cs_scan_orphans`.
+- `manager` : analyses en lecture seule (diagnostic, catégories, gros fichiers, fichiers anciens, doublons, caches, Corbeilles, suppressions en attente, volumes) et actions (`DeleteMode::{Safe, Immediate}`, déplacement vérifié par SHA-256, suppression au redémarrage, sécurisée) ; chaque accès réel au système passe par un trait injectable (`SystemShell` pour la Corbeille, la suppression au redémarrage et les volumes, `SystemCleaner` pour le nettoyage de Windows) qui refuse tout sur un moteur de test.
+- FFI : une seule fonction, `cs_manager`, qui reçoit une `ManagerRequest` (analyse ou action) en JSON UTF-8, `dry_run` par défaut, progression et annulation comme `cs_scan_orphans`.
 - Application : page « Gestionnaire » à onglets ; confirmation commune (mode, aperçu, zones sensibles, « CONFIRMER ») ; mode expert et seuil d'alerte dans Réglages.
 
