@@ -28,8 +28,8 @@ const MAX_TASK_LEN: u64 = 1024 * 1024;
 const TASK_DEPTH: usize = 8;
 
 /// A scheduled task or a service whose program no longer exists (EF-07).
-/// Detection only: CleanSlate never removes them (V11 plan, decision of the
-/// owner), the user does it in the Task Scheduler or with `sc.exe delete`.
+/// Quarantined through the Task Scheduler and the Service Control Manager (D47),
+/// after `SafetyRules::validate_task` / `validate_service`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeadEntry {
     /// [`LeftoverKind::ScheduledTask`] or [`LeftoverKind::Service`].
@@ -73,9 +73,13 @@ fn walk_tasks(
     };
     for entry in entries {
         let name = entry.path.strip_prefix(root).unwrap_or(&entry.path);
-        if entry.metadata.is_reparse_point
-            || (depth == 0 && name.as_os_str().eq_ignore_ascii_case("Microsoft"))
-        {
+        // A `Microsoft` folder or task at any depth, as `check_task_path` judges it (D47).
+        let microsoft = entry.path.file_name().is_some_and(|n| {
+            n.to_string_lossy()
+                .trim_end_matches([' ', '.'])
+                .eq_ignore_ascii_case("Microsoft")
+        });
+        if entry.metadata.is_reparse_point || microsoft {
             continue;
         }
         if entry.metadata.is_dir {
@@ -379,6 +383,16 @@ mod tests {
             .add_file_with_content(
                 tasks.join(r"Microsoft\Windows\Defrag"),
                 task_xml(&[r"C:\Fake\Gone\defrag.exe"]),
+                None,
+            )
+            .add_file_with_content(
+                tasks.join(r"Vendor\Microsoft\Dead"),
+                task_xml(&[r"C:\Fake\Gone\dead.exe"]),
+                None,
+            )
+            .add_file_with_content(
+                tasks.join(r"Vendor\microsoft. \Other"),
+                task_xml(&[r"C:\Fake\Gone\other.exe"]),
                 None,
             )
             .add_file_with_content(

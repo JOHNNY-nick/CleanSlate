@@ -16,6 +16,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::fs::{FileSystem, RealFileSystem};
 use crate::manager::folder_size;
 use crate::safety::KnownFolders;
+use crate::services::{ScmServiceControl, ServiceControl, STATE_STOPPED};
 
 /// A clean-up of the « Système » tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -254,6 +255,47 @@ fn empty_update_cache(download: &std::path::Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Longest wait for a service of Windows Update to stop.
+const STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const STOP_POLL: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Waits until `name` is reported stopped, `timeout` at most.
+fn wait_stopped(
+    control: &dyn ServiceControl,
+    name: &str,
+    timeout: std::time::Duration,
+    poll: std::time::Duration,
+) -> CoreResult<()> {
+    let started = std::time::Instant::now();
+    loop {
+        if control.query(name)?.current_state == STATE_STOPPED {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err(CoreError::InvalidInput(format!(
+                "the service {name} did not stop"
+            )));
+        }
+        std::thread::sleep(poll);
+    }
+}
+
+/// Windows Update cache: `wuauserv` and `bits` stopped (and seen stopped), the folder
+/// emptied only then, both services started again in every case; the first error is
+/// returned.
+fn refresh_update_cache(
+    stop: &mut dyn FnMut(&str) -> CoreResult<()>,
+    start: &mut dyn FnMut(&str) -> CoreResult<()>,
+    empty: &mut dyn FnMut() -> CoreResult<()>,
+) -> CoreResult<()> {
+    let emptied = stop("wuauserv")
+        .and_then(|()| stop("bits"))
+        .and_then(|()| empty());
+    let bits = start("bits");
+    let update = start("wuauserv");
+    emptied.and(bits).and(update)
+}
+
 impl SystemCleaner for WinSystemCleaner {
     fn inspect(&self) -> CoreResult<Vec<SystemItem>> {
         let (download, delivery, old, hiberfil) = self.paths();
@@ -286,14 +328,22 @@ impl SystemCleaner for WinSystemCleaner {
                 steps,
             )?,
             SystemTask::UpdateCache => {
-                // Stopped cleanly, emptied, restarted even if the emptying failed.
-                self.run_tool("sc.exe", &["stop", "wuauserv"], steps)?;
-                self.run_tool("sc.exe", &["stop", "bits"], steps)?;
                 let (download, ..) = self.paths();
-                let emptied = empty_update_cache(&download);
-                self.run_tool("sc.exe", &["start", "bits"], steps)?;
-                self.run_tool("sc.exe", &["start", "wuauserv"], steps)?;
-                emptied.map_err(|e| CoreError::from_io(download, e))?;
+                let steps = std::cell::RefCell::new(steps);
+                refresh_update_cache(
+                    &mut |name| {
+                        self.run_tool("sc.exe", &["stop", name], &mut steps.borrow_mut())?;
+                        wait_stopped(&ScmServiceControl, name, STOP_TIMEOUT, STOP_POLL)
+                    },
+                    &mut |name| {
+                        self.run_tool("sc.exe", &["start", name], &mut steps.borrow_mut())
+                            .map(|_| ())
+                    },
+                    &mut || {
+                        empty_update_cache(&download)
+                            .map_err(|e| CoreError::from_io(download.clone(), e))
+                    },
+                )?;
                 false
             }
             SystemTask::DeliveryOptimization => self.checked(
@@ -373,6 +423,84 @@ mod tests {
         assert_eq!(std::fs::read_dir(&download).unwrap().count(), 0);
     }
     use chrono::TimeZone;
+
+    /// L-06: the folder is emptied only once both services are stopped; they are started
+    /// again whatever failed, and the first error is the one returned.
+    #[test]
+    fn update_services_are_always_started_again() {
+        use std::cell::RefCell;
+        let run = |fail_stop: Option<&str>, fail_empty: bool| {
+            let log = RefCell::new(Vec::<String>::new());
+            let result = refresh_update_cache(
+                &mut |n| {
+                    log.borrow_mut().push(format!("stop {n}"));
+                    match fail_stop {
+                        Some(f) if f == n => Err(CoreError::InvalidInput(format!("stop {n}"))),
+                        _ => Ok(()),
+                    }
+                },
+                &mut |n| {
+                    log.borrow_mut().push(format!("start {n}"));
+                    Ok(())
+                },
+                &mut || {
+                    log.borrow_mut().push("empty".into());
+                    if fail_empty {
+                        Err(CoreError::InvalidInput("empty".into()))
+                    } else {
+                        Ok(())
+                    }
+                },
+            );
+            (result.err().map(|e| e.to_string()), log.into_inner())
+        };
+        let all = [
+            "stop wuauserv",
+            "stop bits",
+            "empty",
+            "start bits",
+            "start wuauserv",
+        ];
+        assert_eq!(run(None, false), (None, all.map(String::from).to_vec()));
+        let (err, log) = run(Some("bits"), false);
+        assert!(err.unwrap().contains("stop bits"));
+        assert_eq!(
+            log,
+            ["stop wuauserv", "stop bits", "start bits", "start wuauserv"]
+        );
+        let (err, log) = run(None, true);
+        assert!(err.unwrap().contains("empty"));
+        assert_eq!(log, all);
+    }
+
+    /// L-06: the wait ends as soon as the service is stopped, and gives up after its delay.
+    #[test]
+    fn the_wait_for_a_stopped_service_is_bounded() {
+        use crate::services::{ServiceConfig, ServiceState};
+        use std::sync::atomic::{AtomicU32, Ordering};
+        struct Stopping(AtomicU32, u32);
+        impl ServiceControl for Stopping {
+            fn query(&self, _: &str) -> CoreResult<ServiceState> {
+                let polls = self.0.fetch_add(1, Ordering::Relaxed);
+                Ok(ServiceState {
+                    current_state: if polls >= self.1 { STATE_STOPPED } else { 3 },
+                    ..ServiceState::default()
+                })
+            }
+            fn delete(&self, _: &str) -> CoreResult<()> {
+                unreachable!()
+            }
+            fn create(&self, _: &ServiceConfig) -> CoreResult<()> {
+                unreachable!()
+            }
+        }
+        let ms = std::time::Duration::from_millis;
+        let soon = Stopping(AtomicU32::new(0), 2);
+        assert!(wait_stopped(&soon, "bits", ms(500), ms(1)).is_ok());
+        assert_eq!(soon.0.load(Ordering::Relaxed), 3);
+        let never = Stopping(AtomicU32::new(0), u32::MAX);
+        assert!(wait_stopped(&never, "bits", ms(20), ms(1)).is_err());
+    }
 
     #[test]
     fn restore_points_are_read_from_vssadmin_in_english_and_french() {

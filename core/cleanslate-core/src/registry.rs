@@ -170,7 +170,6 @@ fn vtype_from_number(number: u32) -> RegType {
     .unwrap_or(RegType::REG_BINARY)
 }
 
-/// UTF-16 LE bytes of `text` followed by a NUL character.
 /// Strings of a `REG_MULTI_SZ`, empty ones kept: `a\0\0b\0\0` is `["a", "", "b"]`.
 /// Only the terminator of the last string and the one of the list are removed.
 pub fn decode_multi_sz(bytes: &[u8]) -> Vec<String> {
@@ -195,6 +194,7 @@ pub fn decode_multi_sz(bytes: &[u8]) -> Vec<String> {
         .collect()
 }
 
+/// UTF-16 LE bytes of `text` followed by a NUL character.
 fn utf16_z(text: &str) -> Vec<u8> {
     text.encode_utf16()
         .chain([0])
