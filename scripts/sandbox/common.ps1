@@ -296,7 +296,7 @@ function Wait-Program([System.Diagnostics.Process] $process, [int] $seconds) {
 # Pause for a manual step that a stray Enter cannot skip (Installer run of 31 Oct. 2026: the
 # pause ended after 1 s): keys typed earlier are discarded, then $word must be typed.
 # $reader replaces Read-Host in the tests.
-function Wait-Answer([string] $prompt, [string] $word, [scriptblock] $reader = { param($text) Read-Host $text }) {
+function Wait-Answer([string] $prompt, [string] $word, [scriptblock] $reader = { param($text) [Console]::Write("$text : "); [Console]::ReadLine() }) {
     try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
     $reads = 0
     do {

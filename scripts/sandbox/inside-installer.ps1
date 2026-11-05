@@ -84,8 +84,12 @@ Invoke-Step 'Vérifications § 5 puis désinstallation de CleanSlate (à la main
   1. premier lancement : les trois écrans d'accueil (D63), puis Réglages > À propos : icône et version ;
   2. fermer CleanSlate, puis Paramètres > Applications > CleanSlate > Désinstaller.
 '@ -ForegroundColor Yellow
-    Wait-Answer 'Désinstallation terminée ?' 'fini' | Out-Null
-}
+} -NoInventory
+# The question is asked outside Invoke-Step, whose streams all go to the log (*>&1): the
+# console reads the answer directly. The next step records the uninstallation in its diff.
+$reads = Wait-Answer 'Désinstallation terminée ?' 'fini'
+Write-Log "  « fini » reçu ($reads lecture(s))"
+Invoke-Step 'Désinstallation constatée' { Write-Host 'contrôles de la désinstallation' }
 $checks += [pscustomobject]@{ Name = 'C:\Program Files\CleanSlate supprimé'; Measure = $(if (Test-Path $installDir) { 'dossier encore présent' } else { 'absent' }); Status = $(if (Test-Path $installDir) { 'ko' } else { 'ok' }) }
 $checks += [pscustomobject]@{ Name = 'Entrée de désinstallation retirée'; Measure = "$(@(Uninstall-Entry).Count) entrée(s)"; Status = $(if (@(Uninstall-Entry).Count) { 'ko' } else { 'ok' }) }
 # The first launch writes settings.json: the user's data and choices survive the uninstall (D43).
