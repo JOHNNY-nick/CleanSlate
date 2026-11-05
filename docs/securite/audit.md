@@ -1,6 +1,6 @@
 # Audit de sécurité — Gestionnaire et zones sensibles (D79)
 
-Dernière mise à jour : 4 nov. 2026
+Dernière mise à jour : 5 nov. 2026
 
 Portée : les changements de D79 (fin de la liste noire bloquante, zones sensibles, mode expert, mode « Immédiat », opérations système) et les nouvelles surfaces d'attaque. L'audit complet de l'étape B1 de la feuille de route reste à faire.
 
@@ -40,3 +40,13 @@ Portée : les changements de D79 (fin de la liste noire bloquante, zones sensibl
 - Restaurer depuis la Corbeille se fait par l'Explorateur de Windows (CleanSlate ne restaure que sa quarantaine).
 - Le Sandbox n'a qu'un disque : le scénario y attache un disque virtuel (VHDX) comme second volume. Un lecteur `subst` est refusé comme source (alias : le chemin ne se résout pas en lui-même, règle 6), mais accepté comme destination d'un déplacement.
 - Scénario Sandbox « Gestionnaire » : 15 / 15 le 4 nov. 2026 (run `gestionnaire-20261104-114641`).
+
+## 5. Renforcements de la bêta 2 (D88, 5 nov. 2026)
+
+| Domaine | Mesure | Tests |
+| --- | --- | --- |
+| Intégrité de la quarantaine | Chaque manifeste porte une signature HMAC-SHA256 (CNG) dont la clé de 32 octets est propre à la machine, dans `HKLM\SOFTWARE\CleanSlate\Integrity` (droits : SYSTEM et Administrateurs, sans héritage). Une session dont la signature ne correspond pas reste affichée, mais n'est ni restaurée ni récupérée (`TAMPERED`) ; sans la clé, rien n'est restauré (`INTEGRITY_UNAVAILABLE`). Les manifestes antérieurs sont signés une fois, à la création de la clé, s'ils ne désignent que leur propre dossier. | `a_manifest_changed_outside_cleanslate_is_listed_but_never_restored`, `without_the_key_sessions_are_listed_and_not_restored`, `manifests_without_signature_are_signed_once_when_they_stay_inside` |
+| Emplacements de la quarantaine | Une copie n'est lue, restaurée ou supprimée que sous le dossier de sa session (`Quarantine::inside`), aussi quand la quarantaine a été déplacée en bloc. | `only_what_lies_below_its_session_is_restored_or_removed`, `the_place_of_an_item_is_below_the_folder_of_its_session` |
+| Contenu restauré | Avant de remettre un élément en place, son SHA-256 est comparé à celui du manifeste : fichiers, clés de registre, tâches et services sauvegardés (`VERIFY_FAILED` sinon). | `content_changed_in_the_quarantine_is_not_restored` |
+| Désinstalleurs par compte | L'application installée pour ce compte seulement (`HKCU`) est désinstallée avec les droits de l'utilisateur, par le jeton de l'Explorateur de la session (`CreateProcessWithTokenW`), comme Windows le fait ; si ce lancement est impossible, la désinstallation est refusée. Ses paquets MSI passent par `msiexec` dans ce même cadre. | `an_application_of_this_account_is_uninstalled_as_the_user` |
+| Rapport PDF | La page imprimée par WebView2 est du HTML statique : scripts, menu contextuel et outils de développement désactivés. | — |

@@ -2,14 +2,14 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. **Fait le 4 nov. 2026, à relire par le porteur** : Multicolore « street » (D76) ; barre de progression de la quarantaine (D77) ; critères de confiance et leur explication (D78) ; Gestionnaire, zones sensibles et mode expert (D79). Captures : `artifacts\captures\2026-11-04\multicolore-v2\` et `artifacts\captures\2026-11-04\gestionnaire\`.
-- **Prochaine action** : le porteur installe l'installeur du 4 nov. 2026 (D86, SHA-256 `039DBD1F…A13EC6`) et essaie la page Stockage : la liste sous la carte (ouvrir des dossiers, Program Files (x86) et ses applications, un dossier comme VirtualBox, cocher puis supprimer en mode « Sûr » un fichier sans importance) ; choisit le marquage du menu (autocollant, pinceau ou éclaboussure) et dit ce qu'il veut pour le mode sombre (A street sur fond sombre, B retirer « Système », C garder).
+- **Étape actuelle** : A5, usage réel. **Fait le 5 nov. 2026** : dépôt public sur GitHub (D87, sans le livre), bêta 1 puis **bêta 2** publiées ; renforcement de la sécurité (D88 : quarantaine signée et vérifiée, désinstalleurs par compte avec les droits de l'utilisateur, rapport sans script), détail dans `docs/securite/audit.md` § 5.
+- **Prochaine action** : le porteur soumet l'installeur de la bêta 2 (`CleanSlate-0.1.0-beta.2-setup.exe`, SHA-256 `992C8888…2A5A5F`) à Microsoft, comme pour la bêta 1, puis installe la bêta 2 sur son PC et restaure une session de l'Historique.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « tout OK » ou les remarques ; autocollant / pinceau / éclaboussure ; A / B / C ; « Nunito oui / non » ; garder ou non « Supprimer définitivement ».
-- **Reste du Gestionnaire** : fait le 4 nov. 2026 (annulation au redémarrage, actions dans l'Historique, quarantaine sur un autre disque, espace non alloué, scénario Sandbox) ; limites dans `docs/securite/audit.md` § 4.
-- **File des tâches** : vide (tâches 2 et 3 faites : D77, D78).
+- **Réponse attendue** : « soumis » et le résultat de la restauration (« restauré » ou le message affiché).
+- **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
+- **File des tâches** : scénario Sandbox « Compléments » à relancer sur la bêta 2 (quarantaine et restauration des tâches et services signés).
 
-Dernière mise à jour : 4 nov. 2026.
+Dernière mise à jour : 5 nov. 2026.
 ## Règles de pilotage
 
 - Claude pilote : à la fin de **chaque** réponse, il donne la prochaine action, qui la fait, la commande exacte et le dossier d'où la lancer, la durée et ce qu'il faut lui répondre.

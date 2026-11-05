@@ -5,11 +5,14 @@
 
 # CleanSlate
 
-Dernière mise à jour : 4 nov. 2026
+Dernière mise à jour : 5 nov. 2026
 
-Utilitaire Windows qui facilite la gestion du stockage : il désinstalle
-complètement une application, retrouve les restes d'applications déjà
-désinstallées, et permet de comprendre et de libérer l'espace de toute la machine.
+**[⬇ Télécharger la dernière version (installeur Windows)](https://github.com/JOHNNY-nick/CleanSlate/releases/latest)**
+
+Utilitaire Windows de gestion du stockage : une carte visuelle de ce qui occupe
+chaque disque, un gestionnaire pour comprendre et libérer l'espace de toute la
+machine, la désinstallation complète d'une application et la recherche des restes
+d'applications déjà désinstallées.
 
 ## Pourquoi CleanSlate ?
 
@@ -22,16 +25,16 @@ qui répond à deux besoins :
    fichiers qu'elle laisse derrière elle.
 2. **Retrouver les restes d'applications déjà désinstallées** et les supprimer,
    sans avoir besoin de connaître leur nom.
-3. **Gérer le stockage sans fouiller dans les paramètres de Windows** (section
-   « Gestionnaire », en cours, D79) : voir ce qui occupe chaque disque, et libérer
-   l'espace tout de suite, fichiers personnels compris.
+3. **Gérer le stockage sans fouiller dans les paramètres de Windows** : voir ce qui
+   occupe chaque disque sur une carte, et libérer l'espace tout de suite, fichiers
+   personnels compris.
 
 Par sécurité, chaque suppression se confirme et propose deux modes : « Sûr »
 (Corbeille ou quarantaine restaurable, par défaut) ou « Immédiat » (définitif).
 Les zones sensibles de Windows ne sont jamais proposées automatiquement ; y agir
 à la main demande le mode expert et la saisie de « CONFIRMER ».
 
-> **État : v0.1.0, jalons J1 à J6 terminés.** Installeur Windows disponible ; les
+> **État : v0.1.0 bêta, jalons J1 à J6 terminés.** [Installeur Windows disponible](https://github.com/JOHNNY-nick/CleanSlate/releases/latest) ; les
 > critères d'acceptation en conditions réelles se vérifient dans Windows Sandbox
 > ([tests d'acceptation](docs/tests-acceptation.md)). Bilan : [revue finale](docs/journal/revue-finale.md).
 
@@ -40,6 +43,12 @@ Les zones sensibles de Windows ne sont jamais proposées automatiquement ; y agi
 
 ## Fonctionnalités
 
+- **Stockage** : carte visuelle de chaque disque, à parcourir dossier par dossier sans
+  limite de profondeur, avec sous la carte la liste du dossier affiché (taille, date,
+  type) ; on coche puis on supprime.
+- **Gestionnaire** : diagnostic de chaque disque et des plus gros consommateurs, ce qui
+  peut être libéré « sans risque » ou « à vérifier », catégories, gros fichiers, fichiers
+  anciens, doublons, nettoyage par les outils de Windows, volumes ; rapport en PDF.
 - **Applications** : inventaire des trois clés Uninstall (64 bits, 32 bits, utilisateur),
   recherche, tri, composants système masqués par défaut.
 - **Désinstallation complète** en 5 clics : point de restauration, désinstalleur
@@ -48,12 +57,13 @@ Les zones sensibles de Windows ne sont jamais proposées automatiquement ; y agi
 - **Restes orphelins** : analyse de `Program Files`, `AppData`, `ProgramData` et du
   registre sans saisir de nom ; restes regroupés par application probable, avec un
   niveau de confiance ; seuls les éléments à confiance « Élevée » sont précochés.
-- **Quarantaine** : rien n'est supprimé directement. Fichiers et clés sont déplacés
-  avec un manifeste écrit avant chaque déplacement, restaurables à l'identique,
-  en totalité ou élément par élément, pendant 30 jours (durée réglable).
-- **Sécurité** : mode simulation actif par défaut, liste noire non désactivable
-  (`C:\Windows`, `Microsoft`, racines…), liens symboliques et jonctions jamais suivis,
-  confirmation explicite, mot « QUARANTAINE » au-delà de 20 Go.
+- **Quarantaine** : en mode « Sûr », fichiers et clés sont déplacés avec un manifeste
+  signé écrit avant chaque déplacement, restaurables à l'identique, en totalité ou
+  élément par élément, pendant 30 jours (durée réglable).
+- **Sécurité** : une liste à relire et une confirmation avant chaque suppression, zones
+  sensibles de Windows jamais proposées automatiquement (mode expert et « CONFIRMER »
+  pour y agir à la main), liens symboliques et jonctions jamais suivis, mot
+  « QUARANTAINE » au-delà de 20 Go ([audit](docs/securite/audit.md)).
 - **Historique**, exclusions personnelles, thèmes clair, sombre et contraste élevé,
   journaux locaux (7 jours). Aucune donnée envoyée sur Internet.
 
@@ -68,7 +78,8 @@ sur l'Accueil) et en mode simulation.
 
 ## Installer
 
-Télécharger ou produire `CleanSlate-0.1.0-setup.exe` (voir « Produire l'installeur »),
+[Télécharger l'installeur sur la page des versions](https://github.com/JOHNNY-nick/CleanSlate/releases/latest) ou produire
+`CleanSlate-0.1.0-setup.exe` (voir « Produire l'installeur »),
 puis le lancer : il demande les droits administrateur et installe CleanSlate dans
 `C:\Program Files\CleanSlate`. Le runtime .NET et le Windows App SDK sont inclus ;
 rien d'autre à installer. Windows 10 2004 ou plus récent, x64.
