@@ -699,10 +699,10 @@ impl Engine {
             .ok_or_else(|| CoreError::InvalidInput("no data folder configured".into()))?;
         let root = dir.join("quarantine");
         let key = self.manifest_key.get_or_init(|| match crate::native::manifest_key() {
+            // Only the manifests CleanSlate writes with this key are trusted (D92).
             Ok((key, created)) => {
                 if created {
-                    let signed = self.quarantine(&root, Some(&key)).sign_unsigned();
-                    tracing::info!(signed, "key of the manifests created");
+                    tracing::info!("key of the manifests created");
                 }
                 Some(key)
             }

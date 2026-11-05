@@ -357,30 +357,6 @@ impl Quarantine<'_> {
         )
     }
 
-    /// Signs the manifests written before D88, once, when the key of the machine is created:
-    /// only those whose every item lies below the folder of its session. Returns how many.
-    pub fn sign_unsigned(&self) -> usize {
-        let Ok(entries) = fs::read_dir(self.root) else {
-            return 0;
-        };
-        entries
-            .flatten()
-            .filter_map(|e| Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
-            .filter(|id| {
-                fs::read(self.session_dir(*id).join(MANIFEST))
-                    .is_ok_and(|b| split_signature(&b).0.is_none())
-            })
-            .filter_map(|id| self.load(id).ok())
-            .filter(|m| {
-                m.session.items.iter().all(|i| {
-                    i.quarantine_path.as_os_str().is_empty()
-                        || self.inside(m.session.id, &i.quarantine_path).is_some()
-                })
-            })
-            .filter(|m| self.save(m).is_ok())
-            .count()
-    }
-
     /// Every session found in the quarantine folder, recovered if needed.
     pub fn sessions(&self) -> Vec<Session> {
         let Ok(entries) = fs::read_dir(self.root) else {
@@ -1404,30 +1380,27 @@ mod tests {
         assert!(!folder.exists());
     }
 
-    /// D88: the manifests written before the signature are signed once, if they stay inside.
+    /// D92: a manifest without the signature of this machine stays untrusted while the key
+    /// exists: listed, never restored, even when every item lies inside its session.
     #[test]
-    fn manifests_without_signature_are_signed_once_when_they_stay_inside() {
+    fn a_manifest_without_signature_is_listed_and_never_restored() {
         let lab = Lab::new();
         let (session, folder, _) = one_folder(&lab);
         let manifest = lab.run(|q| q.load(session.id)).unwrap();
-        lab.run_with(None, |q| q.save(&manifest)).unwrap(); // as written before D88
-        assert!(!lab.run(|q| q.load(session.id)).unwrap().trusted);
+        lab.run_with(None, |q| q.save(&manifest)).unwrap(); // written without the key
+        let loaded = lab.run(|q| q.load(session.id)).unwrap();
+        assert!(!loaded.trusted);
+        assert!(loaded.session.items.iter().all(|i| lab
+            .run(|q| q.inside(session.id, &i.quarantine_path))
+            .is_some()));
 
-        assert_eq!(lab.run(|q| q.sign_unsigned()), 1);
-        assert!(lab.run(|q| q.load(session.id)).unwrap().trusted);
-        assert_eq!(lab.run(|q| q.sign_unsigned()), 0, "once");
-        let restored = lab
+        assert_eq!(lab.run(|q| q.sessions()).len(), 1);
+        let err = lab
             .run(|q| q.restore(session.id, None, Utc::now()))
-            .unwrap();
-        assert_eq!(restored.status, SessionStatus::Restored);
-        assert!(folder.join("cache.bin").exists());
-
-        // One that points elsewhere stays unsigned.
-        let (other, _, _) = one_folder(&lab);
-        let mut outside = lab.run(|q| q.load(other.id)).unwrap();
-        outside.session.items[0].quarantine_path = lab.base.join("elsewhere");
-        lab.run_with(None, |q| q.save(&outside)).unwrap();
-        assert_eq!(lab.run(|q| q.sign_unsigned()), 0);
+            .unwrap_err();
+        assert_eq!(err.code(), "TAMPERED");
+        assert!(!folder.exists());
+        assert!(!lab.run(|q| q.load(session.id)).unwrap().trusted, "still");
     }
 
     /// D88: the path of an item, below the folder of its session (also after the quarantine
