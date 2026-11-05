@@ -7,9 +7,10 @@
 - **Soumission à Microsoft** : installeur de la bêta soumis le 5 nov. 2026, en attente de réponse.
 - **Signature (D89)** : 2FA du compte GitHub activée ; section « Code signing policy » dans le README ; installeur construit sur GitHub par `release.yml` (run 42014426074, SHA-256 `6A9B9A77…EB4574`, mêmes 552 fichiers que l'installeur du PC). Constats du livre L-01 à L-07 corrigés (`ea92177`, `0214ff0`).
 - **Scénario Sandbox « Installer »** avec l'installeur construit sur GitHub : 7 / 7 le 5 nov. 2026 (run `installer-20261105-112409`).
-- **Prochaine action** : le porteur dépose la demande sur https://signpath.org/apply.
+- **Demande SignPath Foundation** : envoyée le 5 nov. 2026 (« Form submitted »), en attente de réponse par e-mail. Constats du livre L-08 et L-09 corrigés (`db28d60`, `f7addb6`).
+- **Prochaine action** : le porteur attend la réponse de SignPath (et celle de Microsoft) et la transmet à Claude ; en attendant, il installe la bêta sur son PC et restaure une session de l'Historique.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « demande envoyée », puis la réponse de SignPath.
+- **Réponse attendue** : le texte de la réponse de SignPath (acceptation, questions ou refus).
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
 - **File des tâches** : après acceptation de SignPath, étape de signature dans `release.yml`, puis bêta signée sur `v0.1.0-beta`.
 
