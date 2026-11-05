@@ -12,7 +12,11 @@
     3. a service whose program was deleted (D47);
     4. a test MSIX package signed with a certificate created here (the Store does not
        exist in the Sandbox), removed with progress (EF-04, EF-21), then a package leftover (D48);
-    5. VLC and GIMP installed from the verified installers, for the manual checks.
+    5. the integrity of the quarantine (D88): signed manifest, a manifest changed outside
+       CleanSlate never restored, content changed inside the quarantine not put back, a
+       session without signature (previous version) restored once the key is created;
+    6. GIMP installed for this account only, uninstalled with the rights of the user (D88);
+    7. VLC and GIMP installed from the verified installers, for the manual checks.
     Writes results\complements-<date>\rapport.md and rapport.html. The test commands only
     run when the three conditions of the guard hold (D53); this script checks them first.
 #>
@@ -203,6 +207,62 @@ RoundTrip 'Reste de paquet du Store (dossier + clé)' 'CleanSlateTest.Leftover' 
     (FileState $folder) + "`n" + (RegState $key)
 } { -not (Test-Path -LiteralPath $folder) } 'dossier Packages\<famille> et clé AppContainer\Storage'
 
+# 5b. Integrity of the quarantine (D88): signed manifests, content checked before it is put
+#     back, sessions written before the signature still restorable.
+$quarantineRoot = "$env:LOCALAPPDATA\CleanSlate\quarantine"
+function New-PackageLeftover([string] $name) {
+    $dir = "$env:LOCALAPPDATA\Packages\CleanSlateTest.$($name)_abcdefghjk123"
+    New-Item -ItemType Directory -Force "$dir\LocalState" | Out-Null
+    Set-Content "$dir\LocalState\settings.dat" "name=$name" -Encoding ascii
+    $dir
+}
+function Get-Manifest([string] $id) { "$quarantineRoot\$id\manifest.json" }
+function Read-CliErrors { (Get-Content "$out\cli-err.txt" -Encoding utf8 -ErrorAction SilentlyContinue) -join ' ' }
+
+# A manifest changed outside CleanSlate: listed, never restored.
+$tampered = @{ Dir = (New-PackageLeftover 'Tampered'); Session = $null; Signed = $false; Result = $null; Errors = '' }
+Invoke-Step 'D88 : manifeste modifié hors de CleanSlate' {
+    $tampered.Session = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'quarantine', 'CleanSlateTest.Tampered')
+    $path = Get-Manifest $tampered.Session.id
+    $text = [IO.File]::ReadAllText($path)
+    $tampered.Signed = $text.StartsWith('CLEANSLATE-HMAC-SHA256 ')
+    [IO.File]::WriteAllText($path, $text.Replace('LocalState', 'LocalStatX'))
+    $tampered.Result = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'restore', $tampered.Session.id)
+    $tampered.Errors = Read-CliErrors
+}
+$step = $Run.Steps[-1]
+$checks += [pscustomobject]@{ Name = 'D88 : manifeste de la quarantaine signé'; Measure = "session $($tampered.Session.id)"; Status = (Status $tampered.Signed $step) }
+$refused = -not $tampered.Result -and $tampered.Errors -match 'not signed by this machine' -and -not (Test-Path -LiteralPath $tampered.Dir) -and (Test-Path -LiteralPath "$quarantineRoot\$($tampered.Session.id)")
+$checks += [pscustomobject]@{ Name = 'D88 : manifeste modifié, restauration refusée, copie gardée'; Measure = $tampered.Errors; Status = (Status $refused $step) }
+
+# Content changed inside the quarantine: that item is not put back.
+$changed = @{ Dir = (New-PackageLeftover 'Changed'); Result = $null }
+Invoke-Step 'D88 : contenu modifié dans la quarantaine' {
+    $session = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'quarantine', 'CleanSlateTest.Changed')
+    Get-ChildItem "$quarantineRoot\$($session.id)" -Recurse -Filter 'settings.dat' | ForEach-Object { Set-Content $_.FullName 'name=other' -Encoding ascii }
+    $changed.Result = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'restore', $session.id)
+}
+$step = $Run.Steps[-1]
+$codes = @($changed.Result.errors | ForEach-Object { $_.code })
+$checks += [pscustomobject]@{ Name = 'D88 : contenu modifié dans la quarantaine, non restauré'; Measure = "codes : $($codes -join ', ')"; Status = (Status ($codes -contains 'VERIFY_FAILED' -and -not (Test-Path -LiteralPath "$($changed.Dir)\LocalState\settings.dat")) $step) }
+
+# A session written before the signature (bêta 1): signed when the key is created, restored.
+$older = @{ Dir = (New-PackageLeftover 'Older'); Before = $null; After = $null; Key = $false }
+$older.Before = FileState $older.Dir
+Invoke-Step 'D88 : session sans signature (version précédente)' {
+    $session = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'quarantine', 'CleanSlateTest.Older')
+    $path = Get-Manifest $session.id
+    $text = [IO.File]::ReadAllText($path)
+    [IO.File]::WriteAllText($path, $text.Substring($text.IndexOf("`n") + 1))
+    & reg.exe delete 'HKLM\SOFTWARE\CleanSlate\Integrity' /f
+    $restored = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'restore', $session.id)
+    if ($restored -and $restored.errors.Count) { Write-Warning ($restored.errors | ConvertTo-Json -Compress) }
+    $older.After = FileState $older.Dir
+    $older.Key = [bool](Get-ItemProperty 'HKLM:\SOFTWARE\CleanSlate\Integrity' -Name ManifestKey -ErrorAction SilentlyContinue)
+}
+$step = $Run.Steps[-1]
+$checks += [pscustomobject]@{ Name = "D88 : session d'une version précédente restaurée à l'identique"; Measure = "nouvelle clé créée : $($older.Key)"; Status = (Status ($older.Key -and $older.Before -eq $older.After) $step) }
+
 # 6. VLC (MSI) and GIMP (Inno Setup), from the verified installers: installed, uninstalled
 #    by CleanSlate with an automatic check of the progress events (EF-21, D57), then
 #    installed again for the manual checks.
@@ -264,6 +324,29 @@ function Test-UninstallProgress($installer, [string] $cliName, [bool] $isMsi) {
         Select-String -Pattern 'uninstall finished' | Where-Object { $_.Line -match [regex]::Escape($cliName) } | Select-Object -Last 1
     $logMeasure = if ($logLine) { $logLine.Line -replace '^.*?uninstall finished\s*', '' } else { 'absente de cleanslate-logs' }
     $script:checks += [pscustomobject]@{ Name = "$($installer.Name) : ligne récapitulative dans le journal de CleanSlate"; Measure = $logMeasure; Status = (Status ([bool]$logLine) $step) }
+}
+
+# D88: GIMP installed for this account only, uninstalled with the rights of the user.
+function Get-UserApp([string] $like) {
+    Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        Where-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DisplayName -like $like }
+}
+$gimp = $installers | Where-Object { $_.Id -eq 'GIMP.GIMP.3' -and $_.Ok }
+if ($gimp) {
+    $perUser = @{ Listed = $false; Result = $null }
+    Invoke-Step 'D88 : GIMP pour ce compte seulement, désinstallé avec les droits de l''utilisateur' {
+        $p = Start-Process $gimp.Path '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER' -Wait -PassThru
+        Write-Host "code de sortie $($p.ExitCode)"
+        $perUser.Listed = [bool](Get-UserApp 'GIMP*')
+        if ($perUser.Listed) { $perUser.Result = Invoke-CleanSlateCli $sandboxCli @('sandbox', 'uninstall', 'GIMP') }
+    }
+    $step = $Run.Steps[-1]
+    $logLine = Get-ChildItem "$out\cleanslate-logs" -Filter 'cleanslate.*.log' -ErrorAction SilentlyContinue |
+        Select-String -Pattern 'running uninstaller' | Where-Object { $_.Line -match 'GIMP' } | Select-Object -Last 1
+    $asUser = [bool]($logLine -and $logLine.Line -match 'as_user=true')
+    $gone = [bool]($perUser.Result -and -not $perUser.Result.still_installed -and -not (Get-UserApp 'GIMP*'))
+    $checks += [pscustomobject]@{ Name = 'D88 : GIMP installé pour ce compte (HKCU)'; Measure = "inscrit dans HKCU : $($perUser.Listed)"; Status = (Status $perUser.Listed $step) }
+    $checks += [pscustomobject]@{ Name = 'D88 : désinstalleur lancé avec les droits de l''utilisateur, application retirée'; Measure = "code $($perUser.Result.exit_code) ; $(if ($logLine) { $logLine.Line -replace '^.*?running uninstaller\s*', '' } else { 'ligne « running uninstaller » absente' })"; Status = (Status ($asUser -and $gone) $step) }
 }
 
 if (-not $bad.Count) {

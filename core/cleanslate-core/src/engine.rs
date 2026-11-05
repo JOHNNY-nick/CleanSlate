@@ -917,7 +917,7 @@ impl Engine {
                 })
             }
             None => {
-                tracing::info!(app = %app.display_name, command = %result.command, "running uninstaller");
+                tracing::info!(app = %app.display_name, command = %result.command, as_user = command.as_user, "running uninstaller");
                 emit(UninstallStep::Waiting, None, None, Vec::new());
                 self.runner
                     .run(&command, &self.cancel, UNINSTALL_TIMEOUT, &|processes| {

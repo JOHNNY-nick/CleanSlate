@@ -175,6 +175,10 @@ Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
 | 3 | Service orphelin (D47) | `sc create CleanSlateTestSvc` (LocalService, description, actions de récupération, sous-clé `Parameters`), programme ensuite supprimé | `sc qc`, `sc qdescription`, `sc qfailure`, export `.reg` de la clé (valeurs triées par clé) |
 | 4 | Application du Store (EF-04, EF-21) | paquet MSIX `CleanSlateTest.App` construit avec `makeappx`, signé avec un certificat de test créé dans le Sandbox (`signtool`), installé par `Add-AppxPackage` | listé avec `kind: store` ; désinstallé pour l'utilisateur avec relevés de progression (pourcentage) |
 | 5 | Reste de paquet du Store (D48) | `%LOCALAPPDATA%\Packages\CleanSlateTest.Leftover_abcdefghjk123` et sa clé `AppContainer\Storage` | fichiers (SHA-256, dates) et export `.reg` |
+| 6 | Manifeste modifié hors de CleanSlate (D88) | reste `CleanSlateTest.Tampered` mis en quarantaine, puis son manifeste modifié | manifeste signé ; restauration refusée, copie gardée dans la quarantaine |
+| 7 | Contenu modifié dans la quarantaine (D88) | reste `CleanSlateTest.Changed` mis en quarantaine, puis son fichier modifié dans la quarantaine | `VERIFY_FAILED`, rien remis en place |
+| 8 | Session d'une version précédente (D88) | reste `CleanSlateTest.Older` mis en quarantaine, signature retirée du manifeste et clé `HKLM\SOFTWARE\CleanSlate\Integrity` supprimée | nouvelle clé créée, restauré à l'identique (SHA-256, dates) |
+| 9 | Application de ce compte seulement (D88) | GIMP installé avec `/CURRENTUSER` (inscrit dans `HKCU`) | désinstallé par CleanSlate, `as_user=true` dans le journal, inscription retirée |
 
 Le script installe ensuite VLC et GIMP depuis les installeurs vérifiés. À faire à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».
 
