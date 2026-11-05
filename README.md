@@ -90,9 +90,9 @@ pour que vous puissiez encore restaurer vos fichiers.
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/) (demande en cours : les versions publiées après
-son acceptation seront signées ainsi).
+Les versions de CleanSlate ne sont pas encore signées. Une demande de signature gratuite
+auprès de [SignPath Foundation](https://signpath.org/) sera renouvelée quand le projet sera
+plus connu ; les règles ci-dessous s'appliqueront alors à chaque version signée.
 
 - **Ce qui est signé** : uniquement les programmes construits à partir de ce dépôt par le
   workflow GitHub Actions [`release.yml`](.github/workflows/release.yml), sur les machines
