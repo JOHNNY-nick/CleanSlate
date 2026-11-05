@@ -581,6 +581,7 @@ pub fn analyze(
     let mut by_size: HashMap<u64, Vec<String>> = HashMap::new();
     let mut old: Vec<(bool, FileEntry)> = Vec::new();
     let mut stack = vec![PathBuf::from(&request.root)];
+    let throttle = crate::scan::Throttle::new(crate::scan::PROGRESS_INTERVAL);
     while let Some(folder) = stack.pop() {
         if cancel.load(Ordering::Relaxed) {
             out.cancelled = true;
@@ -645,7 +646,7 @@ pub fn analyze(
             }
             keep_largest(&mut out.largest, file, request.largest);
         }
-        if out.files.is_multiple_of(2_000) {
+        if throttle.ready() {
             progress(&ManagerProgress {
                 files: out.files,
                 bytes: out.size_bytes,

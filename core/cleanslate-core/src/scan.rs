@@ -29,6 +29,43 @@ use crate::system::{dead_services, dead_tasks, DeadEntry};
 
 /// Minimum delay between two progress events (ENF-06).
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+
+/// At most one progress event per interval (D03), whatever the number of threads that ask:
+/// the walks of the map and of the Gestionnaire ask after each file (L-08).
+pub(crate) struct Throttle {
+    start: Instant,
+    interval_ms: u64,
+    /// Milliseconds since `start` before which no event is sent.
+    next_ms: AtomicU64,
+}
+
+impl Throttle {
+    /// A throttle whose first event comes after `interval`.
+    pub(crate) fn new(interval: Duration) -> Self {
+        let interval_ms = u64::try_from(interval.as_millis()).unwrap_or(u64::MAX);
+        Throttle {
+            start: Instant::now(),
+            interval_ms,
+            next_ms: AtomicU64::new(interval_ms),
+        }
+    }
+
+    /// `true` for the one caller that may send an event now.
+    pub(crate) fn ready(&self) -> bool {
+        let now = u64::try_from(self.start.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let next = self.next_ms.load(Ordering::Relaxed);
+        now >= next
+            && self
+                .next_ms
+                .compare_exchange(
+                    next,
+                    now.saturating_add(self.interval_ms),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+    }
+}
 /// Largest `.lnk` file read.
 const MAX_SHORTCUT_LEN: u64 = 1024 * 1024;
 /// Depth of the search for shortcuts below each shortcut folder.
@@ -1742,6 +1779,29 @@ pub(crate) mod tests {
         );
         assert!(report.cancelled);
         assert!(report.groups.is_empty());
+    }
+
+    /// L-08: one event per interval at most, even when four threads ask at once.
+    #[test]
+    fn the_throttle_lets_one_event_through_per_interval() {
+        let throttle = Throttle::new(Duration::from_millis(40));
+        assert!(!throttle.ready(), "nothing before the first interval");
+        let sent = AtomicU64::new(0);
+        let started = Instant::now();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    while started.elapsed() < Duration::from_millis(210) {
+                        if throttle.ready() {
+                            sent.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                });
+            }
+        });
+        let sent = sent.load(Ordering::Relaxed);
+        assert!((1..=5).contains(&sent), "{sent} events in 210 ms");
+        assert!(Throttle::new(Duration::ZERO).ready());
     }
 
     #[test]

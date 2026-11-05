@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::fs::FileSystem;
 use crate::safety::KnownFolders;
+use crate::scan::{Throttle, PROGRESS_INTERVAL};
 
 /// What a part of the disk is (legend of the map).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -117,8 +118,6 @@ pub const NOT_MEASURED: &str = "Espace système non mesuré";
 const MAX_CHILDREN: usize = 40;
 /// Children smaller than this share of their parent are grouped.
 const MIN_SHARE: f64 = 0.005;
-/// Progress is reported every this many files.
-const PROGRESS_EVERY: u64 = 2_000;
 
 /// Decides the category of a path (prefix rules, most specific first).
 #[derive(Debug, Default, Clone)]
@@ -248,6 +247,8 @@ struct Walk<'a> {
     bytes: AtomicU64,
     denied: AtomicU64,
     progress: &'a (dyn Fn(&DiskMapProgress) + Sync),
+    /// One event per 250 ms at most (D03, L-08).
+    throttle: Throttle,
 }
 
 /// Space a file takes: its bytes on disk rounded up to the cluster; 0 stays 0.
@@ -268,6 +269,17 @@ pub fn build(
     free: u64,
     progress: &(dyn Fn(&DiskMapProgress) + Sync),
 ) -> DiskMap {
+    build_paced(env, request, total, free, progress, PROGRESS_INTERVAL)
+}
+
+fn build_paced(
+    env: &DiskMapEnv,
+    request: &DiskMapRequest,
+    total: u64,
+    free: u64,
+    progress: &(dyn Fn(&DiskMapProgress) + Sync),
+    interval: std::time::Duration,
+) -> DiskMap {
     let started = std::time::Instant::now();
     let walk = Walk {
         env,
@@ -275,6 +287,7 @@ pub fn build(
         bytes: AtomicU64::new(0),
         denied: AtomicU64::new(0),
         progress,
+        throttle: Throttle::new(interval),
     };
     let depth = request.max_depth.clamp(1, 3);
     let mut root = walk.folder(&request.root, 0, depth, None);
@@ -363,7 +376,7 @@ impl Walk<'_> {
             let size = allocated(file.metadata.on_disk, self.env.cluster);
             let count = self.files.fetch_add(1, Ordering::Relaxed) + 1;
             self.bytes.fetch_add(size, Ordering::Relaxed);
-            if count.is_multiple_of(PROGRESS_EVERY) {
+            if self.throttle.ready() {
                 (self.progress)(&DiskMapProgress {
                     files: count,
                     bytes: self.bytes.load(Ordering::Relaxed),
@@ -686,7 +699,8 @@ mod tests {
     #[test]
     fn progress_is_reported_while_counting() {
         let mut fs = FakeFileSystem::new();
-        for i in 0..(PROGRESS_EVERY + 5) {
+        const FILES: u64 = 2_005;
+        for i in 0..FILES {
             fs.add_file(format!(r"C:\Data\f{i}.bin"), 10, None);
         }
         let folders = KnownFolders::under(r"C:\");
@@ -698,21 +712,34 @@ mod tests {
             cluster: 4096,
             cancel: &cancel,
         };
-        let seen = AtomicU64::new(0);
-        let map = build(
+        let request = DiskMapRequest {
+            root: PathBuf::from(r"C:\"),
+            max_depth: 2,
+            scan_leftovers: true,
+        };
+        // L-08: paced by time, not by the number of files.
+        let (events, last) = (AtomicU64::new(0), AtomicU64::new(0));
+        let count = |p: &DiskMapProgress| {
+            events.fetch_add(1, Ordering::Relaxed);
+            last.store(p.files, Ordering::Relaxed);
+        };
+        let map = build_paced(&env, &request, 0, 0, &count, std::time::Duration::ZERO);
+        assert_eq!(events.load(Ordering::Relaxed), FILES);
+        assert_eq!(last.load(Ordering::Relaxed), FILES);
+        assert_eq!(map.root.files, FILES);
+        events.store(0, Ordering::Relaxed);
+        build_paced(
             &env,
-            &DiskMapRequest {
-                root: PathBuf::from(r"C:\"),
-                max_depth: 2,
-                scan_leftovers: true,
-            },
+            &request,
             0,
             0,
-            &|p| {
-                seen.store(p.files, Ordering::Relaxed);
-            },
+            &count,
+            std::time::Duration::from_secs(60),
         );
-        assert_eq!(seen.load(Ordering::Relaxed), PROGRESS_EVERY);
-        assert_eq!(map.root.files, PROGRESS_EVERY + 5);
+        assert_eq!(
+            events.load(Ordering::Relaxed),
+            0,
+            "nothing before the interval"
+        );
     }
 }
