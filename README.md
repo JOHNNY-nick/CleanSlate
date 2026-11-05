@@ -7,7 +7,7 @@
 
 Dernière mise à jour : 5 nov. 2026
 
-**[⬇ Télécharger la dernière version (installeur Windows)](https://github.com/JOHNNY-nick/CleanSlate/releases/latest)**
+**[⬇ Télécharger la dernière version (installeur Windows)](https://github.com/JOHNNY-nick/CleanSlate/releases)**
 
 Utilitaire Windows de gestion du stockage : une carte visuelle de ce qui occupe
 chaque disque, un gestionnaire pour comprendre et libérer l'espace de toute la
@@ -34,7 +34,7 @@ Par sécurité, chaque suppression se confirme et propose deux modes : « Sûr �
 Les zones sensibles de Windows ne sont jamais proposées automatiquement ; y agir
 à la main demande le mode expert et la saisie de « CONFIRMER ».
 
-> **État : v0.1.0 bêta, jalons J1 à J6 terminés.** [Installeur Windows disponible](https://github.com/JOHNNY-nick/CleanSlate/releases/latest) ; les
+> **État : v0.1.0 bêta, jalons J1 à J6 terminés.** [Installeur Windows disponible](https://github.com/JOHNNY-nick/CleanSlate/releases) ; les
 > critères d'acceptation en conditions réelles se vérifient dans Windows Sandbox
 > ([tests d'acceptation](docs/tests-acceptation.md)). Bilan : [revue finale](docs/journal/revue-finale.md).
 
@@ -78,7 +78,7 @@ sur l'Accueil) et en mode simulation.
 
 ## Installer
 
-[Télécharger l'installeur sur la page des versions](https://github.com/JOHNNY-nick/CleanSlate/releases/latest) ou produire
+[Télécharger l'installeur sur la page des versions](https://github.com/JOHNNY-nick/CleanSlate/releases) ou produire
 `CleanSlate-0.1.0-setup.exe` (voir « Produire l'installeur »),
 puis le lancer : il demande les droits administrateur et installe CleanSlate dans
 `C:\Program Files\CleanSlate`. Le runtime .NET et le Windows App SDK sont inclus ;
