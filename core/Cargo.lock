@@ -184,6 +184,7 @@ dependencies = [
  "csbindgen",
  "serde",
  "serde_json",
+ "tempfile",
  "tracing",
 ]
 

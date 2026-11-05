@@ -634,9 +634,25 @@ mod tests {
         (engine, error)
     }
 
+    /// L-09: the journal of these tests goes to a temporary folder, set before any engine
+    /// could choose `%LOCALAPPDATA%\CleanSlate\logs` (the journal is set once per process).
+    fn test_logs() {
+        static LOGS: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        let dir = LOGS.get_or_init(|| tempfile::tempdir().unwrap());
+        cleanslate_core::logging::init(dir.path());
+    }
+
+    /// `{"dry_run":true,"data_dir":<temporary folder>}`, and that folder.
+    fn temp_config() -> (Vec<u8>, tempfile::TempDir) {
+        test_logs();
+        let dir = tempfile::tempdir().unwrap();
+        let config = serde_json::json!({ "dry_run": true, "data_dir": dir.path() });
+        (config.to_string().into_bytes(), dir)
+    }
+
     #[test]
     fn engine_new_and_free() {
-        let config = br#"{"dry_run":true}"#;
+        let (config, _dir) = temp_config();
         let (engine, error) = engine_new(config.as_ptr(), config.len() as i32);
         assert!(!engine.is_null());
         assert!(error.is_none());
@@ -646,6 +662,7 @@ mod tests {
 
     #[test]
     fn engine_new_defaults_to_dry_run() {
+        test_logs();
         let (engine, error) = engine_new(ptr::null(), 0);
         assert!(!engine.is_null());
         assert!(error.is_none());
@@ -674,7 +691,9 @@ mod tests {
         let bad = b"{not json";
         let engine = unsafe { cs_engine_new(bad.as_ptr(), bad.len() as i32, ptr::null_mut()) };
         assert!(engine.is_null());
-        let engine = unsafe { cs_engine_new(ptr::null(), 0, ptr::null_mut()) };
+        let (config, _dir) = temp_config();
+        let engine =
+            unsafe { cs_engine_new(config.as_ptr(), config.len() as i32, ptr::null_mut()) };
         assert!(!engine.is_null());
         unsafe { cs_engine_free(engine) };
     }

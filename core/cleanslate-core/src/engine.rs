@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 /// How long the inventory of the applications is reused (D84): the map, the scan and the
@@ -111,8 +111,9 @@ pub struct Engine {
     busy: AtomicBool,
     /// Items of the last scan, by id: `cs_clean` only accepts these.
     last_report: Mutex<HashMap<String, Leftover>>,
-    /// Key that signs the manifests of the quarantine (D88).
-    manifest_key: Option<Vec<u8>>,
+    /// Key that signs the manifests of the quarantine (D88), read on the first operation
+    /// on the quarantine: building an engine writes nothing outside its data folder (L-09).
+    manifest_key: OnceLock<Option<Vec<u8>>>,
     /// Last inventory of the applications and when it was read (see [`APPS_FRESH_FOR`]).
     apps_cache: Mutex<Option<(Instant, Vec<InstalledApp>)>>,
     /// Applications captured before their uninstall (fingerprints, § 6.4).
@@ -164,8 +165,8 @@ impl Engine {
             busy: AtomicBool::new(false),
             last_report: Mutex::new(HashMap::new()),
             apps_cache: Mutex::new(None),
-            // A key of its own for a test engine; the real one is read by `with_system`.
-            manifest_key: crate::native::random_bytes(32).ok(),
+            // A key of its own for a test engine; the real one is read on first use.
+            manifest_key: OnceLock::from(crate::native::random_bytes(32).ok()),
             history: Mutex::new(None),
             removed_apps: Mutex::new(HashMap::new()),
             runner: Box::new(NoProcessRunner),
@@ -192,22 +193,7 @@ impl Engine {
         if let Some(dir) = engine.data_dir() {
             crate::logging::init(&crate::logging::log_dir(&dir.join("logs")));
         }
-        engine.manifest_key = match crate::native::manifest_key() {
-            Ok((key, created)) => {
-                engine.manifest_key = Some(key.clone());
-                if created {
-                    let signed = engine
-                        .with_quarantine(|q| Ok(q.sign_unsigned()))
-                        .unwrap_or(0);
-                    tracing::info!(signed, "key of the manifests created");
-                }
-                Some(key)
-            }
-            Err(err) => {
-                tracing::warn!(%err, "key of the manifests unavailable: sessions listed, not restored");
-                None
-            }
-        };
+        engine.manifest_key = OnceLock::new();
         engine.set_uninstall_backends(Box::new(JobProcessRunner), Box::new(SystemRestorePoints));
         engine.set_system_backends(Box::new(ComTaskStore), Box::new(ScmServiceControl));
         engine.set_package_store(Box::new(WinRtPackageStore));
@@ -712,16 +698,43 @@ impl Engine {
             .data_dir()
             .ok_or_else(|| CoreError::InvalidInput("no data folder configured".into()))?;
         let root = dir.join("quarantine");
-        f(&Quarantine {
-            root: &root,
+        let key = self.manifest_key.get_or_init(|| match crate::native::manifest_key() {
+            Ok((key, created)) => {
+                if created {
+                    let signed = self.quarantine(&root, Some(&key)).sign_unsigned();
+                    tracing::info!(signed, "key of the manifests created");
+                }
+                Some(key)
+            }
+            Err(err) => {
+                tracing::warn!(%err, "key of the manifests unavailable: sessions listed, not restored");
+                None
+            }
+        });
+        f(&self.quarantine(&root, key.as_deref()))
+    }
+
+    fn quarantine<'a>(
+        &'a self,
+        root: &'a std::path::Path,
+        key: Option<&'a [u8]>,
+    ) -> Quarantine<'a> {
+        Quarantine {
+            root,
             fs: self.fs(),
             registry: self.registry(),
             rules: &self.rules,
             tasks: self.tasks.as_ref(),
             services: self.services.as_ref(),
             packages: self.packages.as_ref(),
-            key: self.manifest_key.as_deref(),
-        })
+            key,
+        }
+    }
+
+    /// `true` once the key of the manifests was read (tests of L-09).
+    #[cfg(test)]
+    pub(crate) fn manifest_key_loaded(&self) -> bool {
+        self.manifest_key.get().is_some()
     }
 
     /// Replaces the Windows Installer API (tests inject a fake).
@@ -1249,6 +1262,25 @@ impl ProgressStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// L-09: building the real engine reads no key of the manifests (nothing is written to
+    /// `HKLM`); a test engine has its own key from the start.
+    #[test]
+    fn building_the_real_engine_reads_no_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::with_system(EngineConfig {
+            data_dir: Some(dir.path().to_path_buf()),
+            ..EngineConfig::default()
+        });
+        assert!(!engine.manifest_key_loaded());
+        let area = TestRegistryKey::new();
+        let fake = Engine::new(
+            EngineConfig::default(),
+            Box::new(FakeFileSystem::new()),
+            Box::new(area.registry()),
+        );
+        assert!(fake.manifest_key_loaded());
+    }
     use crate::fs::FakeFileSystem;
     use crate::model::{
         AppLeftoversRequest, CleanPlan, PurgeRequest, RestoreRequest, UninstallRequest,
