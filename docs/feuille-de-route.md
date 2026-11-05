@@ -2,12 +2,12 @@
 
 ## Où en est-on ?
 
-- **Étape actuelle** : A5, usage réel. **Fait le 5 nov. 2026** : dépôt public sur GitHub (D87, sans le livre), bêta 1 puis **bêta 2** publiées ; renforcement de la sécurité (D88 : quarantaine signée et vérifiée, désinstalleurs par compte avec les droits de l'utilisateur, rapport sans script), détail dans `docs/securite/audit.md` § 5.
-- **Prochaine action** : le porteur soumet l'installeur de la bêta 2 (`CleanSlate-0.1.0-beta.2-setup.exe`, SHA-256 `992C8888…2A5A5F`) à Microsoft, comme pour la bêta 1, puis installe la bêta 2 sur son PC et restaure une session de l'Historique.
+- **Étape actuelle** : A5, usage réel. **Fait le 5 nov. 2026** : dépôt public sur GitHub (D87, sans le livre), une seule version publiée, **0.1.0 bêta** (`v0.1.0-beta`, elle remplace la première) ; renforcement de la sécurité (D88 : quarantaine signée et vérifiée, désinstalleurs par compte avec les droits de l'utilisateur, rapport sans script), détail dans `docs/securite/audit.md` § 5.
+- **Prochaine action** : le porteur lance le scénario Sandbox « Compléments » (cas 6 à 9 ajoutés pour D88) : `pwsh scripts/build.ps1 -Configuration Release` puis `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`. Si tout est vert, Claude reconstruit l'installeur, remplace celui de la version `v0.1.0-beta`, et le porteur le soumet à Microsoft.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « soumis » et le résultat de la restauration (« restauré » ou le message affiché).
+- **Réponse attendue** : « fait » quand le rapport s'affiche dans le Sandbox (ne pas fermer le Sandbox avant).
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
-- **File des tâches** : scénario Sandbox « Compléments » à relancer sur la bêta 2 (quarantaine et restauration des tâches et services signés).
+- **File des tâches** : après le Sandbox, nouvel installeur sur `v0.1.0-beta` et soumission à Microsoft.
 
 Dernière mise à jour : 5 nov. 2026.
 ## Règles de pilotage

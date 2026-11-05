@@ -3,21 +3,13 @@
 Les changements visibles de CleanSlate. Le détail de chaque choix est dans
 [`docs/decisions.md`](docs/decisions.md) (identifiants Dxx).
 
-## 0.1.0 bêta 2 — 5 nov. 2026
+## 0.1.0 bêta — 5 nov. 2026
 
-Renforcement de la sécurité (D88), publiée sur GitHub : https://github.com/JOHNNY-nick/CleanSlate/releases/tag/v0.1.0-beta.2
-
-### Modifié
-- **Quarantaine** : chaque session est signée par une clé propre à ce PC ; CleanSlate ne restaure que ce qu'il a lui-même mis en quarantaine, à l'identique, et vérifie le contenu de chaque élément avant de le remettre en place. Les sessions des versions précédentes restent restaurables.
-- **Désinstallation** : une application installée pour votre compte seulement est désinstallée avec vos droits, comme le fait Windows.
-- **Rapport PDF** : la page du rapport est imprimée sans aucun script.
-
-## 0.1.0 bêta 1 — 5 nov. 2026
-
-Première version de test, publiée sur GitHub : https://github.com/JOHNNY-nick/CleanSlate/releases/tag/v0.1.0-beta.1
-(l'état ci-dessous est celui de cette version ; le détail de chaque étape est dans les décisions D76 à D86).
+Version de test, publiée sur GitHub : https://github.com/JOHNNY-nick/CleanSlate/releases/tag/v0.1.0-beta
+(le détail de chaque étape est dans les décisions D76 à D88).
 
 ### Ajouté
+- **Sécurité** (D88) : chaque session de la quarantaine est signée par une clé propre à ce PC ; CleanSlate ne restaure que ce qu'il a lui-même mis en quarantaine, à l'identique, et vérifie le contenu de chaque élément avant de le remettre en place. Une application installée pour votre compte seulement est désinstallée avec vos droits, comme le fait Windows. Le rapport PDF est imprimé sans aucun script.
 - **Gestionnaire** (D79, D82, D86) : comprendre et libérer l'espace de toute la machine, fichiers personnels compris.
   - 8 onglets : Diagnostic, Catégories, Gros fichiers, Fichiers anciens, Doublons, Système, Suppressions en attente, Volumes.
   - Le Diagnostic donne une phrase par disque, les 5 plus gros consommateurs, et ce qui peut être libéré, « sans risque » ou « à vérifier », avec « Tout libérer maintenant (sans risque) » et un lien vers la carte du stockage.
