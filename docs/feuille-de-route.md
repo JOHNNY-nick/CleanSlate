@@ -3,11 +3,12 @@
 ## Où en est-on ?
 
 - **Étape actuelle** : A5, usage réel. **Fait le 5 nov. 2026** : dépôt public sur GitHub (D87, sans le livre), une seule version publiée, **0.1.0 bêta** (`v0.1.0-beta`, elle remplace la première) ; renforcement de la sécurité (D88 : quarantaine signée et vérifiée, désinstalleurs par compte avec les droits de l'utilisateur, rapport sans script), détail dans `docs/securite/audit.md` § 5.
-- **Prochaine action** : le porteur lance le scénario Sandbox « Compléments » (cas 6 à 9 ajoutés pour D88) : `pwsh scripts/build.ps1 -Configuration Release` puis `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`. Si tout est vert, Claude reconstruit l'installeur, remplace celui de la version `v0.1.0-beta`, et le porteur le soumet à Microsoft.
+- **Scénario Sandbox « Compléments »** : 26 / 26 vérifications automatiques le 5 nov. 2026 (run `complements-20261105-002432`, commit 36b7d99), dont les cas D88 6 à 9 ; installeur publié sur `v0.1.0-beta` : `CleanSlate-0.1.0-beta-setup.exe`, SHA-256 `115FE7DF…148147F`.
+- **Prochaine action** : le porteur soumet cet installeur à Microsoft (https://www.microsoft.com/wdsi/filesubmission), comme le premier, puis l'installe sur son PC.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « fait » quand le rapport s'affiche dans le Sandbox (ne pas fermer le Sandbox avant).
+- **Réponse attendue** : « soumis », puis le statut affiché par Microsoft.
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
-- **File des tâches** : après le Sandbox, nouvel installeur sur `v0.1.0-beta` et soumission à Microsoft.
+- **File des tâches** : vide.
 
 Dernière mise à jour : 5 nov. 2026.
 ## Règles de pilotage

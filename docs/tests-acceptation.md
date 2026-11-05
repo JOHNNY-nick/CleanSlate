@@ -180,6 +180,8 @@ Lancé seul par `pwsh scripts/sandbox/prepare.ps1 -Scenario Complements -Launch`
 | 8 | Session d'une version précédente (D88) | reste `CleanSlateTest.Older` mis en quarantaine, signature retirée du manifeste et clé `HKLM\SOFTWARE\CleanSlate\Integrity` supprimée | nouvelle clé créée, restauré à l'identique (SHA-256, dates) |
 | 9 | Application de ce compte seulement (D88) | GIMP installé avec `/CURRENTUSER` (inscrit dans `HKCU`) | désinstallé par CleanSlate, `as_user=true` dans le journal, inscription retirée |
 
+Mesure du 5 nov. 2026 (run `complements-20261105-002432`, commit 36b7d99) : 26 / 26 vérifications automatiques atteintes, cas 6 à 9 compris.
+
 Le script installe ensuite VLC et GIMP depuis les installeurs vérifiés. À faire à la main, dans l'application copiée sur le Bureau du Sandbox : désinstaller un MSI (VLC, § 3) et vérifier à l'étape 2 le pourcentage et l'action ; désinstaller GIMP (désinstalleur `.exe` Inno Setup) et vérifier la liste des processus (EF-21) ; filtrer la page Applications sur « Store ».
 
 ## 7. Mesures réelles dans Windows Sandbox (30 oct. 2026)
