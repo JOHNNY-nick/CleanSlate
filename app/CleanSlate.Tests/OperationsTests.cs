@@ -126,6 +126,44 @@ public sealed partial class OperationsTests
         Assert.Contains("CreateNoWindow = true", File.ReadAllText(Path.Combine(app, "CleanSlate.App", "Services", "Launcher.cs")));
     }
 
+    /// <summary>
+    /// D91: running as administrator, the application never asks the shell to resolve a verb
+    /// through the file associations. The only verb is <c>runas</c>, used by
+    /// <c>App.RestartElevated</c> before CleanSlate has the administrator rights; the
+    /// Properties window is opened by <c>SHObjectProperties</c>.
+    /// </summary>
+    [Fact]
+    public void ElevatedApplication_NeverResolvesAShellVerb()
+    {
+        string app = Path.Combine(Repository(), "app");
+        string sep = Path.DirectorySeparatorChar.ToString();
+        var offenders = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(app, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{sep}obj{sep}") && !f.Contains($"{sep}bin{sep}") && !f.Contains($"{sep}CleanSlate.Tests{sep}")))
+        {
+            string text = File.ReadAllText(file);
+            bool restart = file.EndsWith($"CleanSlate.App{sep}App.xaml.cs", StringComparison.Ordinal);
+            foreach (Match verb in ShellVerb().Matches(text))
+            {
+                if (!(restart && verb.Groups[1].Value == "runas"))
+                {
+                    offenders.Add($"{file}: {verb.Value}");
+                }
+            }
+
+            if (!restart && text.Contains("UseShellExecute = true", StringComparison.Ordinal))
+            {
+                offenders.Add($"{file}: UseShellExecute = true");
+            }
+        }
+
+        Assert.Empty(offenders);
+        Assert.Contains("SHObjectProperties(window", File.ReadAllText(Path.Combine(app, "CleanSlate.App", "Services", "EngineService.cs")));
+    }
+
+    [GeneratedRegex("Verb\\s*=\\s*\"([^\"]*)\"")]
+    private static partial Regex ShellVerb();
+
     private static DiskMapNode Folder(string path, ulong size, bool? hasFolders, params DiskMapNode[] children) =>
         new(Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } n ? n : path, path, size, 1, StorageCategory.UserFiles, children, false, true, hasFolders);
 

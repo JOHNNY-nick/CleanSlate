@@ -8,7 +8,7 @@
 - **Signature (D89)** : 2FA du compte GitHub activée ; section « Code signing policy » dans le README ; installeur construit sur GitHub par `release.yml` (run 42014426074, SHA-256 `6A9B9A77…EB4574`, mêmes 552 fichiers que l'installeur du PC). Constats du livre L-01 à L-07 corrigés (`ea92177`, `0214ff0`).
 - **Scénario Sandbox « Installer »** avec l'installeur construit sur GitHub : 7 / 7 le 5 nov. 2026 (run `installer-20261105-112409`).
 - **Demande SignPath Foundation** : refusée le 5 nov. 2026 pour manque de visibilité publique (D89) ; à renouveler quand le projet sera plus connu. Constats du livre L-08 et L-09 corrigés (`db28d60`, `f7addb6`).
-- **Audit de sécurité (B1, avancé)** : fait le 5 nov. 2026, plan de renforcement accepté par le porteur ; 1 / 7 mesure faite (chemins de Windows indépendants de l'environnement, D90, `a900f40`) ; Claude enchaîne les mesures suivantes à chaque « suite ».
+- **Audit de sécurité (B1, avancé)** : fait le 5 nov. 2026, plan de renforcement accepté par le porteur ; 2 / 7 mesures faites (chemins de Windows, D90, `a900f40` ; fenêtre Propriétés, D91) ; Claude enchaîne les mesures suivantes à chaque « suite ».
 - **Prochaine action** : le porteur attend la réponse de SignPath (et celle de Microsoft) et la transmet à Claude ; en attendant, il installe la bêta sur son PC et restaure une session de l'Historique.
 - **Qui la fait** : le porteur.
 - **Réponse attendue** : le texte de la réponse de SignPath (acceptation, questions ou refus).

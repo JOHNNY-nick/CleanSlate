@@ -237,8 +237,28 @@ public sealed class EngineService : IEngineService, IManagerService, IDisposable
     }
 
     /// <inheritdoc/>
-    public void ShowProperties(string path) =>
-        Launcher.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true, Verb = "properties" });
+    /// <remarks>
+    /// The Properties window of Windows itself (<c>SHObjectProperties</c>): no verb is looked
+    /// up in the file associations, so nothing but that window opens, with the rights of
+    /// CleanSlate.
+    /// </remarks>
+    public void ShowProperties(string path)
+    {
+        IntPtr window = WinRT.Interop.WindowNative.GetWindowHandle(App.GetService<MainWindow>());
+        if (!SHObjectProperties(window, ShopFilePath, path, null))
+        {
+            throw new IOException($"Propriétés indisponibles : {path}");
+        }
+    }
+
+    // SHOP_FILEPATH: the object is a file or folder path.
+    private const uint ShopFilePath = 0x2;
+
+#pragma warning disable SYSLIB1054 // LibraryImport needs unsafe code (as in CrashHandler).
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SHObjectProperties(IntPtr hwnd, uint shopObjectType, string pszObjectName, string? pszPropertyPage);
+#pragma warning restore SYSLIB1054
 
     // One long operation at a time in the engine: the others wait their turn (D82).
     private Task<T> InTurn<T>(Func<Task<T>> call, CancellationToken cancellationToken) => _turn.RunAsync(call, cancellationToken);
