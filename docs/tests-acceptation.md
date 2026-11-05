@@ -303,4 +303,4 @@ Vérifications à la main, faites par le porteur. Constats corrigés en D67 :
 
 **Constat majeur** : l'élément coché était `C:\Program Files\WindowsPowerShell`, un dossier de Windows proposé comme reste. La liste noire est renforcée, ainsi qu'une vingtaine d'autres éléments de Windows proposés par l'analyse d'un Windows neuf (D67). Microsoft Edge : son désinstalleur déclaré est absent de l'image du Sandbox (`NO_UNINSTALLER`).
 
-À relancer : scénario Installer.
+Scénario Installer relancé le 5 nov. 2026 (run `installer-20261105-112409`, commit b667d1d) avec l'installeur construit sur GitHub (`release.yml`, SHA-256 `6A9B9A77…EB4574`) : installation, raccourci, entrée de Paramètres, puis désinstallation (dossier et entrée retirés, réglages de l'utilisateur conservés, D43) : 7 / 7 atteints. La fin de la partie manuelle se confirme par une boîte de dialogue au premier plan : la console du script n'est pas visible dans le Sandbox.

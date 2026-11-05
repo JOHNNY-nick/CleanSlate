@@ -6,9 +6,10 @@
 - **Scénario Sandbox « Compléments »** : 26 / 26 vérifications automatiques le 5 nov. 2026 (run `complements-20261105-002432`, commit 36b7d99), dont les cas D88 6 à 9 ; installeur publié sur `v0.1.0-beta` : `CleanSlate-0.1.0-beta-setup.exe`, SHA-256 `115FE7DF…148147F`.
 - **Soumission à Microsoft** : installeur de la bêta soumis le 5 nov. 2026, en attente de réponse.
 - **Signature (D89)** : 2FA du compte GitHub activée ; section « Code signing policy » dans le README ; installeur construit sur GitHub par `release.yml` (run 42014426074, SHA-256 `6A9B9A77…EB4574`, mêmes 552 fichiers que l'installeur du PC). Constats du livre L-01 à L-07 corrigés (`ea92177`, `0214ff0`).
-- **Prochaine action** : le porteur passe le scénario Sandbox « Installer » avec l'installeur construit sur GitHub (`pwsh scripts/sandbox/prepare.ps1 -Scenario Installer -Launch`), puis dépose la demande sur https://signpath.org/apply.
+- **Scénario Sandbox « Installer »** avec l'installeur construit sur GitHub : 7 / 7 le 5 nov. 2026 (run `installer-20261105-112409`).
+- **Prochaine action** : le porteur dépose la demande sur https://signpath.org/apply.
 - **Qui la fait** : le porteur.
-- **Réponse attendue** : « fait » quand le rapport du Sandbox s'affiche (désinstallation à la main comprise), puis « demande envoyée ».
+- **Réponse attendue** : « demande envoyée », puis la réponse de SignPath.
 - **Reste du Gestionnaire** : fait le 4 nov. 2026 ; limites dans `docs/securite/audit.md` § 4.
 - **File des tâches** : après acceptation de SignPath, étape de signature dans `release.yml`, puis bêta signée sur `v0.1.0-beta`.
 
