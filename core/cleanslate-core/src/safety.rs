@@ -1095,7 +1095,7 @@ mod tests {
     }
 
     /// The engine reads no environment variable to find a folder or a program: only `PATH`
-    /// (its folders can only add protections) and the log folder of the Sandbox tests.
+    /// (its folders can only add protections).
     #[test]
     fn windows_paths_never_come_from_the_environment() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -1113,8 +1113,7 @@ mod tests {
                 None => &text,
             };
             for line in code.lines().filter(|l| l.contains("env::var")) {
-                let allowed = (path.ends_with("safety.rs") && line.contains(r#"var_os("PATH")"#))
-                    || (path.ends_with("logging.rs") && line.contains("DIRECTORY_VARIABLE"));
+                let allowed = path.ends_with("safety.rs") && line.contains(r#"var_os("PATH")"#);
                 if !allowed {
                     offenders.push(format!("{}: {}", path.display(), line.trim()));
                 }

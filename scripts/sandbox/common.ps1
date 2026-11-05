@@ -52,16 +52,18 @@ function Write-Log([string] $text, [string] $color) {
 $DumpedPrograms = 'CleanSlate.App.exe', 'cleanslate-cli.exe', 'cleanslate-cli-sandbox.exe'
 
 # Traces written straight into the shared results folder, so that they survive the Sandbox:
-# - CleanSlate's logs (engine and crash log of the interface): CLEANSLATE_LOG_DIR, for this
-#   process and for the user, so that CleanSlate started from the Desktop gets it too;
+# - CleanSlate's logs (engine and crash log of the interface): value LogDirectory of
+#   HKLM:\SOFTWARE\CleanSlate (D93), read by every CleanSlate process of the Sandbox;
 # - crash dumps of CleanSlate and of the CLI (WER LocalDumps, full dumps, 5 at most).
 function Enable-Traces {
     $logs = "$($Run.Out)\cleanslate-logs"
     $dumps = "$($Run.Out)\dumps"
     New-Item -ItemType Directory -Force $logs, $dumps | Out-Null
-    $env:CLEANSLATE_LOG_DIR = $logs
-    [Environment]::SetEnvironmentVariable('CLEANSLATE_LOG_DIR', $logs, 'User')
-    Write-Log "Journaux de CleanSlate : $logs (CLEANSLATE_LOG_DIR)"
+    $settings = 'HKLM:\SOFTWARE\CleanSlate'
+    # Test-Path first: New-Item -Force would recreate an existing key without its values.
+    if (-not (Test-Path $settings)) { New-Item -Path $settings | Out-Null }
+    Set-ItemProperty -Path $settings -Name LogDirectory -Value $logs
+    Write-Log "Journaux de CleanSlate : $logs (LogDirectory de $settings)"
     try {
         Set-Service WerSvc -StartupType Manual -ErrorAction Stop
         Start-Service WerSvc -ErrorAction Stop

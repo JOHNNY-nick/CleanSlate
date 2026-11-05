@@ -15,15 +15,27 @@ pub const KEPT_FILES: usize = 7;
 
 static INSTALLED: OnceLock<()> = OnceLock::new();
 
-/// Environment variable that moves the log folder (absolute path only). The
-/// Windows Sandbox tests point it at their shared results folder, so that the
-/// logs survive the Sandbox (D56); the interface's crash log follows it too.
-pub const DIRECTORY_VARIABLE: &str = "CLEANSLATE_LOG_DIR";
+/// Key of the machine (`HKLM`) that holds [`DIRECTORY_VALUE`].
+pub const SETTINGS_KEY: &str = r"SOFTWARE\CleanSlate";
 
-/// Log folder: the value of [`DIRECTORY_VARIABLE`] when it is an absolute
-/// path, else `default`.
+/// Value of `HKLM\SOFTWARE\CleanSlate` that moves the log folder (absolute path
+/// only). Only an administrator can write it (D93). The Windows Sandbox tests
+/// point it at their shared results folder, so that the logs survive the
+/// Sandbox (D56); the interface's crash log follows it too.
+pub const DIRECTORY_VALUE: &str = "LogDirectory";
+
+/// Log folder: [`DIRECTORY_VALUE`] when it is an absolute path, else `default`.
 pub fn log_dir(default: &Path) -> PathBuf {
-    choose_dir(std::env::var_os(DIRECTORY_VARIABLE), default)
+    choose_dir(machine_directory(), default)
+}
+
+/// [`DIRECTORY_VALUE`] of the machine, read-only.
+fn machine_directory() -> Option<OsString> {
+    use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_WOW64_64KEY};
+    winreg::RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey_with_flags(SETTINGS_KEY, KEY_QUERY_VALUE | KEY_WOW64_64KEY)
+        .and_then(|key| key.get_value::<OsString, _>(DIRECTORY_VALUE))
+        .ok()
 }
 
 fn choose_dir(variable: Option<OsString>, default: &Path) -> PathBuf {
@@ -93,5 +105,29 @@ mod tests {
             choose_dir(Some(results.into()), default),
             PathBuf::from(results)
         );
+    }
+
+    /// D93: the Sandbox scripts and the interface name the same key and value.
+    #[test]
+    fn the_sandbox_and_the_interface_use_the_value_of_the_machine() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(r"..\..");
+        let script = std::fs::read_to_string(root.join(r"scripts\sandbox\common.ps1")).unwrap();
+        assert!(
+            script.contains(&format!(r"HKLM:\{SETTINGS_KEY}")),
+            "common.ps1"
+        );
+        assert!(script.contains(DIRECTORY_VALUE), "common.ps1");
+        assert!(!script.contains("CLEANSLATE_LOG_DIR"), "common.ps1");
+        let crash =
+            std::fs::read_to_string(root.join(r"app\CleanSlate.Presentation\CrashLog.cs")).unwrap();
+        assert!(
+            crash.contains(&format!(r#"@"{SETTINGS_KEY}""#)),
+            "CrashLog.cs"
+        );
+        assert!(
+            crash.contains(&format!(r#""{DIRECTORY_VALUE}""#)),
+            "CrashLog.cs"
+        );
+        assert!(!crash.contains("GetEnvironmentVariable"), "CrashLog.cs");
     }
 }

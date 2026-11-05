@@ -6,13 +6,17 @@ namespace CleanSlate.Presentation;
 /// <summary>
 /// Log of the unexpected errors of the interface: <c>crash.yyyyMMdd.log</c> next to the
 /// engine's logs (<c>%LOCALAPPDATA%\CleanSlate\logs</c>, ENF-10), or in the folder named
-/// by <c>CLEANSLATE_LOG_DIR</c> (the Sandbox tests write it to their shared results, D56).
+/// by the value <c>LogDirectory</c> of <c>HKLM\SOFTWARE\CleanSlate</c>, which only an
+/// administrator can write (D93; the Sandbox tests point it at their shared results, D56).
 /// Each entry holds the full exception: type, message, stack trace, inner exceptions.
 /// </summary>
 public static class CrashLog
 {
-    /// <summary>Environment variable that moves the log folder (absolute path only).</summary>
-    public const string DirectoryVariable = "CLEANSLATE_LOG_DIR";
+    /// <summary>Key of the machine that holds <see cref="DirectoryValue"/> (as the engine).</summary>
+    public const string SettingsKey = @"SOFTWARE\CleanSlate";
+
+    /// <summary>Value that moves the log folder (absolute path only).</summary>
+    public const string DirectoryValue = "LogDirectory";
 
     /// <summary>Log folder: <paramref name="overrideDirectory"/> when it is an absolute path, else the default.</summary>
     public static string LogDirectory(string? overrideDirectory, string localAppData) =>
@@ -22,8 +26,28 @@ public static class CrashLog
 
     /// <summary>Log folder of this process.</summary>
     public static string CurrentDirectory() => LogDirectory(
-        Environment.GetEnvironmentVariable(DirectoryVariable),
+        MachineDirectory(),
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+
+    // The value of the machine, read-only; null when absent or unreadable.
+    private static string? MachineDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        try
+        {
+            using var machine = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64);
+            using var key = machine.OpenSubKey(SettingsKey);
+            return key?.GetValue(DirectoryValue) as string;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>One log entry.</summary>
     public static string Format(Exception exception, string source, DateTimeOffset when, string? detail = null)
