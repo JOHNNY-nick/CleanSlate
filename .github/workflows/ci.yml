@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: C:\cs
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Copy the repository to C:\cs
         working-directory: ${{ github.workspace }}
@@ -35,26 +35,32 @@ jobs:
           exit 0
 
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-11-06
         with:
+          toolchain: stable
           components: rustfmt, clippy, llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: C:\cs\core -> target
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2
+      - name: Install cargo-llvm-cov and cargo-deny
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov,cargo-deny
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: 8.0.x
 
       - name: cargo fmt
         working-directory: C:\cs\core
         run: cargo fmt --all --check
+
+      # Supply chain (B1, D96): RustSec advisories, licenses, sources (core/deny.toml).
+      - name: cargo deny
+        working-directory: C:\cs\core
+        run: cargo deny check
 
       - name: cargo clippy
         working-directory: C:\cs\core
@@ -135,7 +141,7 @@ jobs:
         run: dotnet test app/CleanSlate.sln -c Release -p:Platform=x64 --no-build
 
       - name: Upload application
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: CleanSlate-win-x64
           path: C:\cs\app\CleanSlate.App\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\

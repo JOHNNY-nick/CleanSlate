@@ -1,0 +1,29 @@
+# cargo-deny: checks of the supply chain of the engine (B1, D96), run by the CI.
+# cargo deny --manifest-path core/Cargo.toml check
+
+[graph]
+# Only the crates compiled for CleanSlate's single target.
+targets = ["x86_64-pc-windows-msvc"]
+all-features = true
+
+[advisories]
+# Every RustSec advisory (vulnerability, unmaintained, yanked) fails the check.
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Licenses compatible with the MIT license of CleanSlate, as found in Cargo.lock.
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "Unlicense", "Zlib"]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace crates refer to each other by path.
+allow-wildcard-paths = true
+
+[sources]
+# crates.io only: no other registry, no Git dependency.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
