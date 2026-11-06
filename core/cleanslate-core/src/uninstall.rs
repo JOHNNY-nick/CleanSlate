@@ -368,6 +368,14 @@ impl RestorePoints for SystemRestorePoints {
     }
 }
 
+/// D95: the token of the shell starts the uninstaller of an application of this account
+/// only if it belongs to the account CleanSlate runs for and, when Windows gives that
+/// account a token without the administrator rights (UAC on, `split_token`), it is that one.
+/// With UAC off the account has no other token: the shell's is the one Windows would use.
+pub fn shell_token_allowed(same_user: bool, shell_elevated: bool, split_token: bool) -> bool {
+    same_user && !(shell_elevated && split_token)
+}
+
 /// `true` if `path` exists (the uninstaller program must exist).
 pub fn program_exists(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok()
@@ -379,10 +387,12 @@ mod win {
     use std::time::{Duration, Instant};
 
     use windows::core::{PCWSTR, PWSTR};
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Foundation::{CloseHandle, E_ACCESSDENIED, HANDLE};
     use windows::Win32::Security::{
-        DuplicateTokenEx, SecurityImpersonation, TokenPrimary, TOKEN_ADJUST_DEFAULT,
-        TOKEN_ADJUST_SESSIONID, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE, TOKEN_QUERY,
+        DuplicateTokenEx, EqualSid, GetTokenInformation, SecurityImpersonation, TokenElevation,
+        TokenElevationType, TokenElevationTypeFull, TokenPrimary, TokenUser, TOKEN_ADJUST_DEFAULT,
+        TOKEN_ADJUST_SESSIONID, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE, TOKEN_ELEVATION,
+        TOKEN_ELEVATION_TYPE, TOKEN_QUERY, TOKEN_USER,
     };
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation,
@@ -394,9 +404,10 @@ mod win {
         END_SYSTEM_CHANGE, RESTOREPOINTINFOW, STATEMGRSTATUS,
     };
     use windows::Win32::System::Threading::{
-        CreateProcessW, CreateProcessWithTokenW, GetExitCodeProcess, OpenProcess, OpenProcessToken,
-        ResumeThread, WaitForSingleObject, CREATE_PROCESS_LOGON_FLAGS, CREATE_SUSPENDED,
-        PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
+        CreateProcessW, CreateProcessWithTokenW, GetCurrentProcess, GetExitCodeProcess,
+        OpenProcess, OpenProcessToken, ResumeThread, WaitForSingleObject,
+        CREATE_PROCESS_LOGON_FLAGS, CREATE_SUSPENDED, PROCESS_INFORMATION,
+        PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
 
@@ -478,8 +489,79 @@ mod win {
                 &mut primary,
             );
             let _ = CloseHandle(token);
-            duplicated.map(|()| primary)
+            duplicated?;
+            let allowed = token_facts(primary).map(|(same_user, elevated, split)| {
+                super::shell_token_allowed(same_user, elevated, split)
+            });
+            match allowed {
+                Ok(true) => Ok(primary),
+                refused => {
+                    let _ = CloseHandle(primary);
+                    refused.and(Err(windows::core::Error::from_hresult(E_ACCESSDENIED)))
+                }
+            }
         }
+    }
+
+    // TOKEN_USER of `token`, in a buffer aligned for the pointer it holds.
+    fn token_user(token: HANDLE) -> windows::core::Result<Vec<u64>> {
+        let mut len = 0u32;
+        // SAFETY: a size query (no buffer), then a buffer of at least `len` bytes, aligned
+        // for TOKEN_USER; `token` is a live handle opened with TOKEN_QUERY.
+        unsafe {
+            let _ = GetTokenInformation(token, TokenUser, None, 0, &mut len);
+            let mut buffer = vec![0u64; (len as usize).div_ceil(8)];
+            GetTokenInformation(
+                token,
+                TokenUser,
+                Some(buffer.as_mut_ptr().cast()),
+                (buffer.len() * 8) as u32,
+                &mut len,
+            )?;
+            Ok(buffer)
+        }
+    }
+
+    // (same user as this process, `token` elevated, this process has a split token).
+    pub(super) fn token_facts(token: HANDLE) -> windows::core::Result<(bool, bool, bool)> {
+        let mut own = HANDLE::default();
+        // SAFETY: the pseudo-handle of this process needs no closing; `own` is closed below.
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut own) }?;
+        let facts = (|| {
+            let mut elevation = TOKEN_ELEVATION::default();
+            let mut kind = TOKEN_ELEVATION_TYPE::default();
+            let mut len = 0u32;
+            // SAFETY: each output is a local of the exact size given; both tokens are live
+            // with TOKEN_QUERY; the SIDs point into the buffers, alive during EqualSid.
+            unsafe {
+                GetTokenInformation(
+                    token,
+                    TokenElevation,
+                    Some((&mut elevation as *mut TOKEN_ELEVATION).cast()),
+                    std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+                    &mut len,
+                )?;
+                GetTokenInformation(
+                    own,
+                    TokenElevationType,
+                    Some((&mut kind as *mut TOKEN_ELEVATION_TYPE).cast()),
+                    std::mem::size_of::<TOKEN_ELEVATION_TYPE>() as u32,
+                    &mut len,
+                )?;
+                let shell = token_user(token)?;
+                let me = token_user(own)?;
+                let shell_sid = (*shell.as_ptr().cast::<TOKEN_USER>()).User.Sid;
+                let my_sid = (*me.as_ptr().cast::<TOKEN_USER>()).User.Sid;
+                Ok((
+                    EqualSid(shell_sid, my_sid).is_ok(),
+                    elevation.TokenIsElevated != 0,
+                    kind == TokenElevationTypeFull,
+                ))
+            }
+        })();
+        // SAFETY: opened above, closed once.
+        let _ = unsafe { CloseHandle(own) };
+        facts
     }
 
     fn wide(text: &std::ffi::OsStr) -> Vec<u16> {
@@ -650,6 +732,46 @@ mod tests {
 
     fn sys(name: &str) -> PathBuf {
         system32().join(name)
+    }
+
+    /// D95: another account is always refused; an elevated shell only when the account
+    /// also has a token without the administrator rights (UAC on).
+    #[test]
+    fn the_shell_token_must_be_the_users_own_limited_token() {
+        // (same user, shell elevated, split token) -> allowed
+        let cases = [
+            ((true, false, true), true),
+            ((true, false, false), true),
+            ((true, true, false), true), // UAC off: the account has no other token
+            ((true, true, true), false),
+            ((false, false, true), false),
+            ((false, false, false), false),
+            ((false, true, true), false),
+            ((false, true, false), false),
+        ];
+        for ((same, elevated, split), expected) in cases {
+            assert_eq!(
+                shell_token_allowed(same, elevated, split),
+                expected,
+                "{same} {elevated} {split}"
+            );
+        }
+    }
+
+    /// Read-only: the token of this test process is of the user of this process.
+    #[test]
+    fn the_token_of_this_process_is_of_its_own_user() {
+        use windows::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows::Win32::Security::TOKEN_QUERY;
+        use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+        let mut token = HANDLE::default();
+        // SAFETY: the pseudo-handle of this process; `token` is a local, closed below.
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }.unwrap();
+        let facts = win::token_facts(token);
+        // SAFETY: opened above, closed once.
+        unsafe { CloseHandle(token) }.unwrap();
+        let (same_user, _, _) = facts.unwrap();
+        assert!(same_user);
     }
 
     fn cmd(program: impl Into<PathBuf>, args: &[&str]) -> Command {
