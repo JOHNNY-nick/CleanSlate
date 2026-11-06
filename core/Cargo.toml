@@ -10,7 +10,6 @@ publish = false
 
 [workspace.dependencies]
 cleanslate-core = { path = "cleanslate-core" }
-anyhow = "1.0.104"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 csbindgen = "1.9.8"
 serde = { version = "1.0.229", features = ["derive"] }

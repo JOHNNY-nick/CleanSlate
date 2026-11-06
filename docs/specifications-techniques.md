@@ -118,7 +118,7 @@ Toute la logique métier vit dans `cleanslate-core`, une bibliothèque Rust sans
 | `serde` + `serde_json` | Sérialisation des échanges avec C# |
 | `rusqlite` (feature `bundled`) | Historique et réglages |
 | `strsim` | Similarité de noms (Jaro-Winkler) |
-| `thiserror` / `anyhow` | Erreurs typées dans le core, contexte dans la CLI |
+| `thiserror` | Erreurs typées du moteur (`CoreError`) ; la CLI les affiche elle-même |
 | `tracing` + `tracing-appender` | Journalisation dans `%LOCALAPPDATA%\CleanSlate\logs`, rotation quotidienne, 7 derniers fichiers conservés (ENF-10) |
 | `chrono`, `uuid` | Dates et identifiants de session |
 | `csbindgen` (build) | Génération des déclarations C# |
